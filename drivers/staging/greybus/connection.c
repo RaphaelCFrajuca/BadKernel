@@ -335,6 +335,27 @@ void gb_connection_destroy(struct gb_connection *connection)
 	device_unregister(&connection->dev);
 }
 
+static void gb_connection_disconnected(struct gb_connection *connection)
+{
+	struct gb_control *control;
+	int cport_id = connection->intf_cport_id;
+	int ret;
+
+	/*
+	 * Inform Interface about In-active CPorts. We don't need to do this
+	 * operation for control cport.
+	 */
+	if (cport_id == GB_CONTROL_CPORT_ID)
+		return;
+
+	control = connection->bundle->intf->control;
+
+	ret = gb_control_disconnected_operation(control, cport_id);
+	if (ret)
+		dev_warn(&connection->dev,
+			"Failed to disconnect CPort-%d (%d)\n", cport_id, ret);
+}
+
 int gb_connection_init(struct gb_connection *connection)
 {
 	int cport_id = connection->intf_cport_id;
@@ -372,15 +393,18 @@ int gb_connection_init(struct gb_connection *connection)
 		spin_lock_irq(&connection->lock);
 		connection->state = GB_CONNECTION_STATE_ERROR;
 		spin_unlock_irq(&connection->lock);
+		goto disconnect;
 	}
 
+	return 0;
+
+disconnect:
+	gb_connection_disconnected(connection);
 	return ret;
 }
 
 void gb_connection_exit(struct gb_connection *connection)
 {
-	int cport_id = connection->intf_cport_id;
-
 	if (!connection->protocol) {
 		dev_warn(&connection->dev, "exit without protocol.\n");
 		return;
