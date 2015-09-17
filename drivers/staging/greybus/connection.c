@@ -368,10 +368,13 @@ gb_connection_svc_connection_destroy(struct gb_connection *connection)
 				  connection->intf_cport_id);
 }
 
-static void gb_connection_disconnected(struct gb_connection *connection)
+/* Inform Interface about inactive CPorts */
+static void
+gb_connection_control_disconnected(struct gb_connection *connection)
 {
+	struct gb_protocol *protocol = connection->protocol;
 	struct gb_control *control;
-	int cport_id = connection->intf_cport_id;
+	u16 cport_id = connection->intf_cport_id;
 	int ret;
 
 	/*
@@ -384,9 +387,10 @@ static void gb_connection_disconnected(struct gb_connection *connection)
 	control = connection->bundle->intf->control;
 
 	ret = gb_control_disconnected_operation(control, cport_id);
-	if (ret)
+	if (ret) {
 		dev_warn(&connection->dev,
-			"Failed to disconnect CPort-%d (%d)\n", cport_id, ret);
+				"failed to disconnect cport: %d\n", ret);
+	}
 }
 
 static int gb_connection_init(struct gb_connection *connection)
@@ -442,7 +446,7 @@ err_disconnect:
 	connection->state = GB_CONNECTION_STATE_ERROR;
 	spin_unlock_irq(&connection->lock);
 
-	gb_connection_disconnected(connection);
+	gb_connection_control_disconnected(connection);
 err_svc_destroy:
 	gb_connection_svc_connection_destroy(connection);
 
@@ -465,6 +469,7 @@ static void gb_connection_exit(struct gb_connection *connection)
 	gb_connection_cancel_operations(connection, -ESHUTDOWN);
 
 	connection->protocol->connection_exit(connection);
+<<<<<<< HEAD
         gb_connection_disconnected(connection);
         gb_connection_svc_connection_destroy(connection);
 
@@ -483,6 +488,10 @@ static void gb_connection_exit(struct gb_connection *connection)
 				 "Failed to disconnect CPort-%d (%d)\n",
 				 cport_id, ret);
 	}
+=======
+	gb_connection_control_disconnected(connection);
+	gb_connection_svc_connection_destroy(connection);
+>>>>>>> 72d748226379... greybus: connection: clean up control-disconnected helper
 }
 
 /*
