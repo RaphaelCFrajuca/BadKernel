@@ -13275,7 +13275,9 @@ static int intel_atomic_commit(struct drm_device *dev,
 		if (!modeset)
 			intel_pre_plane_update(intel_crtc);
 
-		drm_atomic_helper_commit_planes_on_crtc(crtc_state);
+		if (crtc->state->active &&
+		    (crtc->state->planes_changed || update_pipe))
+			drm_atomic_helper_commit_planes_on_crtc(crtc_state);
 
 		if (put_domains)
 			modeset_put_power_domains(dev_priv, put_domains);
