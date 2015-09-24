@@ -2280,7 +2280,7 @@ static void ilk_compute_wm_config(struct drm_device *dev,
 
 	/* Compute the currently _active_ config */
 	for_each_intel_crtc(dev, intel_crtc) {
-		const struct intel_pipe_wm *wm = &intel_crtc->wm.active;
+		const struct intel_pipe_wm *wm = &intel_crtc->wm.active.ilk;
 
 		if (!wm->pipe_enabled)
 			continue;
@@ -2377,7 +2377,9 @@ static void ilk_merge_wm_level(struct drm_device *dev,
 	ret_wm->enable = true;
 
 	for_each_intel_crtc(dev, intel_crtc) {
-		const struct intel_pipe_wm *active = &intel_crtc->wm.active;
+		const struct intel_crtc_state *cstate =
+			to_intel_crtc_state(intel_crtc->base.state);
+		const struct intel_pipe_wm *active = &cstate->wm.optimal.ilk;
 		const struct intel_wm_level *wm = &active->wm[level];
 
 		if (!active->pipe_enabled)
@@ -2525,14 +2527,15 @@ static void ilk_compute_wm_results(struct drm_device *dev,
 
 	/* LP0 register values */
 	for_each_intel_crtc(dev, intel_crtc) {
+		const struct intel_crtc_state *cstate =
+			to_intel_crtc_state(intel_crtc->base.state);
 		enum pipe pipe = intel_crtc->pipe;
-		const struct intel_wm_level *r =
-			&intel_crtc->wm.active.wm[0];
+		const struct intel_wm_level *r = &cstate->wm.optimal.ilk.wm[0];
 
 		if (WARN_ON(!r->enable))
 			continue;
 
-		results->wm_linetime[pipe] = intel_crtc->wm.active.linetime;
+		results->wm_linetime[pipe] = cstate->wm.optimal.ilk.linetime;
 
 		results->wm_pipe[pipe] =
 			(r->pri_val << WM0_PIPE_PLANE_SHIFT) |
@@ -3522,10 +3525,10 @@ static bool skl_update_pipe_wm(struct drm_crtc *crtc,
 	skl_allocate_pipe_ddb(cstate, config, ddb);
 	skl_compute_pipe_wm(cstate, ddb, pipe_wm);
 
-	if (!memcmp(&intel_crtc->wm.skl_active, pipe_wm, sizeof(*pipe_wm)))
+	if (!memcmp(&intel_crtc->wm.active.skl, pipe_wm, sizeof(*pipe_wm)))
 		return false;
 
-	intel_crtc->wm.skl_active = *pipe_wm;
+	intel_crtc->wm.active.skl = *pipe_wm;
 
 	return true;
 }
@@ -3603,7 +3606,8 @@ static void skl_update_wm(struct drm_crtc *crtc)
 	struct drm_device *dev = crtc->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct skl_wm_values *results = &dev_priv->wm.skl_results;
-	struct skl_pipe_wm pipe_wm = {};
+	struct intel_crtc_state *cstate = to_intel_crtc_state(crtc->state);
+	struct skl_pipe_wm *pipe_wm = &cstate->wm.optimal.skl;
 	struct intel_wm_config config = {};
 
 
@@ -3614,10 +3618,10 @@ static void skl_update_wm(struct drm_crtc *crtc)
 
 	skl_compute_wm_global_parameters(dev, &config);
 
-	if (!skl_update_pipe_wm(crtc, &config, &results->ddb, &pipe_wm))
+	if (!skl_update_pipe_wm(crtc, &config, &results->ddb, pipe_wm))
 		return;
 
-	skl_compute_wm_results(dev, &pipe_wm, results, intel_crtc);
+	skl_compute_wm_results(dev, pipe_wm, results, intel_crtc);
 	results->dirty[intel_crtc->pipe] = true;
 
 	skl_update_other_pipe_wm(dev, crtc, &config, results);
@@ -3682,6 +3686,11 @@ ilk_update_sprite_wm(struct drm_plane *plane,
 {
 	struct drm_device *dev = plane->dev;
 	struct intel_plane *intel_plane = to_intel_plane(plane);
+	struct drm_i915_private *dev_priv = to_i915(crtc->dev);
+	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+	struct intel_crtc_state *cstate = to_intel_crtc_state(crtc->state);
+
+	WARN_ON(cstate->base.active != intel_crtc->active);
 
 	/*
 	 * IVB workaround: must disable low power watermarks for at least
@@ -3690,8 +3699,18 @@ ilk_update_sprite_wm(struct drm_plane *plane,
 	 *
 	 * WaCxSRDisabledForSpriteScaling:ivb
 	 */
-	if (IS_IVYBRIDGE(dev) && scaled && ilk_disable_lp_wm(dev))
-		intel_wait_for_vblank(dev, intel_plane->pipe);
+	if (cstate->disable_lp_wm) {
+		ilk_disable_lp_wm(crtc->dev);
+		intel_wait_for_vblank(crtc->dev, intel_crtc->pipe);
+	}
+
+	intel_compute_pipe_wm(cstate, &cstate->wm.optimal.ilk);
+
+	if (!memcmp(&intel_crtc->wm.active.ilk,
+		    &cstate->wm.optimal.ilk,
+		    sizeof(cstate->wm.optimal.ilk)));
+
+	intel_crtc->wm.active.ilk = cstate->wm.optimal.ilk;
 
 	ilk_update_wm(crtc);
 }
@@ -3746,7 +3765,8 @@ static void skl_pipe_wm_get_hw_state(struct drm_crtc *crtc)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct skl_wm_values *hw = &dev_priv->wm.skl_hw;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
-	struct skl_pipe_wm *active = &intel_crtc->wm.skl_active;
+	struct intel_crtc_state *cstate = to_intel_crtc_state(crtc->state);
+	struct skl_pipe_wm *active = &cstate->wm.optimal.skl;
 	enum pipe pipe = intel_crtc->pipe;
 	int level, i, max_level;
 	uint32_t temp;
@@ -3790,6 +3810,8 @@ static void skl_pipe_wm_get_hw_state(struct drm_crtc *crtc)
 
 	temp = hw->plane_trans[pipe][PLANE_CURSOR];
 	skl_pipe_wm_active_state(temp, active, true, true, i, 0);
+
+	intel_crtc->wm.active.skl = *active;
 }
 
 void skl_wm_get_hw_state(struct drm_device *dev)
@@ -3809,7 +3831,8 @@ static void ilk_pipe_wm_get_hw_state(struct drm_crtc *crtc)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct ilk_wm_values *hw = &dev_priv->wm.hw;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
-	struct intel_pipe_wm *active = &intel_crtc->wm.active;
+	struct intel_crtc_state *cstate = to_intel_crtc_state(crtc->state);
+	struct intel_pipe_wm *active = &cstate->wm.optimal.ilk;
 	enum pipe pipe = intel_crtc->pipe;
 	static const unsigned int wm0_pipe_reg[] = {
 		[PIPE_A] = WM0_PIPEA_ILK,
@@ -3850,6 +3873,8 @@ static void ilk_pipe_wm_get_hw_state(struct drm_crtc *crtc)
 		for (level = 0; level <= max_level; level++)
 			active->wm[level].enable = true;
 	}
+
+	intel_crtc->wm.active.ilk = *active;
 }
 
 #define _FW_WM(value, plane) \
