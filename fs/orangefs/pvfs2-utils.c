@@ -299,7 +299,7 @@ static inline int copy_attributes_from_inode(struct inode *inode,
 		attrs->mask |= PVFS_ATTR_SYS_ATIME;
 		if (iattr->ia_valid & ATTR_ATIME_SET) {
 			attrs->atime =
-			    pvfs2_convert_time_field((void *)&iattr->ia_atime);
+			    pvfs2_convert_time_field(&iattr->ia_atime);
 			attrs->mask |= PVFS_ATTR_SYS_ATIME_SET;
 		}
 	}
@@ -307,7 +307,7 @@ static inline int copy_attributes_from_inode(struct inode *inode,
 		attrs->mask |= PVFS_ATTR_SYS_MTIME;
 		if (iattr->ia_valid & ATTR_MTIME_SET) {
 			attrs->mtime =
-			    pvfs2_convert_time_field((void *)&iattr->ia_mtime);
+			    pvfs2_convert_time_field(&iattr->ia_mtime);
 			attrs->mask |= PVFS_ATTR_SYS_MTIME_SET;
 		}
 	}
