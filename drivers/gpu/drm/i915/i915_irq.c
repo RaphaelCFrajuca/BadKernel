@@ -1273,6 +1273,16 @@ static void snb_gt_irq_handler(struct drm_device *dev,
 		ivybridge_parity_error_irq_handler(dev, gt_iir);
 }
 
+static __always_inline void
+		gen8_cs_irq_handler(struct intel_engine_cs *ring, u32 iir,
+				    int test_shift)
+{
+	if (iir & (GT_RENDER_USER_INTERRUPT << test_shift))
+		notify_ring(ring);
+	if (iir & (GT_CONTEXT_SWITCH_INTERRUPT << test_shift))
+		intel_lrc_irq_handler(ring);
+}
+
 static irqreturn_t gen8_gt_irq_handler(struct drm_i915_private *dev_priv,
 				       u32 master_ctl)
 {
@@ -1283,14 +1293,13 @@ static irqreturn_t gen8_gt_irq_handler(struct drm_i915_private *dev_priv,
 		if (tmp) {
 			I915_WRITE_FW(GEN8_GT_IIR(0), tmp);
 			ret = IRQ_HANDLED;
-
 			if (tmp & (GT_CONTEXT_SWITCH_INTERRUPT << GEN8_RCS_IRQ_SHIFT))
-				intel_lrc_irq_handler(&dev_priv->ring[RCS]);
+				gen8_cs_irq_handler(&dev_priv->ring[RCS]);
 			if (tmp & (GT_RENDER_USER_INTERRUPT << GEN8_RCS_IRQ_SHIFT))
 				notify_ring(&dev_priv->ring[RCS]);
 
 			if (tmp & (GT_CONTEXT_SWITCH_INTERRUPT << GEN8_BCS_IRQ_SHIFT))
-				intel_lrc_irq_handler(&dev_priv->ring[BCS]);
+				gen8_cs_irq_handler(&dev_priv->ring[BCS]);
 			if (tmp & (GT_RENDER_USER_INTERRUPT << GEN8_BCS_IRQ_SHIFT))
 				notify_ring(&dev_priv->ring[BCS]);
 		} else
@@ -1304,14 +1313,19 @@ static irqreturn_t gen8_gt_irq_handler(struct drm_i915_private *dev_priv,
 			ret = IRQ_HANDLED;
 
 			if (tmp & (GT_CONTEXT_SWITCH_INTERRUPT << GEN8_VCS1_IRQ_SHIFT))
-				intel_lrc_irq_handler(&dev_priv->ring[VCS]);
+				gen8_cs_irq_handler(&dev_priv->ring[VCS]);
 			if (tmp & (GT_RENDER_USER_INTERRUPT << GEN8_VCS1_IRQ_SHIFT))
 				notify_ring(&dev_priv->ring[VCS]);
 
 			if (tmp & (GT_CONTEXT_SWITCH_INTERRUPT << GEN8_VCS2_IRQ_SHIFT))
-				intel_lrc_irq_handler(&dev_priv->ring[VCS2]);
+				gen8_cs_irq_handler(&dev_priv->ring[VCS2]);
 			if (tmp & (GT_RENDER_USER_INTERRUPT << GEN8_VCS2_IRQ_SHIFT))
 				notify_ring(&dev_priv->ring[VCS2]);
+			gen8_cs_irq_handler(&dev_priv->ring[VCS],
+					iir, GEN8_VCS1_IRQ_SHIFT);
+
+			gen8_cs_irq_handler(&dev_priv->ring[VCS2],
+					iir, GEN8_VCS2_IRQ_SHIFT);
 		} else
 			DRM_ERROR("The master control interrupt lied (GT1)!\n");
 	}
@@ -1323,9 +1337,11 @@ static irqreturn_t gen8_gt_irq_handler(struct drm_i915_private *dev_priv,
 			ret = IRQ_HANDLED;
 
 			if (tmp & (GT_CONTEXT_SWITCH_INTERRUPT << GEN8_VECS_IRQ_SHIFT))
-				intel_lrc_irq_handler(&dev_priv->ring[VECS]);
+				gen8_cs_irq_handler(&dev_priv->ring[VECS]);
 			if (tmp & (GT_RENDER_USER_INTERRUPT << GEN8_VECS_IRQ_SHIFT))
 				notify_ring(&dev_priv->ring[VECS]);
+			gen8_cs_irq_handler(&dev_priv->ring[VECS],
+					iir, GEN8_VECS_IRQ_SHIFT);
 		} else
 			DRM_ERROR("The master control interrupt lied (GT3)!\n");
 	}
