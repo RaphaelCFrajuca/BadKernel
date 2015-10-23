@@ -1186,7 +1186,7 @@ intel_dp_sink_rates(struct intel_dp *intel_dp, const int **sink_rates)
 	return (intel_dp_max_link_bw(intel_dp) >> 3) + 1;
 }
 
-static bool intel_dp_source_supports_hbr2(struct drm_device *dev)
+bool intel_dp_source_supports_hbr2(struct drm_device *dev)
 {
 	/* WaDisableHBR2:skl */
 	if (IS_SKL_REVID(dev, 0, SKL_REVID_B0))
@@ -1362,8 +1362,8 @@ int intel_dp_rate_select(struct intel_dp *intel_dp, int rate)
 	return rate_to_index(rate, intel_dp->sink_rates);
 }
 
-static void intel_dp_compute_rate(struct intel_dp *intel_dp, int port_clock,
-				  uint8_t *link_bw, uint8_t *rate_select)
+void intel_dp_compute_rate(struct intel_dp *intel_dp, int port_clock,
+			   uint8_t *link_bw, uint8_t *rate_select)
 {
 	if (intel_dp->num_sink_rates) {
 		*link_bw = 0;
@@ -3043,7 +3043,7 @@ intel_dp_dpcd_read_wake(struct drm_dp_aux *aux, unsigned int offset,
  * Fetch AUX CH registers 0x202 - 0x207 which contain
  * link status information
  */
-static bool
+bool
 intel_dp_get_link_status(struct intel_dp *intel_dp, uint8_t link_status[DP_LINK_STATUS_SIZE])
 {
 	return intel_dp_dpcd_read_wake(&intel_dp->aux,
@@ -3053,7 +3053,7 @@ intel_dp_get_link_status(struct intel_dp *intel_dp, uint8_t link_status[DP_LINK_
 }
 
 /* These are source-specific values. */
-static uint8_t
+uint8_t
 intel_dp_voltage_max(struct intel_dp *intel_dp)
 {
 	struct drm_device *dev = intel_dp_to_dev(intel_dp);
@@ -3076,7 +3076,7 @@ intel_dp_voltage_max(struct intel_dp *intel_dp)
 		return DP_TRAIN_VOLTAGE_SWING_LEVEL_2;
 }
 
-static uint8_t
+uint8_t
 intel_dp_pre_emphasis_max(struct intel_dp *intel_dp, uint8_t voltage_swing)
 {
 	struct drm_device *dev = intel_dp_to_dev(intel_dp);
@@ -3418,38 +3418,6 @@ static uint32_t chv_signal_levels(struct intel_dp *intel_dp)
 	return 0;
 }
 
-static void
-intel_get_adjust_train(struct intel_dp *intel_dp,
-		       const uint8_t link_status[DP_LINK_STATUS_SIZE])
-{
-	uint8_t v = 0;
-	uint8_t p = 0;
-	int lane;
-	uint8_t voltage_max;
-	uint8_t preemph_max;
-
-	for (lane = 0; lane < intel_dp->lane_count; lane++) {
-		uint8_t this_v = drm_dp_get_adjust_request_voltage(link_status, lane);
-		uint8_t this_p = drm_dp_get_adjust_request_pre_emphasis(link_status, lane);
-
-		if (this_v > v)
-			v = this_v;
-		if (this_p > p)
-			p = this_p;
-	}
-
-	voltage_max = intel_dp_voltage_max(intel_dp);
-	if (v >= voltage_max)
-		v = voltage_max | DP_TRAIN_MAX_SWING_REACHED;
-
-	preemph_max = intel_dp_pre_emphasis_max(intel_dp, v);
-	if (p >= preemph_max)
-		p = preemph_max | DP_TRAIN_MAX_PRE_EMPHASIS_REACHED;
-
-	for (lane = 0; lane < 4; lane++)
-		intel_dp->train_set[lane] = v | p;
-}
-
 static uint32_t
 gen4_signal_levels(uint8_t train_set)
 {
@@ -3594,7 +3562,7 @@ intel_dp_set_signal_levels(struct intel_dp *intel_dp, uint32_t *DP)
 	POSTING_READ(intel_dp->output_reg);
 }
 
-static void
+void
 intel_dp_program_link_training_pattern(struct intel_dp *intel_dp,
 				       uint8_t dp_train_pat)
 {
@@ -3661,7 +3629,7 @@ intel_dp_update_link_train(struct intel_dp *intel_dp, uint32_t *DP,
 	return ret == intel_dp->lane_count;
 }
 
-static void intel_dp_set_idle_link_train(struct intel_dp *intel_dp)
+void intel_dp_set_idle_link_train(struct intel_dp *intel_dp)
 {
 	struct intel_digital_port *intel_dig_port = dp_to_dig_port(intel_dp);
 	struct drm_device *dev = intel_dig_port->base.base.dev;
