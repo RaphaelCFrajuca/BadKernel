@@ -26,7 +26,6 @@ int ovl_copy_xattr(struct dentry *old, struct dentry *new)
 	char *buf, *name, *value = NULL;
 	int uninitialized_var(error);
 	size_t slen;
-
 	if (!old->d_inode->i_op->getxattr ||
 	    !new->d_inode->i_op->getxattr)
 		return 0;
@@ -68,6 +67,7 @@ retry:
 		if (size < 0) {
 			error = size;
 			break;
+
 		}
 
 		if (size > value_size) {
