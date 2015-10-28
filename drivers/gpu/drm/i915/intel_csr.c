@@ -515,5 +515,7 @@ void intel_csr_ucode_fini(struct drm_device *dev)
 		return;
 
 	intel_csr_load_status_set(dev_priv, FW_FAILED);
+	flush_work(&dev_priv->csr.work);
+
 	kfree(dev_priv->csr.dmc_payload);
 }
