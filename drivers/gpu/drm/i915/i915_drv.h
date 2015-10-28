@@ -749,6 +749,7 @@ enum csr_state {
 };
 
 struct intel_csr {
+	struct work_struct work;
 	const char *fw_path;
 	uint32_t *dmc_payload;
 	uint32_t dmc_fw_size;

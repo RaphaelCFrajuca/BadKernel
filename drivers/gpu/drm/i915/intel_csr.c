@@ -412,11 +412,18 @@ static uint32_t *parse_csr_fw(struct drm_i915_private *dev_priv,
 	return dmc_payload;
 }
 
-static void finish_csr_load(const struct firmware *fw, void *context)
+static void csr_load_work_fn(struct work_struct *work)
 {
-	struct drm_i915_private *dev_priv = context;
-	struct intel_csr *csr = &dev_priv->csr;
+	struct drm_i915_private *dev_priv;
+	struct intel_csr *csr;
+	const struct firmware *fw;
+	int ret;
 
+	dev_priv = container_of(work, typeof(*dev_priv), csr.work);
+	csr = &dev_priv->csr;
+
+	ret = request_firmware(&fw, dev_priv->csr.fw_path,
+			       &dev_priv->dev->pdev->dev);
 	if (!fw)
 		goto out;
 
@@ -457,7 +464,8 @@ void intel_csr_ucode_init(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_csr *csr = &dev_priv->csr;
-	int ret;
+
+	INIT_WORK(&dev_priv->csr.work, csr_load_work_fn);
 
 	if (!HAS_CSR(dev))
 		return;
