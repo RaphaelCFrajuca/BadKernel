@@ -459,6 +459,7 @@ void intel_csr_ucode_init(struct drm_device *dev)
 				      &dev_priv->dev->pdev->dev,
 				      GFP_KERNEL, dev_priv,
 				      finish_csr_load);
+
 	if (ret)
 		i915_firmware_load_error_print(csr->fw_path, ret);
 		intel_csr_load_status_set(dev_priv, FW_FAILED);
