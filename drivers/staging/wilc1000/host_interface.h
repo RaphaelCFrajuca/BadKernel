@@ -257,9 +257,9 @@ struct get_mac_addr {
 
 struct ba_session_info {
 	u8 bssid[ETH_ALEN];
-	u8 u8Ted;
-	u16 u16BufferSize;
-	u16 u16SessionTimeout;
+	u8 tid;
+	u16 buf_size;
+	u16 time_out;
 };
 
 struct remain_ch {
