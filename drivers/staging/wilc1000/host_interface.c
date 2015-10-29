@@ -2480,8 +2480,8 @@ static int Handle_RemainOnChan(struct host_if_drv *hif_drv,
 
 	if (!hif_drv->remain_on_ch_pending) {
 		hif_drv->remain_on_ch.pVoid = pstrHostIfRemainOnChan->pVoid;
-		hif_drv->remain_on_ch.pRemainOnChanExpired = pstrHostIfRemainOnChan->pRemainOnChanExpired;
-		hif_drv->remain_on_ch.pRemainOnChanReady = pstrHostIfRemainOnChan->pRemainOnChanReady;
+		hif_drv->remain_on_ch.expired = pstrHostIfRemainOnChan->expired;
+		hif_drv->remain_on_ch.ready = pstrHostIfRemainOnChan->ready;
 		hif_drv->remain_on_ch.ch = pstrHostIfRemainOnChan->ch;
 		hif_drv->remain_on_ch.u32ListenSessionID = pstrHostIfRemainOnChan->u32ListenSessionID;
 	} else {
@@ -2535,8 +2535,8 @@ ERRORHANDLER:
 			  jiffies +
 			  msecs_to_jiffies(pstrHostIfRemainOnChan->u32duration));
 
-		if (hif_drv->remain_on_ch.pRemainOnChanReady)
-			hif_drv->remain_on_ch.pRemainOnChanReady(hif_drv->remain_on_ch.pVoid);
+		if (hif_drv->remain_on_ch.ready)
+			hif_drv->remain_on_ch.ready(hif_drv->remain_on_ch.pVoid);
 
 		if (hif_drv->remain_on_ch_pending)
 			hif_drv->remain_on_ch_pending = 0;
@@ -4366,8 +4366,8 @@ s32 host_int_remain_on_channel(struct host_if_drv *hif_drv, u32 u32SessionID,
 
 	msg.id = HOST_IF_MSG_REMAIN_ON_CHAN;
 	msg.body.remain_on_ch.ch = chan;
-	msg.body.remain_on_ch.pRemainOnChanExpired = RemainOnChanExpired;
-	msg.body.remain_on_ch.pRemainOnChanReady = RemainOnChanReady;
+	msg.body.remain_on_ch.expired = RemainOnChanExpired;
+	msg.body.remain_on_ch.ready = RemainOnChanReady;
 	msg.body.remain_on_ch.pVoid = pvUserArg;
 	msg.body.remain_on_ch.u32duration = u32duration;
 	msg.body.remain_on_ch.u32ListenSessionID = u32SessionID;
