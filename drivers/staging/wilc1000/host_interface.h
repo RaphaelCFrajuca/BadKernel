@@ -228,7 +228,7 @@ struct user_conn_req {
 	size_t ssid_len;
 	u8 *ies;
 	size_t ies_len;
-	wilc_connect_result pfUserConnectResult;
+	wilc_connect_result conn_result;
 	bool IsHTCapable;
 	/* User specific parameter to be delivered through the Connect User Callback function */
 	void *u32UserConnectPvoid;
