@@ -2072,7 +2072,7 @@ static s32 Handle_GetChnl(struct host_if_drv *hif_drv)
 		result = -EFAULT;
 	}
 
-	up(&hif_drv->hSemGetCHNL);
+	up(&hif_drv->sem_get_chnl);
 
 	return result;
 }
@@ -3735,7 +3735,7 @@ s32 host_int_get_host_chnl_num(struct host_if_drv *hif_drv, u8 *pu8ChNo)
 	result = wilc_mq_send(&hif_msg_q, &msg, sizeof(struct host_if_msg));
 	if (result)
 		PRINT_ER("wilc mq send fail\n");
-	down(&hif_drv->hSemGetCHNL);
+	down(&hif_drv->sem_get_chnl);
 
 	*pu8ChNo = ch_no;
 
@@ -4108,8 +4108,8 @@ s32 host_int_init(struct net_device *dev, struct host_if_drv **hif_drv_handler)
 	sema_init(&hif_drv->sem_test_key_block, 0);
 	sema_init(&hif_drv->sem_test_disconn_block, 0);
 	sema_init(&hif_drv->sem_get_rssi, 0);
-	sema_init(&hif_drv->hSemGetLINKSPEED, 0);
-	sema_init(&hif_drv->hSemGetCHNL, 0);
+	sema_init(&hif_drv->sem_get_link_speed, 0);
+	sema_init(&hif_drv->sem_get_chnl, 0);
 	sema_init(&hif_drv->hSemInactiveTime, 0);
 
 	PRINT_D(HOSTINF_DBG, "INIT: CLIENT COUNT %d\n", clients_count);
