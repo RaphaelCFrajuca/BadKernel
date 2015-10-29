@@ -302,7 +302,7 @@ struct host_if_drv {
 	enum host_if_state enuHostIFstate;
 
 	u8 assoc_bssid[ETH_ALEN];
-	struct cfg_param_val strCfgValues;
+	struct cfg_param_val cfg_values;
 /* semaphores */
 	struct semaphore gtOsCfgValuesSem;
 	struct semaphore hSemTestKeyBlock;
