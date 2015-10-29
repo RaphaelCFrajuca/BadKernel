@@ -2186,8 +2186,26 @@ static void ironlake_edp_pll_on(struct intel_dp *intel_dp)
 	assert_dp_port_disabled(intel_dp);
 	assert_edp_pll_disabled(dev_priv);
 
+<<<<<<< HEAD
 	DRM_DEBUG_KMS("\n");
 	dpa_ctl = I915_READ(DP_A);
+=======
+	DRM_DEBUG_KMS("enabling eDP PLL for clock %d\n",
+		      crtc->config->port_clock);
+
+	intel_dp->DP &= ~DP_PLL_FREQ_MASK;
+
+	if (crtc->config->port_clock == 162000)
+		intel_dp->DP |= DP_PLL_FREQ_162MHZ;
+	else
+		intel_dp->DP |= DP_PLL_FREQ_270MHZ;
+
+	I915_WRITE(DP_A, intel_dp->DP);
+	POSTING_READ(DP_A);
+	udelay(500);
+
+	intel_dp->DP |= DP_PLL_ENABLE;
+>>>>>>> abfce949052f... drm/i915: Configure eDP PLL freq from ironlake_edp_pll_on()
 
 	/* We don't adjust intel_dp->DP while tearing down the link, to
 	 * facilitate link retraining (e.g. after hotplug). Hence clear all
@@ -2210,7 +2228,13 @@ static void ironlake_edp_pll_off(struct intel_dp *intel_dp)
 	assert_dp_port_disabled(intel_dp);
 	assert_edp_pll_enabled(dev_priv);
 
+<<<<<<< HEAD
 	dpa_ctl = I915_READ(DP_A);
+=======
+	DRM_DEBUG_KMS("disabling eDP PLL\n");
+
+	intel_dp->DP &= ~DP_PLL_ENABLE;
+>>>>>>> abfce949052f... drm/i915: Configure eDP PLL freq from ironlake_edp_pll_on()
 
 	/* We can't rely on the value tracked for the DP register in
 	 * intel_dp->DP because link_down must not change that (otherwise link
@@ -2413,6 +2437,8 @@ static void ilk_post_disable_dp(struct intel_encoder *encoder)
 	enum port port = dp_to_dig_port(intel_dp)->port;
 
 	intel_dp_link_down(intel_dp);
+
+	/* Only ilk+ has port A */
 	if (port == PORT_A)
 		ironlake_edp_pll_off(intel_dp);
 }
@@ -2661,10 +2687,13 @@ static void g4x_pre_enable_dp(struct intel_encoder *encoder)
 	intel_dp_prepare(encoder);
 
 	/* Only ilk+ has port A */
+<<<<<<< HEAD
 	if (dport->port == PORT_A) {
 		ironlake_set_pll_cpu_edp(intel_dp);
+=======
+	if (port == PORT_A)
+>>>>>>> abfce949052f... drm/i915: Configure eDP PLL freq from ironlake_edp_pll_on()
 		ironlake_edp_pll_on(intel_dp);
-	}
 }
 
 static void vlv_detach_power_sequencer(struct intel_dp *intel_dp)
