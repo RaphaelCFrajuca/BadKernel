@@ -421,171 +421,29 @@ int host_int_add_wep_key_bss_sta(struct host_if_drv *hif_drv,
 int host_int_add_wep_key_bss_ap(struct host_if_drv *hif_drv,
 				const u8 *key, u8 len, u8 index, u8 mode,
 				enum AUTHTYPE auth_type);
-
-/**
- *  @brief              adds ptk Key
- *  @details
- *  @param[in,out] handle to the wifi driver
- *  @param[in]  message containing PTK Key in the following format
- *|-------------------------------------------------------------------------|
- *|Sta Adress | Key Length |	Temporal Key | Rx Michael Key |Tx Michael Key |
- *|-----------|------------|---------------|----------------|---------------|
- |	6 bytes |	1byte	 |   16 bytes	 |	  8 bytes	  |	   8 bytes	  |
- ||-------------------------------------------------------------------------|
- *  @return             Error code indicating success/failure
- *  @note
- *  @author		zsalah
- *  @date		8 March 2012
- *  @version		1.0
- */
-s32 host_int_add_ptk(struct host_if_drv *hWFIDrv, const u8 *pu8Ptk, u8 u8PtkKeylen,
-			     const u8 *mac_addr, const u8 *pu8RxMic, const u8 *pu8TxMic, u8 mode, u8 u8Ciphermode, u8 u8Idx);
-
-/**
- *  @brief              host_int_get_inactive_time
- *  @details
- *  @param[in,out] handle to the wifi driver
- *  @param[in]  message containing inactive time
- *
- *  @return             Error code indicating success/failure
- *  @note
- *  @author		mdaftedar
- *  @date		15 April 2013
- *  @version		1.0
- */
-s32 host_int_get_inactive_time(struct host_if_drv *hWFIDrv, const u8 *mac, u32 *pu32InactiveTime);
-
-/**
- *  @brief              adds Rx GTk Key
- *  @details
- *  @param[in,out] handle to the wifi driver
- *  @param[in]  message containing Rx GTK Key in the following format
- *|----------------------------------------------------------------------------|
- *|Sta Address | Key RSC | KeyID | Key Length | Temporal Key	| Rx Michael Key |
- *|------------|---------|-------|------------|---------------|----------------|
- |	6 bytes	 | 8 byte  |1 byte |  1 byte	|   16 bytes	|	  8 bytes	 |
- ||----------------------------------------------------------------------------|
- *  @return             Error code indicating success/failure
- *  @note
- *  @author		zsalah
- *  @date		8 March 2012
- *  @version		1.0
- */
-s32 host_int_add_rx_gtk(struct host_if_drv *hWFIDrv, const u8 *pu8RxGtk, u8 u8GtkKeylen,
-				u8 u8KeyIdx, u32 u32KeyRSClen, const u8 *KeyRSC,
-				const u8 *pu8RxMic, const u8 *pu8TxMic, u8 mode, u8 u8Ciphermode);
-
-
-/**
- *  @brief              adds Tx GTk Key
- *  @details
- *  @param[in,out] handle to the wifi driver
- *  @param[in]  message containing Tx GTK Key in the following format
- *|----------------------------------------------------|
- | KeyID | Key Length | Temporal Key	| Tx Michael Key |
- ||-------|------------|--------------|----------------|
- ||1 byte |  1 byte	 |   16 bytes	|	  8 bytes	 |
- ||----------------------------------------------------|
- *  @return             Error code indicating success/failure
- *  @note
- *  @author		zsalah
- *  @date		8 March 2012
- *  @version		1.0
- */
-s32 host_int_add_tx_gtk(struct host_if_drv *hWFIDrv, u8 u8KeyLen, u8 *pu8TxGtk, u8 u8KeyIdx);
-
-/**
- *  @brief              caches the pmkid
- *  @details    valid only in BSS STA mode if External Supplicant
- *                              support is enabled. This Function sets the PMKID in firmware
- *                              when host drivr receives the corresponding request from NDIS.
- *                              The firmware then includes theset PMKID in the appropriate
- *                              management frames
- *  @param[in,out] handle to the wifi driver
- *  @param[in]  message containing PMKID Info in the following format
- *|-----------------------------------------------------------------|
- *|NumEntries |	BSSID[1] | PMKID[1] |  ...	| BSSID[K] | PMKID[K] |
- *|-----------|------------|----------|-------|----------|----------|
- |	   1	|		6	 |   16		|  ...	|	 6	   |	16	  |
- ||-----------------------------------------------------------------|
- *  @return             Error code indicating success/failure
- *  @note
- *  @author		zsalah
- *  @date		8 March 2012
- *  @version		1.0
- */
-
-s32 host_int_set_pmkid_info(struct host_if_drv *hWFIDrv, struct host_if_pmkid_attr *pu8PmkidInfoArray);
-/**
- *  @brief              gets the cached the pmkid info
- *  @details    valid only in BSS STA mode if External Supplicant
- *                              support is enabled. This Function sets the PMKID in firmware
- *                              when host drivr receives the corresponding request from NDIS.
- *                              The firmware then includes theset PMKID in the appropriate
- *                              management frames
- *  @param[in,out] handle to the wifi driver,
- *
- *                                message containing PMKID Info in the following format
- *|-----------------------------------------------------------------|
- *|NumEntries |	BSSID[1] | PMKID[1] |  ...	| BSSID[K] | PMKID[K] |
- *|-----------|------------|----------|-------|----------|----------|
- |	   1	|		6	 |   16		|  ...	|	 6	   |	16	  |
- ||-----------------------------------------------------------------|
- *  @param[in]
- *  @return             Error code indicating success/failure
- *  @note
- *  @author		zsalah
- *  @date		8 March 2012
- *  @version		1.0
- */
-
+s32 host_int_add_ptk(struct host_if_drv *hWFIDrv, const u8 *pu8Ptk,
+		     u8 u8PtkKeylen, const u8 *mac_addr,
+		     const u8 *pu8RxMic, const u8 *pu8TxMic,
+		     u8 mode, u8 u8Ciphermode, u8 u8Idx);
+s32 host_int_get_inactive_time(struct host_if_drv *hWFIDrv, const u8 *mac,
+			       u32 *pu32InactiveTime);
+s32 host_int_add_rx_gtk(struct host_if_drv *hWFIDrv, const u8 *pu8RxGtk,
+			u8 u8GtkKeylen,	u8 u8KeyIdx,
+			u32 u32KeyRSClen, const u8 *KeyRSC,
+			const u8 *pu8RxMic, const u8 *pu8TxMic,
+			u8 mode, u8 u8Ciphermode);
+s32 host_int_add_tx_gtk(struct host_if_drv *hWFIDrv, u8 u8KeyLen,
+			u8 *pu8TxGtk, u8 u8KeyIdx);
+s32 host_int_set_pmkid_info(struct host_if_drv *hWFIDrv,
+			    struct host_if_pmkid_attr *pu8PmkidInfoArray);
 s32 host_int_get_pmkid_info(struct host_if_drv *hWFIDrv, u8 *pu8PmkidInfoArray,
-				    u32 u32PmkidInfoLen);
-
-/**
- *  @brief              sets the pass phrase
- *  @details    AP/STA mode. This function gives the pass phrase used to
- *                              generate the Pre-Shared Key when WPA/WPA2 is enabled
- *                              The length of the field can vary from 8 to 64 bytes,
- *                              the lower layer should get the
- *  @param[in,out] handle to the wifi driver,
- *  @param[in]   String containing PSK
- *  @return             Error code indicating success/failure
- *  @note
- *  @author		zsalah
- *  @date		8 March 2012
- *  @version		1.0
- */
-s32 host_int_set_RSNAConfigPSKPassPhrase(struct host_if_drv *hWFIDrv, u8 *pu8PassPhrase,
-						 u8 u8Psklength);
-/**
- *  @brief              gets the pass phrase
- *  @details    AP/STA mode. This function gets the pass phrase used to
- *                              generate the Pre-Shared Key when WPA/WPA2 is enabled
- *                              The length of the field can vary from 8 to 64 bytes,
- *                              the lower layer should get the
- *  @param[in,out] handle to the wifi driver,
- *                                String containing PSK
- *  @return             Error code indicating success/failure
- *  @note
- *  @author		zsalah
- *  @date		8 March 2012
- *  @version		1.0
- */
+			    u32 u32PmkidInfoLen);
+s32 host_int_set_RSNAConfigPSKPassPhrase(struct host_if_drv *hWFIDrv,
+					 u8 *pu8PassPhrase,
+					 u8 u8Psklength);
 s32 host_int_get_RSNAConfigPSKPassPhrase(struct host_if_drv *hWFIDrv,
-						 u8 *pu8PassPhrase, u8 u8Psklength);
-
-/**
- *  @brief              gets mac address
- *  @details
- *  @param[in,out] handle to the wifi driver,
- *
- *  @return             Error code indicating success/failure
- *  @note
- *  @author		mdaftedar
- *  @date		19 April 2012
- *  @version		1.0
- */
+					 u8 *pu8PassPhrase, u8 u8Psklength);
+>>>>>>> 6bd77755b687... staging: wilc1000: remove warnings line over 80 characters
 s32 host_int_get_MacAddress(struct host_if_drv *hWFIDrv, u8 *pu8MacAddress);
 
 /**
@@ -661,6 +519,7 @@ s32 host_int_get_start_scan_req(struct host_if_drv *hWFIDrv, u8 *pu8ScanSource);
  */
 
 s32 host_int_set_join_req(struct host_if_drv *hWFIDrv, u8 *pu8bssid,
+<<<<<<< HEAD
 				  const u8 *pu8ssid, size_t ssidLen,
 				  const u8 *pu8IEs, size_t IEsLen,
 				  wilc_connect_result pfConnectResult, void *pvUserArg,
@@ -680,6 +539,13 @@ s32 host_int_set_join_req(struct host_if_drv *hWFIDrv, u8 *pu8bssid,
  *  @version		8.0
  */
 
+=======
+			  const u8 *pu8ssid, size_t ssidLen,
+			  const u8 *pu8IEs, size_t IEsLen,
+			  wilc_connect_result pfConnectResult, void *pvUserArg,
+			  u8 u8security, enum AUTHTYPE tenuAuth_type,
+			  u8 u8channel, void *pJoinParams);
+>>>>>>> 6bd77755b687... staging: wilc1000: remove warnings line over 80 characters
 s32 host_int_flush_join_req(struct host_if_drv *hWFIDrv);
 
 
@@ -708,6 +574,7 @@ s32 host_int_disconnect(struct host_if_drv *hWFIDrv, u16 u16ReasonCode);
  *  @version		1.0
  */
 s32 host_int_disconnect_station(struct host_if_drv *hWFIDrv, u8 assoc_id);
+<<<<<<< HEAD
 /**
  *  @brief              gets a Association request info
  *  @details
@@ -783,6 +650,18 @@ s32 host_int_get_rx_power_level(struct host_if_drv *hWFIDrv, u8 *pu8RxPowerLevel
  *  @date		8 March 2012
  *  @version		1.0
  */
+=======
+s32 host_int_get_assoc_req_info(struct host_if_drv *hWFIDrv,
+				u8 *pu8AssocReqInfo,
+				u32 u32AssocReqInfoLen);
+s32 host_int_get_assoc_res_info(struct host_if_drv *hWFIDrv,
+				u8 *pu8AssocRespInfo,
+				u32 u32MaxAssocRespInfoLen,
+				u32 *pu32RcvdAssocRespInfoLen);
+s32 host_int_get_rx_power_level(struct host_if_drv *hWFIDrv,
+				u8 *pu8RxPowerLevel,
+				u32 u32RxPowerLevelLen);
+>>>>>>> 6bd77755b687... staging: wilc1000: remove warnings line over 80 characters
 int host_int_set_mac_chnl_num(struct host_if_drv *wfi_drv, u8 channel);
 
 /**
@@ -834,6 +713,7 @@ s32 host_int_get_link_speed(struct host_if_drv *hWFIDrv, s8 *ps8lnkspd);
  *  @version		1.0
  */
 s32 host_int_scan(struct host_if_drv *hWFIDrv, u8 u8ScanSource,
+<<<<<<< HEAD
 			  u8 u8ScanType, u8 *pu8ChnlFreqList,
 			  u8 u8ChnlListLen, const u8 *pu8IEs,
 			  size_t IEsLen, wilc_scan_result ScanResult,
@@ -864,6 +744,14 @@ s32 hif_set_cfg(struct host_if_drv *hWFIDrv, struct cfg_param_val *pstrCfgParamV
  *  @date		8 March 2012
  *  @version		1.0
  */
+=======
+		  u8 u8ScanType, u8 *pu8ChnlFreqList,
+		  u8 u8ChnlListLen, const u8 *pu8IEs,
+		  size_t IEsLen, wilc_scan_result ScanResult,
+		  void *pvUserArg, struct hidden_network *pstrHiddenNetwork);
+s32 hif_set_cfg(struct host_if_drv *hWFIDrv,
+		struct cfg_param_val *pstrCfgParamVal);
+>>>>>>> 6bd77755b687... staging: wilc1000: remove warnings line over 80 characters
 s32 hif_get_cfg(struct host_if_drv *hWFIDrv, u16 u16WID, u16 *pu16WID_Value);
 /*****************************************************************************/
 /*							Notification Functions							 */
@@ -914,6 +802,7 @@ s32 host_int_deinit(struct host_if_drv *hWFIDrv);
  *
  */
 s32 host_int_add_beacon(struct host_if_drv *hWFIDrv, u32 u32Interval,
+<<<<<<< HEAD
 				u32 u32DTIMPeriod,
 				u32 u32HeadLen, u8 *pu8Head,
 				u32 u32TailLen, u8 *pu8tail);
@@ -931,6 +820,13 @@ s32 host_int_add_beacon(struct host_if_drv *hWFIDrv, u32 u32Interval,
  *  @date		10 Julys 2012
  *  @version		1.0 Description
  */
+=======
+			u32 u32DTIMPeriod,
+			u32 u32HeadLen,
+			u8 *pu8Head,
+			u32 u32TailLen,
+			u8 *pu8tail);
+>>>>>>> 6bd77755b687... staging: wilc1000: remove warnings line over 80 characters
 s32 host_int_del_beacon(struct host_if_drv *hWFIDrv);
 
 /*!
@@ -949,6 +845,7 @@ s32 host_int_del_beacon(struct host_if_drv *hWFIDrv);
  */
 s32 host_int_add_station(struct host_if_drv *hWFIDrv,
 			 struct add_sta_param *pstrStaParams);
+<<<<<<< HEAD
 
 /*!
  *  @fn		s32 host_int_del_allstation(WILC_WFIDrvHandle hWFIDrv, const u8* pu8MacAddr)
@@ -978,6 +875,10 @@ s32 host_int_del_allstation(struct host_if_drv *hWFIDrv, u8 pu8MacAddr[][ETH_ALE
  *  @date		15 July 2012
  *  @version		1.0 Description
  */
+=======
+s32 host_int_del_allstation(struct host_if_drv *hWFIDrv,
+			    u8 pu8MacAddr[][ETH_ALEN]);
+>>>>>>> 6bd77755b687... staging: wilc1000: remove warnings line over 80 characters
 s32 host_int_del_station(struct host_if_drv *hWFIDrv, const u8 *pu8MacAddr);
 
 /*!
@@ -996,6 +897,7 @@ s32 host_int_del_station(struct host_if_drv *hWFIDrv, const u8 *pu8MacAddr);
  */
 s32 host_int_edit_station(struct host_if_drv *hWFIDrv,
 			  struct add_sta_param *pstrStaParams);
+<<<<<<< HEAD
 
 /*!
  *  @fn		s32 host_int_set_power_mgmt(WILC_WFIDrvHandle hWFIDrv, bool bIsEnabled, u32 u32Timeout)
@@ -1117,13 +1019,42 @@ s32 host_int_frame_register(struct host_if_drv *hWFIDrv, u16 u16FrameType, bool 
  *  @date
  *  @version	1.0
  */
+=======
+s32 host_int_set_power_mgmt(struct host_if_drv *hWFIDrv,
+			    bool bIsEnabled,
+			    u32 u32Timeout);
+s32 host_int_setup_multicast_filter(struct host_if_drv *hWFIDrv,
+				    bool bIsEnabled,
+				    u32 u32count);
+s32 host_int_setup_ipaddress(struct host_if_drv *hWFIDrv,
+			     u8 *pu8IPAddr,
+			     u8 idx);
+s32 host_int_delBASession(struct host_if_drv *hWFIDrv, char *pBSSID, char TID);
+s32 host_int_del_All_Rx_BASession(struct host_if_drv *hWFIDrv,
+				  char *pBSSID,
+				  char TID);
+s32 host_int_get_ipaddress(struct host_if_drv *hWFIDrv, u8 *pu8IPAddr, u8 idx);
+s32 host_int_remain_on_channel(struct host_if_drv *hWFIDrv,
+			       u32 u32SessionID,
+			       u32 u32duration,
+			       u16 chan,
+			       wilc_remain_on_chan_expired RemainOnChanExpired,
+			       wilc_remain_on_chan_ready RemainOnChanReady,
+			       void *pvUserArg);
+s32 host_int_ListenStateExpired(struct host_if_drv *hWFIDrv, u32 u32SessionID);
+s32 host_int_frame_register(struct host_if_drv *hWFIDrv,
+			    u16 u16FrameType,
+			    bool bReg);
+>>>>>>> 6bd77755b687... staging: wilc1000: remove warnings line over 80 characters
 int host_int_set_wfi_drv_handler(struct host_if_drv *address);
 int host_int_set_operation_mode(struct host_if_drv *wfi_drv, u32 mode);
 
-static s32 Handle_ScanDone(struct host_if_drv *drvHandler, enum scan_event enuEvent);
+static s32 Handle_ScanDone(struct host_if_drv *drvHandler,
+			   enum scan_event enuEvent);
 
 void host_int_freeJoinParams(void *pJoinParams);
 
-s32 host_int_get_statistics(struct host_if_drv *hWFIDrv, struct rf_info *pstrStatistics);
+s32 host_int_get_statistics(struct host_if_drv *hWFIDrv,
+			    struct rf_info *pstrStatistics);
 
 #endif
