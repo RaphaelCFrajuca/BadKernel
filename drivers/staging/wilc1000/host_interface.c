@@ -1579,7 +1579,7 @@ static s32 Handle_RcvdGnrlAsyncInfo(struct host_if_drv *hif_drv,
 
 				if ((u8MacStatus == MAC_CONNECTED) &&
 				    (strConnectInfo.u16ConnectStatus == SUCCESSFUL_STATUSCODE))	{
-					memcpy(hif_drv->au8AssociatedBSSID,
+					memcpy(hif_drv->assoc_bssid,
 					       hif_drv->usr_conn_req.pu8bssid, ETH_ALEN);
 				}
 			}
@@ -1655,7 +1655,7 @@ static s32 Handle_RcvdGnrlAsyncInfo(struct host_if_drv *hif_drv,
 				PRINT_ER("Connect result callback function is NULL\n");
 			}
 
-			eth_zero_addr(hif_drv->au8AssociatedBSSID);
+			eth_zero_addr(hif_drv->assoc_bssid);
 
 			hif_drv->usr_conn_req.ssidLen = 0;
 			kfree(hif_drv->usr_conn_req.pu8ssid);
@@ -1837,8 +1837,8 @@ static int Handle_Key(struct host_if_drv *hif_drv,
 				goto _WPARxGtk_end_case_;
 			}
 
-			if (hif_drv->enuHostIFstate == HOST_IF_CONNECTED)
-				memcpy(pu8keybuf, hif_drv->au8AssociatedBSSID, ETH_ALEN);
+			if (hif_drv->hif_state == HOST_IF_CONNECTED)
+				memcpy(pu8keybuf, hif_drv->assoc_bssid, ETH_ALEN);
 			else
 				PRINT_ER("Couldn't handle WPARxGtk while enuHostIFstate is not HOST_IF_CONNECTED\n");
 
@@ -2020,7 +2020,7 @@ static void Handle_Disconnect(struct host_if_drv *hif_drv)
 
 		hif_drv->enuHostIFstate = HOST_IF_IDLE;
 
-		eth_zero_addr(hif_drv->au8AssociatedBSSID);
+		eth_zero_addr(hif_drv->assoc_bssid);
 
 		hif_drv->usr_conn_req.ssidLen = 0;
 		kfree(hif_drv->usr_conn_req.pu8ssid);
