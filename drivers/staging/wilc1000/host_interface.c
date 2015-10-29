@@ -1008,7 +1008,7 @@ static s32 Handle_Connect(struct host_if_drv *hif_drv,
 		memcpy(hif_drv->usr_conn_req.pu8bssid, pstrHostIFconnectAttr->bssid, 6);
 	}
 
-	hif_drv->usr_conn_req.ssidLen = pstrHostIFconnectAttr->ssid_len;
+	hif_drv->usr_conn_req.ssid_len = pstrHostIFconnectAttr->ssid_len;
 	if (pstrHostIFconnectAttr->ssid) {
 		hif_drv->usr_conn_req.pu8ssid = kmalloc(pstrHostIFconnectAttr->ssid_len + 1, GFP_KERNEL);
 		memcpy(hif_drv->usr_conn_req.pu8ssid,
@@ -1369,7 +1369,7 @@ static s32 Handle_ConnectTimeout(struct host_if_drv *hif_drv)
 	if (result)
 		PRINT_ER("Failed to send dissconect config packet\n");
 
-	hif_drv->usr_conn_req.ssidLen = 0;
+	hif_drv->usr_conn_req.ssid_len = 0;
 	kfree(hif_drv->usr_conn_req.pu8ssid);
 	kfree(hif_drv->usr_conn_req.pu8bssid);
 	hif_drv->usr_conn_req.ConnReqIEsLen = 0;
@@ -1621,7 +1621,7 @@ static s32 Handle_RcvdGnrlAsyncInfo(struct host_if_drv *hif_drv,
 
 			kfree(strConnectInfo.pu8ReqIEs);
 			strConnectInfo.pu8ReqIEs = NULL;
-			hif_drv->usr_conn_req.ssidLen = 0;
+			hif_drv->usr_conn_req.ssid_len = 0;
 			kfree(hif_drv->usr_conn_req.pu8ssid);
 			kfree(hif_drv->usr_conn_req.pu8bssid);
 			hif_drv->usr_conn_req.ConnReqIEsLen = 0;
@@ -1657,7 +1657,7 @@ static s32 Handle_RcvdGnrlAsyncInfo(struct host_if_drv *hif_drv,
 
 			eth_zero_addr(hif_drv->assoc_bssid);
 
-			hif_drv->usr_conn_req.ssidLen = 0;
+			hif_drv->usr_conn_req.ssid_len = 0;
 			kfree(hif_drv->usr_conn_req.pu8ssid);
 			kfree(hif_drv->usr_conn_req.pu8bssid);
 			hif_drv->usr_conn_req.ConnReqIEsLen = 0;
@@ -2021,7 +2021,7 @@ static void Handle_Disconnect(struct host_if_drv *hif_drv)
 
 		eth_zero_addr(hif_drv->assoc_bssid);
 
-		hif_drv->usr_conn_req.ssidLen = 0;
+		hif_drv->usr_conn_req.ssid_len = 0;
 		kfree(hif_drv->usr_conn_req.pu8ssid);
 		kfree(hif_drv->usr_conn_req.pu8bssid);
 		hif_drv->usr_conn_req.ConnReqIEsLen = 0;

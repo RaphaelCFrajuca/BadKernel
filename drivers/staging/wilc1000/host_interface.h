@@ -225,7 +225,7 @@ struct user_conn_req {
 	u8 *pu8ssid;
 	u8 u8security;
 	enum AUTHTYPE tenuAuth_type;
-	size_t ssidLen;
+	size_t ssid_len;
 	u8 *pu8ConnReqIEs;
 	size_t ConnReqIEsLen;
 	/* Connect user call back function */
