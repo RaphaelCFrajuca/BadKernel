@@ -273,8 +273,8 @@ struct remain_ch {
 
 struct reg_frame {
 	bool reg;
-	u16 u16FrameType;
-	u8 u8Regid;
+	u16 frame_type;
+	u8 reg_id;
 };
 
 
@@ -311,7 +311,6 @@ struct host_if_drv {
 	struct semaphore sem_get_link_speed;
 	struct semaphore sem_get_chnl;
 	struct semaphore sem_inactive_time;
-<<<<<<< HEAD
 /* timer handlers */
 	struct timer_list scan_timer;
 	struct timer_list connect_timer;
