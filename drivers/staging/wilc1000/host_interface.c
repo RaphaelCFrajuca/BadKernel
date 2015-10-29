@@ -2479,7 +2479,7 @@ static int Handle_RemainOnChan(struct host_if_drv *hif_drv,
 	struct wid wid;
 
 	if (!hif_drv->remain_on_ch_pending) {
-		hif_drv->remain_on_ch.pVoid = pstrHostIfRemainOnChan->pVoid;
+		hif_drv->remain_on_ch.arg = pstrHostIfRemainOnChan->arg;
 		hif_drv->remain_on_ch.expired = pstrHostIfRemainOnChan->expired;
 		hif_drv->remain_on_ch.ready = pstrHostIfRemainOnChan->ready;
 		hif_drv->remain_on_ch.ch = pstrHostIfRemainOnChan->ch;
@@ -2536,7 +2536,7 @@ ERRORHANDLER:
 			  msecs_to_jiffies(pstrHostIfRemainOnChan->u32duration));
 
 		if (hif_drv->remain_on_ch.ready)
-			hif_drv->remain_on_ch.ready(hif_drv->remain_on_ch.pVoid);
+			hif_drv->remain_on_ch.ready(hif_drv->remain_on_ch.arg);
 
 		if (hif_drv->remain_on_ch_pending)
 			hif_drv->remain_on_ch_pending = 0;
@@ -2609,9 +2609,9 @@ static u32 Handle_ListenStateExpired(struct host_if_drv *hif_drv,
 			goto _done_;
 		}
 
-		if (hif_drv->remain_on_ch.pRemainOnChanExpired) {
-			hif_drv->remain_on_ch.pRemainOnChanExpired(hif_drv->remain_on_ch.pVoid,
-								   pstrHostIfRemainOnChan->u32ListenSessionID);
+		if (hif_drv->remain_on_ch.expired) {
+			hif_drv->remain_on_ch.expired(hif_drv->remain_on_ch.arg,
+						      pstrHostIfRemainOnChan->u32ListenSessionID);
 		}
 		P2P_LISTEN_STATE = 0;
 	} else {
@@ -4368,7 +4368,7 @@ s32 host_int_remain_on_channel(struct host_if_drv *hif_drv, u32 u32SessionID,
 	msg.body.remain_on_ch.ch = chan;
 	msg.body.remain_on_ch.expired = RemainOnChanExpired;
 	msg.body.remain_on_ch.ready = RemainOnChanReady;
-	msg.body.remain_on_ch.pVoid = pvUserArg;
+	msg.body.remain_on_ch.arg = pvUserArg;
 	msg.body.remain_on_ch.u32duration = u32duration;
 	msg.body.remain_on_ch.u32ListenSessionID = u32SessionID;
 	msg.drv = hif_drv;
