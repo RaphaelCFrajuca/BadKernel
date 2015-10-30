@@ -58,10 +58,10 @@ MODULE_FIRMWARE(I915_CSR_BXT);
 #define CSR_LAST_WRITE			0x8F034
 #define CSR_LAST_WRITE_VALUE		0xc003b400
 /* MMIO address range for CSR program (0x80000 - 0x82FFF) */
+#define SKL_CSR_VERSION_REQUIRED	CSR_VERSION(1, 23)
+
 #define CSR_MAX_FW_SIZE			0x2FFF
 #define CSR_DEFAULT_FW_OFFSET		0xFFFFFFFF
-#define CSR_MMIO_START_RANGE	0x80000
-#define CSR_MMIO_END_RANGE		0x8FFFF
 
 struct intel_css_header {
 	/* 0x09 for DMC */
