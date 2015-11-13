@@ -104,32 +104,58 @@ static ssize_t pvfs2_devreq_read(struct file *file,
 				 char __user *buf,
 				 size_t count, loff_t *offset)
 {
-	int ret = 0;
-	ssize_t len = 0;
-	struct pvfs2_kernel_op_s *cur_op = NULL;
-	static __s32 magic = PVFS2_DEVREQ_MAGIC;
+	struct pvfs2_kernel_op_s *op, *temp;
 	__s32 proto_ver = PVFS_KERNEL_PROTO_VERSION;
+	static __s32 magic = PVFS2_DEVREQ_MAGIC;
+	struct pvfs2_kernel_op_s *cur_op = NULL;
+	unsigned long ret;
 
+	/* We do not support blocking IO. */
 	if (!(file->f_flags & O_NONBLOCK)) {
-		/* We do not support blocking reads/opens any more */
-		gossip_err("pvfs2: blocking reads are not supported! (pvfs2-client-core bug)\n");
+		gossip_err("orangefs: blocking reads are not supported! (pvfs2-client-core bug)\n");
 		return -EINVAL;
-	} else {
-		struct pvfs2_kernel_op_s *op = NULL, *temp = NULL;
-		/* get next op (if any) from top of list */
-		spin_lock(&pvfs2_request_list_lock);
-		list_for_each_entry_safe(op, temp, &pvfs2_request_list, list) {
-			__s32 fsid = fsid_of_op(op);
-			/*
-			 * Check if this op's fsid is known and needs
-			 * remounting
-			 */
-			if (fsid != PVFS_FS_ID_NULL &&
-			    fs_mount_pending(fsid) == 1) {
+	}
+
+	/*
+	 * The client will do an ioctl to find MAX_ALIGNED_DEV_REQ_UPSIZE, then
+	 * always read with that size buffer.
+	 */
+	if (count != MAX_ALIGNED_DEV_REQ_UPSIZE) {
+		gossip_err("orangefs: client-core tried to read wrong size\n");
+		return -EINVAL;
+	}
+
+	/* Get next op (if any) from top of list. */
+	spin_lock(&pvfs2_request_list_lock);
+	list_for_each_entry_safe(op, temp, &pvfs2_request_list, list) {
+		__s32 fsid;
+		/* This lock is held past the end of the loop when we break. */
+		spin_lock(&op->lock);
+
+		fsid = fsid_of_op(op);
+		if (fsid != PVFS_FS_ID_NULL) {
+			int ret;
+			/* Skip ops whose filesystem needs to be mounted. */
+			ret = fs_mount_pending(fsid);
+			if (ret == 1) {
 				gossip_debug(GOSSIP_DEV_DEBUG,
-					     "Skipping op tag %llu %s\n",
-					     llu(op->tag),
-					     get_opname_string(op));
+				    "orangefs: skipping op tag %llu %s\n",
+				    llu(op->tag), get_opname_string(op));
+				spin_unlock(&op->lock);
+				continue;
+			/* Skip ops whose filesystem we don't know about unless
+			 * it is being mounted. */
+			/* XXX: is there a better way to detect this? */
+			} else if (ret == -1 &&
+				   !(op->upcall.type == PVFS2_VFS_OP_FS_MOUNT ||
+				     op->upcall.type == PVFS2_VFS_OP_GETATTR)) {
+				gossip_debug(GOSSIP_DEV_DEBUG,
+				    "orangefs: skipping op tag %llu %s\n",
+				    llu(op->tag), get_opname_string(op));
+				gossip_err(
+				    "orangefs: ERROR: fs_mount_pending %d\n",
+				    fsid);
+				spin_unlock(&op->lock);
 				continue;
 			} else {
 				/*
@@ -157,14 +183,26 @@ static ssize_t pvfs2_devreq_read(struct file *file,
 				break;
 			}
 		}
-		spin_unlock(&pvfs2_request_list_lock);
+		/*
+		 * Either this op does not pertain to a filesystem, is mounting
+		 * a filesystem, or pertains to a mounted filesystem. Let it
+		 * through.
+		 */
+		cur_op = op;
+		break;
 	}
 
-	if (cur_op) {
-		spin_lock(&cur_op->lock);
+	/*
+	 * At this point we either have a valid op and can continue or have not
+	 * found an op and must ask the client to try again later.
+	 */
+	if (!cur_op) {
+		spin_unlock(&pvfs2_request_list_lock);
+		return -EAGAIN;
+	}
 
 		gossip_debug(GOSSIP_DEV_DEBUG,
-			     "client-core: reading op tag %llu %s\n",
+			     "orangefs: reading op tag %llu %s\n",
 			     llu(cur_op->tag), get_opname_string(cur_op));
 		if (op_state_in_progress(cur_op) || op_state_serviced(cur_op)) {
 			if (cur_op->op_linger == 1)
@@ -180,6 +218,13 @@ static ssize_t pvfs2_devreq_read(struct file *file,
 			pvfs2_devreq_add_op(cur_op);
 		}
 
+	/*
+	 * Such an op should never be on the list in the first place. If so, we
+	 * will abort.
+	 */
+	if (op_state_in_progress(cur_op) || op_state_serviced(cur_op)) {
+		gossip_err("orangefs: ERROR: Current op already queued.\n");
+		list_del(&cur_op->list);
 		spin_unlock(&cur_op->lock);
 
 		/* 2 cases
@@ -255,7 +300,50 @@ static ssize_t pvfs2_devreq_read(struct file *file,
 		 */
 		len = -EAGAIN;
 	}
-	return len;
+
+	/*
+	 * Set the operation to be in progress and move it between lists since
+	 * it has been sent to the client.
+	 */
+	set_op_state_inprogress(cur_op);
+
+	list_del(&cur_op->list);
+	spin_unlock(&pvfs2_request_list_lock);
+	pvfs2_devreq_add_op(cur_op);
+	spin_unlock(&cur_op->lock);
+
+	/* Push the upcall out. */
+	ret = copy_to_user(buf, &proto_ver, sizeof(__s32));
+	if (ret != 0)
+		goto error;
+	ret = copy_to_user(buf+sizeof(__s32), &magic, sizeof(__s32));
+	if (ret != 0)
+		goto error;
+	ret = copy_to_user(buf+2 * sizeof(__s32), &cur_op->tag, sizeof(__u64));
+	if (ret != 0)
+		goto error;
+	ret = copy_to_user(buf+2*sizeof(__s32)+sizeof(__u64), &cur_op->upcall,
+			   sizeof(struct pvfs2_upcall_s));
+	if (ret != 0)
+		goto error;
+
+	/* The client only asks to read one size buffer. */
+	return MAX_ALIGNED_DEV_REQ_UPSIZE;
+error:
+	/*
+	 * We were unable to copy the op data to the client. Put the op back in
+	 * list. If client has crashed, the op will be purged later when the
+	 * device is released.
+	 */
+	gossip_err("orangefs: Failed to copy data to user space\n");
+	spin_lock(&pvfs2_request_list_lock);
+	spin_lock(&cur_op->lock);
+	set_op_state_waiting(cur_op);
+	pvfs2_devreq_remove_op(cur_op->tag);
+	list_add(&cur_op->list, &pvfs2_request_list);
+	spin_unlock(&cur_op->lock);
+	spin_unlock(&pvfs2_request_list_lock);
+	return -EFAULT;
 }
 
 /* Function for writev() callers into the device */
