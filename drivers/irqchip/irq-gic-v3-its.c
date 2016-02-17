@@ -1,4 +1,4 @@
-/*
+]/*
  * Copyright (C) 2013, 2014 ARM Limited, All Rights Reserved.
  * Author: Marc Zyngier <marc.zyngier@arm.com>
  *
@@ -79,6 +79,9 @@ struct its_node {
 };
 
 #define ITS_ITT_ALIGN		SZ_256
+
+/* Convert page order to size in bytes */
+#define PAGE_ORDER_TO_SIZE(o)	(PAGE_SIZE << (o))
 
 struct event_lpi_map {
 	unsigned long		*lpi_map;
@@ -855,7 +858,6 @@ static int its_alloc_tables(const char *node_name, struct its_node *its)
 		u64 type = GITS_BASER_TYPE(val);
 		u64 entry_size = GITS_BASER_ENTRY_SIZE(val);
 		int order = get_order(psz);
-		int alloc_size;
 		int alloc_pages;
 		u64 tmp;
 		void *base;
@@ -888,7 +890,8 @@ static int its_alloc_tables(const char *node_name, struct its_node *its)
 		}
 
 		alloc_size = (1 << order) * PAGE_SIZE;
-		alloc_pages = (alloc_size / psz);
+retry_alloc_baser:
+		alloc_pages = (PAGE_ORDER_TO_SIZE(order) / psz);
 		if (alloc_pages > GITS_BASER_PAGES_MAX) {
 			alloc_pages = GITS_BASER_PAGES_MAX;
 			order = get_order(GITS_BASER_PAGES_MAX * psz);
@@ -941,7 +944,7 @@ retry_baser:
 			shr = tmp & GITS_BASER_SHAREABILITY_MASK;
 			if (!shr) {
 				cache = GITS_BASER_nC;
-				__flush_dcache_area(base, alloc_size);
+				__flush_dcache_area(base, PAGE_ORDER_TO_SIZE(order));
 			}
 			goto retry_baser;
 		}
@@ -974,7 +977,7 @@ retry_baser:
 		}
 
 		pr_info("ITS: allocated %d %s @%lx (psz %dK, shr %d)\n",
-			(int)(alloc_size / entry_size),
+			(int)(PAGE_ORDER_TO_SIZE(order) / entry_size),
 			its_base_type_string[type],
 			(unsigned long)virt_to_phys(base),
 			psz / SZ_1K, (int)shr >> GITS_BASER_SHAREABILITY_SHIFT);
