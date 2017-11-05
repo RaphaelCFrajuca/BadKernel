@@ -105,7 +105,12 @@ config CPU_FREQ_DEFAULT_GOV_IRONACTIVE
 	  is based on the 'interactive' governor with many changes made by
 	  CAF.
 	  
-	  
+config CPU_FREQ_DEFAULT_GOV_TRIPNDROID
+	bool "tripndroid"
+	select CPU_FREQ_GOV_TRIPNDROID
+	help
+	  Select tripndroid cpu governor as default
+
 config CPU_FREQ_DEFAULT_GOV_POWERSAVE
 	bool "powersave"
 	select CPU_FREQ_GOV_POWERSAVE
@@ -220,6 +225,14 @@ config CPU_FREQ_GOV_PERFORMANCE
 	  module will be called cpufreq_performance.
 
 	  If in doubt, say Y.
+
+config CPU_FREQ_GOV_TRIPNDROID
+    tristate "'tripndroid' cpufreq governor"
+    depends on CPU_FREQ
+    help
+	  Custom cpu governor designed specificly for multi cpu mobile devices.
+	  Aiming at a balance between performance and battery lifetime, but it
+	  hangs a little bit more towards performance at low latencys.
 
 config CPU_FREQ_GOV_POWERSAVE
 	tristate "'powersave' governor"
