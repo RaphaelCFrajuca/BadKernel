@@ -213,7 +213,13 @@ config CPU_FREQ_GOV_IRONACTIVE
 
 	  If in doubt, say N.
 
+config CPU_FREQ_DEFAULT_GOV_INTELLIDEMAND
+ 	bool "intellidemand"
+ 	select CPU_FREQ_GOV_INTELLIDEMAND
 
+config CPU_FREQ_DEFAULT_GOV_DARKNESS
+ 	bool "darkness"
+ 	select CPU_FREQ_GOV_DARKNESS
 
 config CPU_FREQ_GOV_PERFORMANCE
 	tristate "'performance' governor"
@@ -360,6 +366,13 @@ config CPUFREQ_DT
 	  systems which share clock and voltage across all CPUs.
 
 	  If in doubt, say N.
+
+config CPU_FREQ_GOV_INTELLIDEMAND
+        tristate "'intellidemand' cpufreq governor"
+        depends on CPU_FREQ
+
+config CPU_FREQ_GOV_DARKNESS
+        tristate "'darkness' cpufreq policy governor"
 
 if X86
 source "drivers/cpufreq/Kconfig.x86"
