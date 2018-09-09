@@ -43,7 +43,7 @@ echo "         Compiling BadKernel                            "
 echo -e "***********************************************$nocol"
 make clean && make mrproper
 make exynos8895-dream2lte_defconfig
-make -j4
+make -j32
 if ! [ -a $IMAGE ];
 then
 echo -e "$Red Kernel Compilation failed! Fix the errors! $nocol"
