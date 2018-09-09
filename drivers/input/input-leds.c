@@ -30,7 +30,7 @@ static const struct {
 	[LED_SCROLLL]	= { "scrolllock", VT_TRIGGER("kbd-scrolllock") },
 	[LED_COMPOSE]	= { "compose" },
 	[LED_KANA]	= { "kana", VT_TRIGGER("kbd-kanalock") },
-	[LED_SLEEP]	= { "sleep" } ,
+	[LED_SLEEP]	= { "sleep" },
 	[LED_SUSPEND]	= { "suspend" },
 	[LED_MUTE]	= { "mute" },
 	[LED_MISC]	= { "misc" },
@@ -122,6 +122,8 @@ static int input_leds_connect(struct input_handler *handler,
 	for_each_set_bit(led_code, dev->ledbit, LED_CNT) {
 		if (!input_led_info[led_code].name)
 			continue;
+		if (led_no >= num_leds)
+			break;
 
 		led = &leds->leds[led_no];
 		led->handle = &leds->handle;
