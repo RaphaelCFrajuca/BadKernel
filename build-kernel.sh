@@ -14,7 +14,7 @@
 
 # Init Script
 KERNEL_DIR=$PWD
-IMAGE=$KERNEL_DIR/arch/arm/boot/Image
+IMAGE=$KERNEL_DIR/arch/arm64/boot/Image
 BUILD_START=$(date +"%s")
 
 # Color Code Script
@@ -33,7 +33,7 @@ export ARCH=arm64
 export SUBARCH=arm64
 export KBUILD_BUILD_USER="BadKernel"
 export KBUILD_BUILD_HOST="BadGuyServer"
-export CROSS_COMPILE="/home/raphael/arm-eabi-7.0/bin/arm-eabi-"
+export CROSS_COMPILE="/home/raphael/aarch64-linux-android-4.9/bin/aarch64-linux-android-"
 
 # Compilation Scripts Are Below
 compile_kernel ()
