@@ -32,7 +32,6 @@
 #include <linux/hugetlb.h>
 #include <linux/memblock.h>
 #include <linux/bootmem.h>
-#include <linux/compaction.h>
 
 #include <asm/tlbflush.h>
 
@@ -1013,7 +1012,7 @@ int __ref online_pages(unsigned long pfn, unsigned long nr_pages, int online_typ
 	arg.nr_pages = nr_pages;
 	node_states_check_changes_online(nr_pages, zone, &arg);
 
-	nid = zone_to_nid(zone);
+	nid = pfn_to_nid(pfn);
 
 	ret = memory_notify(MEM_GOING_ONLINE, &arg);
 	ret = notifier_to_errno(ret);
@@ -1053,7 +1052,7 @@ int __ref online_pages(unsigned long pfn, unsigned long nr_pages, int online_typ
 	pgdat_resize_unlock(zone->zone_pgdat, &flags);
 
 	if (onlined_pages) {
-		node_states_set_node(nid, &arg);
+		node_states_set_node(zone_to_nid(zone), &arg);
 		if (need_zonelists_rebuild)
 			build_all_zonelists(NULL, NULL);
 		else
@@ -1064,10 +1063,8 @@ int __ref online_pages(unsigned long pfn, unsigned long nr_pages, int online_typ
 
 	init_per_zone_wmark_min();
 
-	if (onlined_pages) {
-		kswapd_run(nid);
-		kcompactd_run(nid);
-	}
+	if (onlined_pages)
+		kswapd_run(zone_to_nid(zone));
 
 	vm_total_pages = nr_free_pagecache_pages();
 
@@ -1845,10 +1842,8 @@ repeat:
 		zone_pcp_update(zone);
 
 	node_states_clear_node(node, &arg);
-	if (arg.status_change_nid >= 0) {
+	if (arg.status_change_nid >= 0)
 		kswapd_stop(node);
-		kcompactd_stop(node);
-	}
 
 	vm_total_pages = nr_free_pagecache_pages();
 	writeback_set_ratelimit();
@@ -1932,7 +1927,8 @@ static int check_memblock_offlined_cb(struct memory_block *mem, void *arg)
 
 		beginpa = PFN_PHYS(section_nr_to_pfn(mem->start_section_nr));
 		endpa = PFN_PHYS(section_nr_to_pfn(mem->end_section_nr + 1))-1;
-		pr_warn("removing memory fails, because memory [%pa-%pa] is onlined\n",
+		pr_warn("removing memory fails, because memory "
+			"[%pa-%pa] is onlined\n",
 			&beginpa, &endpa);
 	}
 

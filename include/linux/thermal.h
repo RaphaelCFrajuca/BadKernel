@@ -72,31 +72,6 @@ struct thermal_zone_device;
 struct thermal_cooling_device;
 struct thermal_instance;
 
-#ifdef CONFIG_SEC_DEBUG_HW_PARAM
-enum thermal_zone_devices {
-	THERMAL_ZONE_MNGS = 0,
-	THERMAL_ZONE_APOLLO,
-	THERMAL_ZONE_GPU,
-	THERMAL_ZONE_ISP,
-	THERMAL_ZONE_MAX,
-};
-
-enum thermal_time_type { 
-	ACTIVE_TIMES = 0,
-	PASSIVE_TIMES,
-	HOT_TIMES,
-	MAX_TIME_ITEMS,
-}; 
-
-struct thermal_data_devices {
-	int max_temp;
-	unsigned long times[MAX_TIME_ITEMS];
-	unsigned long hotplug_out;
-	unsigned long freq_level[15];
-	unsigned long max_level;
-};
-#endif
-
 enum thermal_device_mode {
 	THERMAL_DEVICE_DISABLED = 0,
 	THERMAL_DEVICE_ENABLED,
@@ -139,7 +114,6 @@ struct thermal_zone_device_ops {
 			  enum thermal_trend *);
 	int (*notify) (struct thermal_zone_device *, int,
 		       enum thermal_trip_type);
-	int (*throttle_hotplug) (struct thermal_zone_device *);
 };
 
 struct thermal_cooling_device_ops {
@@ -152,7 +126,6 @@ struct thermal_cooling_device_ops {
 			   struct thermal_zone_device *, unsigned long, u32 *);
 	int (*power2state)(struct thermal_cooling_device *,
 			   struct thermal_zone_device *, u32, unsigned long *);
-	int (*set_cur_temp) (struct thermal_cooling_device *, bool, int);
 };
 
 struct thermal_cooling_device {
@@ -237,7 +210,6 @@ struct thermal_zone_device {
 	struct mutex lock;
 	struct list_head node;
 	struct delayed_work poll_queue;
-	int poll_queue_cpu;
 };
 
 /**
@@ -297,7 +269,7 @@ struct thermal_bind_params {
 
 /* Structure to define Thermal Zone parameters */
 struct thermal_zone_params {
-	char governor_name[THERMAL_NAME_LENGTH + 1];
+	char governor_name[THERMAL_NAME_LENGTH];
 
 	/*
 	 * a boolean to indicate if the thermal to hwmon sysfs interface
@@ -336,8 +308,6 @@ struct thermal_zone_params {
 	/* threshold below which the error is no longer accumulated */
 	s32 integral_cutoff;
 
-	s32 integral_max;
-
 	/*
 	 * @slope:	slope of a linear temperature adjustment curve.
 	 * 		Used by thermal zone drivers.
@@ -370,7 +340,6 @@ struct thermal_zone_of_device_ops {
 	int (*get_temp)(void *, int *);
 	int (*get_trend)(void *, long *);
 	int (*set_emul_temp)(void *, int);
-	int (*throttle_cpu_hotplug)(void *, int temp);
 };
 
 /**

@@ -680,7 +680,8 @@ static int snd_compr_stop(struct snd_compr_stream *stream)
 {
 	int retval;
 
-	if (stream->runtime->state == SNDRV_PCM_STATE_PREPARED)
+	if (stream->runtime->state == SNDRV_PCM_STATE_PREPARED ||
+			stream->runtime->state == SNDRV_PCM_STATE_SETUP)
 		return -EPERM;
 	retval = stream->ops->trigger(stream, SNDRV_PCM_TRIGGER_STOP);
 	if (!retval) {
@@ -864,7 +865,6 @@ static const struct file_operations snd_compr_file_ops = {
 		.write =	snd_compr_write,
 		.read =		snd_compr_read,
 		.unlocked_ioctl = snd_compr_ioctl,
-		.compat_ioctl	= snd_compr_ioctl,
 		.mmap =		snd_compr_mmap,
 		.poll =		snd_compr_poll,
 };

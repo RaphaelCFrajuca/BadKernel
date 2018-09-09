@@ -46,16 +46,6 @@ static int ext4_is_encryption_context_consistent_with_policy(
 		 policy->filenames_encryption_mode));
 }
 
-static inline int __ext4_set_nonce(char *nonce, char *master_key_desc)
-{
-#ifdef CONFIG_EXT4_SEC_CRYPTO_EXTENSION
-	return ext4_sec_set_key_aes(nonce, master_key_desc);
-#else
-	get_random_bytes(nonce, EXT4_KEY_DERIVATION_NONCE_SIZE);
-	return 0;
-#endif
-}
-
 static int ext4_create_encryption_context_from_policy(
 	struct inode *inode, const struct ext4_encryption_policy *policy)
 {
@@ -88,12 +78,7 @@ static int ext4_create_encryption_context_from_policy(
 	ctx.filenames_encryption_mode = policy->filenames_encryption_mode;
 	ctx.flags = policy->flags;
 	BUILD_BUG_ON(sizeof(ctx.nonce) != EXT4_KEY_DERIVATION_NONCE_SIZE);
-	res = __ext4_set_nonce(ctx.nonce, ctx.master_key_descriptor);
-	if (res) {
-		printk(KERN_ERR
-		       "%s: Failed to set nonce (err:%d)\n", __func__, res);
-		return res;
-	}
+	get_random_bytes(ctx.nonce, EXT4_KEY_DERIVATION_NONCE_SIZE);
 
 	handle = ext4_journal_start(inode, EXT4_HT_MISC,
 				    ext4_jbd2_credits_xattr(inode));
@@ -270,12 +255,7 @@ int ext4_inherit_context(struct inode *parent, struct inode *child)
 		memcpy(ctx.master_key_descriptor, ci->ci_master_key,
 		       EXT4_KEY_DESCRIPTOR_SIZE);
 	}
-	res = __ext4_set_nonce(ctx.nonce, ctx.master_key_descriptor);
-	if (res) {
-		printk(KERN_ERR
-		       "%s: Failed to set nonce (err:%d)\n", __func__, res);
-		return res;
-	}
+	get_random_bytes(ctx.nonce, EXT4_KEY_DERIVATION_NONCE_SIZE);
 	res = ext4_xattr_set(child, EXT4_XATTR_INDEX_ENCRYPTION,
 			     EXT4_XATTR_NAME_ENCRYPTION_CONTEXT, &ctx,
 			     sizeof(ctx), 0);

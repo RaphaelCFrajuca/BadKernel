@@ -368,11 +368,10 @@ struct address_space *page_mapping(struct page *page)
 	}
 
 	mapping = (unsigned long)page->mapping;
-	if (mapping & PAGE_MAPPING_ANON)
+	if (mapping & PAGE_MAPPING_FLAGS)
 		return NULL;
-	return (void *)(mapping & ~PAGE_MAPPING_FLAGS);
+	return page->mapping;
 }
-EXPORT_SYMBOL(page_mapping);
 
 int overcommit_ratio_handler(struct ctl_table *table, int write,
 			     void __user *buffer, size_t *lenp,

@@ -26,7 +26,6 @@
 #include <linux/syscalls.h>
 #include <linux/uaccess.h>
 #include <linux/io.h>
-#include <linux/arm-smccc.h>
 
 #include <asm/checksum.h>
 
@@ -34,8 +33,8 @@ EXPORT_SYMBOL(copy_page);
 EXPORT_SYMBOL(clear_page);
 
 	/* user mem (segment) */
-EXPORT_SYMBOL(__arch_copy_from_user);
-EXPORT_SYMBOL(__arch_copy_to_user);
+EXPORT_SYMBOL(__copy_from_user);
+EXPORT_SYMBOL(__copy_to_user);
 EXPORT_SYMBOL(__clear_user);
 EXPORT_SYMBOL(__copy_in_user);
 
@@ -69,7 +68,3 @@ EXPORT_SYMBOL(test_and_change_bit);
 #ifdef CONFIG_FUNCTION_TRACER
 EXPORT_SYMBOL(_mcount);
 #endif
-
-	/* arm-smccc */
-EXPORT_SYMBOL(arm_smccc_smc);
-EXPORT_SYMBOL(arm_smccc_hvc);

@@ -53,13 +53,6 @@
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]) + __must_be_array(arr))
 
-#define u64_to_user_ptr(x) (		\
-{					\
-	typecheck(u64, x);		\
-	(void __user *)(uintptr_t)x;	\
-}					\
-)
-
 /*
  * This looks more complex than it should be. But we need to
  * get the type for the ~ right in round_down (it needs to be
@@ -839,8 +832,4 @@ static inline void ftrace_dump(enum ftrace_dump_mode oops_dump_mode) { }
 	 /* OTHER_WRITABLE?  Generally considered a bad idea. */		\
 	 BUILD_BUG_ON_ZERO((perms) & 2) +					\
 	 (perms))
-
-/* To identify board information in panic logs, set this */
-extern char *mach_panic_string;
-
 #endif

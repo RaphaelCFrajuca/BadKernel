@@ -17,6 +17,9 @@
 #include <linux/crypto.h>
 #include <linux/module.h>
 
+#define ASM_EXPORT(sym, val) \
+	asm(".globl " #sym "; .set " #sym ", %0" :: "I"(val));
+
 MODULE_DESCRIPTION("SHA-224/SHA-256 secure hash using ARMv8 Crypto Extensions");
 MODULE_AUTHOR("Ard Biesheuvel <ard.biesheuvel@linaro.org>");
 MODULE_LICENSE("GPL v2");
@@ -29,18 +32,13 @@ struct sha256_ce_state {
 asmlinkage void sha2_ce_transform(struct sha256_ce_state *sst, u8 const *src,
 				  int blocks);
 
-const u32 sha256_ce_offsetof_count = offsetof(struct sha256_ce_state,
-					      sst.count);
-const u32 sha256_ce_offsetof_finalize = offsetof(struct sha256_ce_state,
-						 finalize);
-
 static int sha256_ce_update(struct shash_desc *desc, const u8 *data,
 			    unsigned int len)
 {
 	struct sha256_ce_state *sctx = shash_desc_ctx(desc);
 
 	sctx->finalize = 0;
-	kernel_neon_begin();
+	kernel_neon_begin_partial(28);
 	sha256_base_do_update(desc, data, len,
 			      (sha256_block_fn *)sha2_ce_transform);
 	kernel_neon_end();
@@ -54,13 +52,18 @@ static int sha256_ce_finup(struct shash_desc *desc, const u8 *data,
 	struct sha256_ce_state *sctx = shash_desc_ctx(desc);
 	bool finalize = !sctx->sst.count && !(len % SHA256_BLOCK_SIZE);
 
+	ASM_EXPORT(sha256_ce_offsetof_count,
+		   offsetof(struct sha256_ce_state, sst.count));
+	ASM_EXPORT(sha256_ce_offsetof_finalize,
+		   offsetof(struct sha256_ce_state, finalize));
+
 	/*
 	 * Allow the asm code to perform the finalization if there is no
 	 * partial data and the input is a round multiple of the block size.
 	 */
 	sctx->finalize = finalize;
 
-	kernel_neon_begin();
+	kernel_neon_begin_partial(28);
 	sha256_base_do_update(desc, data, len,
 			      (sha256_block_fn *)sha2_ce_transform);
 	if (!finalize)
@@ -75,7 +78,7 @@ static int sha256_ce_final(struct shash_desc *desc, u8 *out)
 	struct sha256_ce_state *sctx = shash_desc_ctx(desc);
 
 	sctx->finalize = 0;
-	kernel_neon_begin();
+	kernel_neon_begin_partial(28);
 	sha256_base_do_finalize(desc, (sha256_block_fn *)sha2_ce_transform);
 	kernel_neon_end();
 	return sha256_base_finish(desc, out);
