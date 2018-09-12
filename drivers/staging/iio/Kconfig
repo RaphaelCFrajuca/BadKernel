@@ -44,6 +44,5 @@ source "drivers/staging/iio/trigger/Kconfig"
 #	  Add buffered data capture to the simple dummy driver.
 
 #endif # IIO_SIMPLE_DUMMY
->>>>>>> 415f79244757... iio: Move IIO Dummy Driver out of staging
 
 endmenu
