@@ -889,7 +889,7 @@ static int its_alloc_tables(const char *node_name, struct its_node *its)
 			}
 		}
 
-retry_alloc_baser:
+//retry_alloc_baser:
 		alloc_pages = (PAGE_ORDER_TO_SIZE(order) / psz);
 		if (alloc_pages > GITS_BASER_PAGES_MAX) {
 			alloc_pages = GITS_BASER_PAGES_MAX;
