@@ -33,7 +33,6 @@
 #ifndef _UAPI_LINUX_QUOTA_
 #define _UAPI_LINUX_QUOTA_
 
-#include <linux/errno.h>
 #include <linux/types.h>
 
 #define __DQUOT_VERSION__	"dquot_6.6.0"
@@ -191,6 +190,7 @@ enum {
 	QUOTA_NL_A_DEV_MAJOR,
 	QUOTA_NL_A_DEV_MINOR,
 	QUOTA_NL_A_CAUSED_ID,
+	QUOTA_NL_A_PAD,
 	__QUOTA_NL_A_MAX,
 };
 #define QUOTA_NL_A_MAX (__QUOTA_NL_A_MAX - 1)

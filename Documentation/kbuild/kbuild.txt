@@ -50,10 +50,6 @@ LDFLAGS_MODULE
 --------------------------------------------------
 Additional options used for $(LD) when linking modules.
 
-LDFLAGS_vmlinux
---------------------------------------------------
-Additional options passed to final link of vmlinux.
-
 KBUILD_VERBOSE
 --------------------------------------------------
 Set the kbuild verbosity. Can be assigned same values as "V=...".
@@ -236,5 +232,9 @@ Files specified with KBUILD_VMLINUX_INIT are linked first.
 KBUILD_VMLINUX_MAIN
 --------------------------------------------------
 All object files for the main part of vmlinux.
-KBUILD_VMLINUX_INIT and KBUILD_VMLINUX_MAIN together specify
-all the object files used to link vmlinux.
+
+KBUILD_VMLINUX_LIBS
+--------------------------------------------------
+All .a "lib" files for vmlinux.
+KBUILD_VMLINUX_INIT, KBUILD_VMLINUX_MAIN, and KBUILD_VMLINUX_LIBS together
+specify all the object files used to link vmlinux.

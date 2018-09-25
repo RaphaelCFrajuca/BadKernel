@@ -25,7 +25,7 @@
 #include <linux/cpu.h>
 #include <linux/freezer.h>
 
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 
 #include "power.h"
 
@@ -229,7 +229,7 @@ static long snapshot_ioctl(struct file *filp, unsigned int cmd,
 			break;
 
 		printk("Syncing filesystems ... ");
-		sys_sync();
+		ksys_sync();
 		printk("done.\n");
 
 		error = freeze_processes();
