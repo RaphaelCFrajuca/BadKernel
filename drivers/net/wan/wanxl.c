@@ -551,6 +551,7 @@ static void wanxl_pci_remove_one(struct pci_dev *pdev)
 static const struct net_device_ops wanxl_ops = {
 	.ndo_open       = wanxl_open,
 	.ndo_stop       = wanxl_close,
+	.ndo_change_mtu = hdlc_change_mtu,
 	.ndo_start_xmit = hdlc_start_xmit,
 	.ndo_do_ioctl   = wanxl_ioctl,
 	.ndo_get_stats  = wanxl_get_stats,
@@ -585,7 +586,6 @@ static int wanxl_pci_init_one(struct pci_dev *pdev,
 	if (pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(28)) ||
 	    pci_set_dma_mask(pdev, DMA_BIT_MASK(28))) {
 		pr_err("No usable DMA configuration\n");
-		pci_disable_device(pdev);
 		return -EIO;
 	}
 
@@ -734,6 +734,7 @@ static int wanxl_pci_init_one(struct pci_dev *pdev,
 		return -ENODEV;
 	}
 
+	stat = 0;
 	timeout = jiffies + 5 * HZ;
 	do {
 		if ((stat = readl(card->plx + PLX_MAILBOX_5)) != 0)

@@ -48,10 +48,12 @@ static bool rpfilter_lookup_reverse6(struct net *net, const struct sk_buff *skb,
 	}
 
 	fl6.flowi6_mark = flags & XT_RPFILTER_VALID_MARK ? skb->mark : 0;
-	if ((flags & XT_RPFILTER_LOOSE) == 0)
+	if ((flags & XT_RPFILTER_LOOSE) == 0) {
 		fl6.flowi6_oif = dev->ifindex;
+		lookup_flags |= RT6_LOOKUP_F_IFACE;
+	}
 
-	rt = (void *)ip6_route_lookup(net, &fl6, skb, lookup_flags);
+	rt = (void *) ip6_route_lookup(net, &fl6, lookup_flags);
 	if (rt->dst.error)
 		goto out;
 
@@ -70,10 +72,10 @@ static bool rpfilter_lookup_reverse6(struct net *net, const struct sk_buff *skb,
 	return ret;
 }
 
-static bool
-rpfilter_is_loopback(const struct sk_buff *skb, const struct net_device *in)
+static bool rpfilter_is_local(const struct sk_buff *skb)
 {
-	return skb->pkt_type == PACKET_LOOPBACK || in->flags & IFF_LOOPBACK;
+	const struct rt6_info *rt = (const void *) skb_dst(skb);
+	return rt && (rt->rt6i_flags & RTF_LOCAL);
 }
 
 static bool rpfilter_mt(const struct sk_buff *skb, struct xt_action_param *par)
@@ -83,7 +85,7 @@ static bool rpfilter_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	struct ipv6hdr *iph;
 	bool invert = info->flags & XT_RPFILTER_INVERT;
 
-	if (rpfilter_is_loopback(skb, xt_in(par)))
+	if (rpfilter_is_local(skb))
 		return true ^ invert;
 
 	iph = ipv6_hdr(skb);
@@ -91,8 +93,7 @@ static bool rpfilter_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	if (unlikely(saddrtype == IPV6_ADDR_ANY))
 		return true ^ invert; /* not routable: forward path will drop it */
 
-	return rpfilter_lookup_reverse6(xt_net(par), skb, xt_in(par),
-					info->flags) ^ invert;
+	return rpfilter_lookup_reverse6(par->net, skb, par->in, info->flags) ^ invert;
 }
 
 static int rpfilter_check(const struct xt_mtchk_param *par)
@@ -101,14 +102,14 @@ static int rpfilter_check(const struct xt_mtchk_param *par)
 	unsigned int options = ~XT_RPFILTER_OPTION_MASK;
 
 	if (info->flags & options) {
-		pr_info_ratelimited("unknown options\n");
+		pr_info("unknown options encountered");
 		return -EINVAL;
 	}
 
 	if (strcmp(par->table, "mangle") != 0 &&
 	    strcmp(par->table, "raw") != 0) {
-		pr_info_ratelimited("only valid in \'raw\' or \'mangle\' table, not \'%s\'\n",
-				    par->table);
+		pr_info("match only valid in the \'raw\' "
+			"or \'mangle\' tables, not \'%s\'.\n", par->table);
 		return -EINVAL;
 	}
 

@@ -14,7 +14,6 @@
  * General Public License for more details.
  */
 
-#include <linux/mm.h>
 #include <linux/bitmap.h>
 #include <linux/bitops.h>
 #include <linux/bug.h>
@@ -23,7 +22,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/percpu.h>
-#include <linux/sched/signal.h>
+#include <linux/sched.h>
 #include <linux/string.h>
 #include <linux/spinlock.h>
 #include <linux/percpu_ida.h>
@@ -112,6 +111,18 @@ static inline void alloc_global_tags(struct percpu_ida *pool,
 		  min(pool->nr_free, pool->percpu_batch_size));
 }
 
+static inline unsigned alloc_local_tag(struct percpu_ida_cpu *tags)
+{
+	int tag = -ENOSPC;
+
+	spin_lock(&tags->lock);
+	if (tags->nr_free)
+		tag = tags->freelist[--tags->nr_free];
+	spin_unlock(&tags->lock);
+
+	return tag;
+}
+
 /**
  * percpu_ida_alloc - allocate a tag
  * @pool: pool to allocate from
@@ -135,22 +146,20 @@ int percpu_ida_alloc(struct percpu_ida *pool, int state)
 	DEFINE_WAIT(wait);
 	struct percpu_ida_cpu *tags;
 	unsigned long flags;
-	int tag = -ENOSPC;
+	int tag;
 
-	tags = raw_cpu_ptr(pool->tag_cpu);
-	spin_lock_irqsave(&tags->lock, flags);
+	local_irq_save(flags);
+	tags = this_cpu_ptr(pool->tag_cpu);
 
 	/* Fastpath */
-	if (likely(tags->nr_free >= 0)) {
-		tag = tags->freelist[--tags->nr_free];
-		spin_unlock_irqrestore(&tags->lock, flags);
+	tag = alloc_local_tag(tags);
+	if (likely(tag >= 0)) {
+		local_irq_restore(flags);
 		return tag;
 	}
-	spin_unlock_irqrestore(&tags->lock, flags);
 
 	while (1) {
-		spin_lock_irqsave(&pool->lock, flags);
-		tags = this_cpu_ptr(pool->tag_cpu);
+		spin_lock(&pool->lock);
 
 		/*
 		 * prepare_to_wait() must come before steal_tags(), in case
@@ -174,7 +183,8 @@ int percpu_ida_alloc(struct percpu_ida *pool, int state)
 						&pool->cpus_have_tags);
 		}
 
-		spin_unlock_irqrestore(&pool->lock, flags);
+		spin_unlock(&pool->lock);
+		local_irq_restore(flags);
 
 		if (tag >= 0 || state == TASK_RUNNING)
 			break;
@@ -185,6 +195,9 @@ int percpu_ida_alloc(struct percpu_ida *pool, int state)
 		}
 
 		schedule();
+
+		local_irq_save(flags);
+		tags = this_cpu_ptr(pool->tag_cpu);
 	}
 	if (state != TASK_RUNNING)
 		finish_wait(&pool->wait, &wait);
@@ -208,24 +221,28 @@ void percpu_ida_free(struct percpu_ida *pool, unsigned tag)
 
 	BUG_ON(tag >= pool->nr_tags);
 
-	tags = raw_cpu_ptr(pool->tag_cpu);
+	local_irq_save(flags);
+	tags = this_cpu_ptr(pool->tag_cpu);
 
-	spin_lock_irqsave(&tags->lock, flags);
+	spin_lock(&tags->lock);
 	tags->freelist[tags->nr_free++] = tag;
 
 	nr_free = tags->nr_free;
+	spin_unlock(&tags->lock);
 
 	if (nr_free == 1) {
 		cpumask_set_cpu(smp_processor_id(),
 				&pool->cpus_have_tags);
 		wake_up(&pool->wait);
 	}
-	spin_unlock_irqrestore(&tags->lock, flags);
 
 	if (nr_free == pool->percpu_max_size) {
-		spin_lock_irqsave(&pool->lock, flags);
-		spin_lock(&tags->lock);
+		spin_lock(&pool->lock);
 
+		/*
+		 * Global lock held and irqs disabled, don't need percpu
+		 * lock
+		 */
 		if (tags->nr_free == pool->percpu_max_size) {
 			move_tags(pool->freelist, &pool->nr_free,
 				  tags->freelist, &tags->nr_free,
@@ -233,9 +250,10 @@ void percpu_ida_free(struct percpu_ida *pool, unsigned tag)
 
 			wake_up(&pool->wait);
 		}
-		spin_unlock(&tags->lock);
-		spin_unlock_irqrestore(&pool->lock, flags);
+		spin_unlock(&pool->lock);
 	}
+
+	local_irq_restore(flags);
 }
 EXPORT_SYMBOL_GPL(percpu_ida_free);
 
@@ -327,27 +345,29 @@ int percpu_ida_for_each_free(struct percpu_ida *pool, percpu_ida_cb fn,
 	struct percpu_ida_cpu *remote;
 	unsigned cpu, i, err = 0;
 
+	local_irq_save(flags);
 	for_each_possible_cpu(cpu) {
 		remote = per_cpu_ptr(pool->tag_cpu, cpu);
-		spin_lock_irqsave(&remote->lock, flags);
+		spin_lock(&remote->lock);
 		for (i = 0; i < remote->nr_free; i++) {
 			err = fn(remote->freelist[i], data);
 			if (err)
 				break;
 		}
-		spin_unlock_irqrestore(&remote->lock, flags);
+		spin_unlock(&remote->lock);
 		if (err)
 			goto out;
 	}
 
-	spin_lock_irqsave(&pool->lock, flags);
+	spin_lock(&pool->lock);
 	for (i = 0; i < pool->nr_free; i++) {
 		err = fn(pool->freelist[i], data);
 		if (err)
 			break;
 	}
-	spin_unlock_irqrestore(&pool->lock, flags);
+	spin_unlock(&pool->lock);
 out:
+	local_irq_restore(flags);
 	return err;
 }
 EXPORT_SYMBOL_GPL(percpu_ida_for_each_free);

@@ -261,6 +261,7 @@ static int sun4i_lradc_probe(struct platform_device *pdev)
 	if (error)
 		return error;
 
+	platform_set_drvdata(pdev, lradc);
 	return 0;
 }
 

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * kernel/lockdep_proc.c
  *
@@ -19,7 +18,7 @@
 #include <linux/debug_locks.h>
 #include <linux/vmalloc.h>
 #include <linux/sort.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/div64.h>
 
 #include "lockdep_internals.h"
@@ -101,6 +100,18 @@ static const struct seq_operations lockdep_ops = {
 	.show	= l_show,
 };
 
+static int lockdep_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &lockdep_ops);
+}
+
+static const struct file_operations proc_lockdep_operations = {
+	.open		= lockdep_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= seq_release,
+};
+
 #ifdef CONFIG_PROVE_LOCKING
 static void *lc_start(struct seq_file *m, loff_t *pos)
 {
@@ -130,8 +141,6 @@ static int lc_show(struct seq_file *m, void *v)
 	int i;
 
 	if (v == SEQ_START_TOKEN) {
-		if (nr_chain_hlocks > MAX_LOCKDEP_CHAIN_HLOCKS)
-			seq_printf(m, "(buggered) ");
 		seq_printf(m, "all lock chains:\n");
 		return 0;
 	}
@@ -158,6 +167,18 @@ static const struct seq_operations lockdep_chains_ops = {
 	.stop	= lc_stop,
 	.show	= lc_show,
 };
+
+static int lockdep_chains_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &lockdep_chains_ops);
+}
+
+static const struct file_operations proc_lockdep_chains_operations = {
+	.open		= lockdep_chains_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= seq_release,
+};
 #endif /* CONFIG_PROVE_LOCKING */
 
 static void lockdep_stats_debug_show(struct seq_file *m)
@@ -178,10 +199,6 @@ static void lockdep_stats_debug_show(struct seq_file *m)
 		debug_atomic_read(chain_lookup_hits));
 	seq_printf(m, " cyclic checks:                 %11llu\n",
 		debug_atomic_read(nr_cyclic_checks));
-	seq_printf(m, " redundant checks:              %11llu\n",
-		debug_atomic_read(nr_redundant_checks));
-	seq_printf(m, " redundant links:               %11llu\n",
-		debug_atomic_read(nr_redundant));
 	seq_printf(m, " find-mask forwards checks:     %11llu\n",
 		debug_atomic_read(nr_find_usage_forwards_checks));
 	seq_printf(m, " find-mask backwards checks:    %11llu\n",
@@ -330,6 +347,18 @@ static int lockdep_stats_show(struct seq_file *m, void *v)
 
 	return 0;
 }
+
+static int lockdep_stats_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, lockdep_stats_show, NULL);
+}
+
+static const struct file_operations proc_lockdep_stats_operations = {
+	.open		= lockdep_stats_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
 
 #ifdef CONFIG_LOCK_STAT
 
@@ -646,11 +675,14 @@ static const struct file_operations proc_lock_stat_operations = {
 
 static int __init lockdep_proc_init(void)
 {
-	proc_create_seq("lockdep", S_IRUSR, NULL, &lockdep_ops);
+	proc_create("lockdep", S_IRUSR, NULL, &proc_lockdep_operations);
 #ifdef CONFIG_PROVE_LOCKING
-	proc_create_seq("lockdep_chains", S_IRUSR, NULL, &lockdep_chains_ops);
+	proc_create("lockdep_chains", S_IRUSR, NULL,
+		    &proc_lockdep_chains_operations);
 #endif
-	proc_create_single("lockdep_stats", S_IRUSR, NULL, lockdep_stats_show);
+	proc_create("lockdep_stats", S_IRUSR, NULL,
+		    &proc_lockdep_stats_operations);
+
 #ifdef CONFIG_LOCK_STAT
 	proc_create("lock_stat", S_IRUSR | S_IWUSR, NULL,
 		    &proc_lock_stat_operations);

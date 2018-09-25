@@ -50,7 +50,7 @@ struct radeon_mn {
 
 	/* objects protected by lock */
 	struct mutex		lock;
-	struct rb_root_cached	objects;
+	struct rb_root		objects;
 };
 
 struct radeon_mn_node {
@@ -75,8 +75,8 @@ static void radeon_mn_destroy(struct work_struct *work)
 	mutex_lock(&rdev->mn_lock);
 	mutex_lock(&rmn->lock);
 	hash_del(&rmn->node);
-	rbtree_postorder_for_each_entry_safe(node, next_node,
-					     &rmn->objects.rb_root, it.rb) {
+	rbtree_postorder_for_each_entry_safe(node, next_node, &rmn->objects,
+					     it.rb) {
 
 		interval_tree_remove(&node->it, &rmn->objects);
 		list_for_each_entry_safe(bo, next_bo, &node->bos, mn_list) {
@@ -124,7 +124,6 @@ static void radeon_mn_invalidate_range_start(struct mmu_notifier *mn,
 					     unsigned long end)
 {
 	struct radeon_mn *rmn = container_of(mn, struct radeon_mn, mn);
-	struct ttm_operation_ctx ctx = { false, false };
 	struct interval_tree_node *it;
 
 	/* notification is exclusive, but interval is inclusive */
@@ -158,7 +157,7 @@ static void radeon_mn_invalidate_range_start(struct mmu_notifier *mn,
 				DRM_ERROR("(%ld) failed to wait for user bo\n", r);
 
 			radeon_ttm_placement_from_domain(bo, RADEON_GEM_DOMAIN_CPU);
-			r = ttm_bo_validate(&bo->tbo, &bo->placement, &ctx);
+			r = ttm_bo_validate(&bo->tbo, &bo->placement, false, false);
 			if (r)
 				DRM_ERROR("(%ld) failed to validate user bo\n", r);
 
@@ -187,9 +186,7 @@ static struct radeon_mn *radeon_mn_get(struct radeon_device *rdev)
 	struct radeon_mn *rmn;
 	int r;
 
-	if (down_write_killable(&mm->mmap_sem))
-		return ERR_PTR(-EINTR);
-
+	down_write(&mm->mmap_sem);
 	mutex_lock(&rdev->mn_lock);
 
 	hash_for_each_possible(rdev->mn_hash, rmn, node, (unsigned long)mm)
@@ -206,7 +203,7 @@ static struct radeon_mn *radeon_mn_get(struct radeon_device *rdev)
 	rmn->mm = mm;
 	rmn->mn.ops = &radeon_mn_ops;
 	mutex_init(&rmn->lock);
-	rmn->objects = RB_ROOT_CACHED;
+	rmn->objects = RB_ROOT;
 	
 	r = __mmu_notifier_register(&rmn->mn, mm);
 	if (r)

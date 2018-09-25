@@ -34,7 +34,7 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 
-#include "flash.h"
+#include <mach/flash.h>
 #include <mach/mux.h>
 #include <mach/tc.h>
 #include <linux/omap-dma.h>
@@ -178,7 +178,7 @@ static struct omap_usb_config palmte_usb_config __initdata = {
 	.pins[0]	= 2,
 };
 
-static const struct omap_lcd_config palmte_lcd_config __initconst = {
+static struct omap_lcd_config palmte_lcd_config __initdata = {
 	.ctrl_name	= "internal",
 };
 

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  S390 version
  *    Copyright IBM Corp. 1999, 2000
@@ -28,7 +27,7 @@
 #include <linux/personality.h>
 #include <linux/unistd.h>
 #include <linux/ipc.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include "entry.h"
 
 /*
@@ -53,7 +52,7 @@ SYSCALL_DEFINE1(mmap2, struct s390_mmap_arg_struct __user *, arg)
 
 	if (copy_from_user(&a, arg, sizeof(a)))
 		goto out;
-	error = ksys_mmap_pgoff(a.addr, a.len, a.prot, a.flags, a.fd, a.offset);
+	error = sys_mmap_pgoff(a.addr, a.len, a.prot, a.flags, a.fd, a.offset);
 out:
 	return error;
 }

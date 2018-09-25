@@ -43,7 +43,7 @@ static int numachip2_set_next_event(unsigned long delta, struct clock_event_devi
 	return 0;
 }
 
-static const struct clock_event_device numachip2_clockevent __initconst = {
+static struct clock_event_device numachip2_clockevent = {
 	.name            = "numachip2",
 	.rating          = 400,
 	.set_next_event  = numachip2_set_next_event,
@@ -51,9 +51,7 @@ static const struct clock_event_device numachip2_clockevent __initconst = {
 	.mult            = 1,
 	.shift           = 0,
 	.min_delta_ns    = 1250,
-	.min_delta_ticks = 1250,
 	.max_delta_ns    = LONG_MAX,
-	.max_delta_ticks = LONG_MAX,
 };
 
 static void numachip_timer_interrupt(void)

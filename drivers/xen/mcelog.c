@@ -139,12 +139,12 @@ out:
 	return err ? err : buf - ubuf;
 }
 
-static __poll_t xen_mce_chrdev_poll(struct file *file, poll_table *wait)
+static unsigned int xen_mce_chrdev_poll(struct file *file, poll_table *wait)
 {
 	poll_wait(file, &xen_mce_chrdev_wait, wait);
 
 	if (xen_mcelog.next)
-		return EPOLLIN | EPOLLRDNORM;
+		return POLLIN | POLLRDNORM;
 
 	return 0;
 }
@@ -407,8 +407,6 @@ static int __init xen_late_init_mcelog(void)
 	ret = bind_virq_for_mce();
 	if (ret)
 		goto deregister;
-
-	pr_info("/dev/mcelog registered by Xen\n");
 
 	return 0;
 

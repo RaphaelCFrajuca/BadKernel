@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #include <asm-generic/vmlinux.lds.h>
 
 OUTPUT_FORMAT("elf64-s390", "elf64-s390", "elf64-s390")
@@ -17,14 +16,14 @@ SECTIONS
 		HEAD_TEXT
 		_ehead = . ;
 	}
+	.rodata.compressed : {
+		*(.rodata.compressed)
+	}
 	.text :	{
 		_text = .;	/* Text */
 		*(.text)
 		*(.text.*)
 		_etext = . ;
-	}
-	.rodata.compressed : {
-		*(.rodata.compressed)
 	}
 	.rodata : {
 		_rodata = . ;
@@ -48,11 +47,4 @@ SECTIONS
 		_ebss = .;
 	}
 	_end = .;
-
-	/* Sections to be discarded */
-	/DISCARD/ : {
-		*(.eh_frame)
-		*(__ex_table)
-		*(*__ksymtab*)
-	}
 }

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* Driver for Microtek Scanmaker X6 USB scanner, and possibly others.
  *
  * (C) Copyright 2000 John Fremlin <vii@penguinpowered.com>
@@ -138,6 +137,10 @@
 
 #include "microtek.h"
 
+/*
+ * Version Information
+ */
+#define DRIVER_VERSION "v0.4.3"
 #define DRIVER_AUTHOR "John Fremlin <vii@penguinpowered.com>, Oliver Neukum <Oliver.Neukum@lrz.uni-muenchen.de>"
 #define DRIVER_DESC "Microtek Scanmaker X6 USB scanner driver"
 

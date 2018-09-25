@@ -97,10 +97,7 @@ print_mtime() {
 }
 
 list_parse() {
-	if [ -L "$1" ]; then
-		return
-	fi
-	echo "$1" | sed 's/:/\\:/g; s/$/ \\/'
+	[ ! -L "$1" ] && echo "$1 \\" || :
 }
 
 # for each file print a line in following format
@@ -174,7 +171,7 @@ dir_filelist() {
 	${dep_list}header "$1"
 
 	srcdir=$(echo "$1" | sed -e 's://*:/:g')
-	dirlist=$(find "${srcdir}" -printf "%p %m %U %G\n" | sort)
+	dirlist=$(find "${srcdir}" -printf "%p %m %U %G\n")
 
 	# If $dirlist is only one line, then the directory is empty
 	if [  "$(echo "${dirlist}" | wc -l)" -gt 1 ]; then
@@ -194,7 +191,7 @@ input_file() {
 	source="$1"
 	if [ -f "$1" ]; then
 		${dep_list}header "$1"
-		is_cpio="$(echo "$1" | sed 's/^.*\.cpio\(\..*\)\{0,1\}/cpio/')"
+		is_cpio="$(echo "$1" | sed 's/^.*\.cpio\(\..*\)\?/cpio/')"
 		if [ $2 -eq 0 -a ${is_cpio} = "cpio" ]; then
 			cpio_file=$1
 			echo "$1" | grep -q '^.*\.cpio\..*' && is_cpio_compressed="compressed"
@@ -271,12 +268,10 @@ while [ $# -gt 0 ]; do
 	case "$arg" in
 		"-u")	# map $1 to uid=0 (root)
 			root_uid="$1"
-			[ "$root_uid" = "-1" ] && root_uid=$(id -u || echo 0)
 			shift
 			;;
 		"-g")	# map $1 to gid=0 (root)
 			root_gid="$1"
-			[ "$root_gid" = "-1" ] && root_gid=$(id -g || echo 0)
 			shift
 			;;
 		"-d")	# display default initramfs list

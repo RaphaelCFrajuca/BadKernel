@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include "../../util/util.h"
 #include <signal.h>
 #include <stdbool.h>

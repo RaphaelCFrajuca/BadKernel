@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  CCW device SENSE ID I/O handling.
  *

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0+ WITH Linux-syscall-note */
 /*
  * Copyright (c) 2015 Jiri Pirko <jiri@resnulli.us>
  *
@@ -27,9 +26,6 @@ enum {
 	TCA_ACT_BPF_OPS,
 	TCA_ACT_BPF_FD,
 	TCA_ACT_BPF_NAME,
-	TCA_ACT_BPF_PAD,
-	TCA_ACT_BPF_TAG,
-	TCA_ACT_BPF_ID,
 	__TCA_ACT_BPF_MAX,
 };
 #define TCA_ACT_BPF_MAX (__TCA_ACT_BPF_MAX - 1)

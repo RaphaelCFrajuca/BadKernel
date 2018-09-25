@@ -34,6 +34,8 @@ static bool _rtl8821ae_phy_rf6052_config_parafile(struct ieee80211_hw *hw);
 
 void rtl8821ae_phy_rf6052_set_bandwidth(struct ieee80211_hw *hw, u8 bandwidth)
 {
+	struct rtl_priv *rtlpriv = rtl_priv(hw);
+
 	switch (bandwidth) {
 	case HT_CHANNEL_WIDTH_20:
 		rtl_set_rfreg(hw, RF90_PATH_A, RF_CHNLBW, BIT(11)|BIT(10), 3);
@@ -48,7 +50,8 @@ void rtl8821ae_phy_rf6052_set_bandwidth(struct ieee80211_hw *hw, u8 bandwidth)
 		rtl_set_rfreg(hw, RF90_PATH_B, RF_CHNLBW, BIT(11)|BIT(10), 0);
 		break;
 	default:
-		pr_err("unknown bandwidth: %#X\n", bandwidth);
+		RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
+			 "unknown bandwidth: %#X\n", bandwidth);
 		break;
 	}
 }
@@ -451,7 +454,7 @@ static bool _rtl8821ae_phy_rf6052_config_parafile(struct ieee80211_hw *hw)
 
 		if (!rtstatus) {
 			RT_TRACE(rtlpriv, COMP_INIT, DBG_TRACE,
-				 "Radio[%d] Fail!!\n", rfpath);
+				 "Radio[%d] Fail!!", rfpath);
 			return false;
 		}
 	}

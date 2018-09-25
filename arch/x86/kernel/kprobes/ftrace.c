@@ -61,11 +61,14 @@ void kprobe_ftrace_handler(unsigned long ip, unsigned long parent_ip,
 {
 	struct kprobe *p;
 	struct kprobe_ctlblk *kcb;
+	unsigned long flags;
 
-	/* Preempt is disabled by ftrace */
+	/* Disable irq for emulating a breakpoint and avoiding preempt */
+	local_irq_save(flags);
+
 	p = get_kprobe((kprobe_opcode_t *)ip);
 	if (unlikely(!p) || kprobe_disabled(p))
-		return;
+		goto end;
 
 	kcb = get_kprobe_ctlblk();
 	if (kprobe_running()) {
@@ -88,12 +91,14 @@ void kprobe_ftrace_handler(unsigned long ip, unsigned long parent_ip,
 		 * resets current kprobe, and keep preempt count +1.
 		 */
 	}
+end:
+	local_irq_restore(flags);
 }
 NOKPROBE_SYMBOL(kprobe_ftrace_handler);
 
 int arch_prepare_kprobe_ftrace(struct kprobe *p)
 {
 	p->ainsn.insn = NULL;
-	p->ainsn.boostable = false;
+	p->ainsn.boostable = -1;
 	return 0;
 }

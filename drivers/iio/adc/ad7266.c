@@ -154,11 +154,12 @@ static int ad7266_read_raw(struct iio_dev *indio_dev,
 
 	switch (m) {
 	case IIO_CHAN_INFO_RAW:
-		ret = iio_device_claim_direct_mode(indio_dev);
+		if (iio_buffer_enabled(indio_dev))
+			return -EBUSY;
+
+		ret = ad7266_read_single(st, val, chan->address);
 		if (ret)
 			return ret;
-		ret = ad7266_read_single(st, val, chan->address);
-		iio_device_release_direct_mode(indio_dev);
 
 		*val = (*val >> 2) & 0xfff;
 		if (chan->scan_type.sign == 's')
@@ -280,6 +281,7 @@ static AD7266_DECLARE_DIFF_CHANNELS_FIXED(u, 'u');
 static const struct iio_info ad7266_info = {
 	.read_raw = &ad7266_read_raw,
 	.update_scan_mode = &ad7266_update_scan_mode,
+	.driver_module = THIS_MODULE,
 };
 
 static const unsigned long ad7266_available_scan_masks[] = {
@@ -439,7 +441,6 @@ static int ad7266_probe(struct spi_device *spi)
 	st->spi = spi;
 
 	indio_dev->dev.parent = &spi->dev;
-	indio_dev->dev.of_node = spi->dev.of_node;
 	indio_dev->name = spi_get_device_id(spi)->name;
 	indio_dev->modes = INDIO_DIRECT_MODE;
 	indio_dev->info = &ad7266_info;
@@ -480,7 +481,7 @@ error_free_gpios:
 	if (!st->fixed_addr)
 		gpio_free_array(st->gpios, ARRAY_SIZE(st->gpios));
 error_disable_reg:
-	if (!IS_ERR(st->reg))
+	if (!IS_ERR_OR_NULL(st->reg))
 		regulator_disable(st->reg);
 
 	return ret;
@@ -495,7 +496,7 @@ static int ad7266_remove(struct spi_device *spi)
 	iio_triggered_buffer_cleanup(indio_dev);
 	if (!st->fixed_addr)
 		gpio_free_array(st->gpios, ARRAY_SIZE(st->gpios));
-	if (!IS_ERR(st->reg))
+	if (!IS_ERR_OR_NULL(st->reg))
 		regulator_disable(st->reg);
 
 	return 0;

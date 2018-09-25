@@ -11,7 +11,7 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 2 of the License.
  *
- * See Documentation/security/keys/trusted-encrypted.rst
+ * See Documentation/security/keys-trusted-encrypted.txt
  */
 
 #include <linux/uaccess.h>

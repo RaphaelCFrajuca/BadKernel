@@ -33,9 +33,7 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/kernel.h>
-#include <linux/errno.h>
-#include <linux/mm_types.h>
-#include <linux/init.h>
+#include <linux/module.h>
 #include <linux/capability.h>
 
 #include <xen/xen.h>
@@ -55,12 +53,10 @@ static int register_balloon(struct device *dev);
 
 /* React to a change in the target key */
 static void watch_target(struct xenbus_watch *watch,
-			 const char *path, const char *token)
+			 const char **vec, unsigned int len)
 {
-	unsigned long long new_target, static_max;
+	unsigned long long new_target;
 	int err;
-	static bool watch_fired;
-	static long target_diff;
 
 	err = xenbus_scanf(XBT_NIL, "memory", "target", "%llu", &new_target);
 	if (err != 1) {
@@ -71,21 +67,7 @@ static void watch_target(struct xenbus_watch *watch,
 	/* The given memory/target value is in KiB, so it needs converting to
 	 * pages. PAGE_SHIFT converts bytes to pages, hence PAGE_SHIFT - 10.
 	 */
-	new_target >>= PAGE_SHIFT - 10;
-
-	if (!watch_fired) {
-		watch_fired = true;
-		err = xenbus_scanf(XBT_NIL, "memory", "static-max", "%llu",
-				   &static_max);
-		if (err != 1)
-			static_max = new_target;
-		else
-			static_max >>= PAGE_SHIFT - 10;
-		target_diff = xen_pv_domain() ? 0
-				: static_max - balloon_stats.target_pages;
-	}
-
-	balloon_set_new_target(new_target - target_diff);
+	balloon_set_new_target(new_target >> (PAGE_SHIFT - 10));
 }
 static struct xenbus_watch target_watch = {
 	.node = "memory/target",
@@ -110,15 +92,30 @@ static struct notifier_block xenstore_notifier = {
 	.notifier_call = balloon_init_watcher,
 };
 
-void xen_balloon_init(void)
+static int __init balloon_init(void)
 {
+	if (!xen_domain())
+		return -ENODEV;
+
+	pr_info("Initialising balloon driver\n");
+
 	register_balloon(&balloon_dev);
 
 	register_xen_selfballooning(&balloon_dev);
 
 	register_xenstore_notifier(&xenstore_notifier);
+
+	return 0;
 }
-EXPORT_SYMBOL_GPL(xen_balloon_init);
+subsys_initcall(balloon_init);
+
+static void balloon_exit(void)
+{
+    /* XXX - release balloon here */
+    return;
+}
+
+module_exit(balloon_exit);
 
 #define BALLOON_SHOW(name, format, args...)				\
 	static ssize_t show_##name(struct device *dev,			\
@@ -253,3 +250,5 @@ static int register_balloon(struct device *dev)
 
 	return 0;
 }
+
+MODULE_LICENSE("GPL");

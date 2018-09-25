@@ -1,11 +1,7 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_STRING_HELPERS_H_
 #define _LINUX_STRING_HELPERS_H_
 
 #include <linux/types.h>
-
-struct file;
-struct task_struct;
 
 /* Descriptions of the types of units to
  * print in */
@@ -71,9 +67,5 @@ static inline int string_escape_str_any_np(const char *src, char *dst,
 {
 	return string_escape_str(src, dst, sz, ESCAPE_ANY_NP, only);
 }
-
-char *kstrdup_quotable(const char *src, gfp_t gfp);
-char *kstrdup_quotable_cmdline(struct task_struct *task, gfp_t gfp);
-char *kstrdup_quotable_file(struct file *file, gfp_t gfp);
 
 #endif

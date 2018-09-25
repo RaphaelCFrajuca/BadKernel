@@ -11,6 +11,10 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
  *
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
+ *
  * The full GNU General Public License is included in this distribution in the
  * file called LICENSE.
  *
@@ -289,10 +293,10 @@ bool rtl92se_rx_query_desc(struct ieee80211_hw *hw, struct rtl_stats *stats,
 		rx_status->flag |= RX_FLAG_FAILED_FCS_CRC;
 
 	if (stats->rx_is40Mhzpacket)
-		rx_status->bw = RATE_INFO_BW_40;
+		rx_status->flag |= RX_FLAG_40MHZ;
 
 	if (stats->is_ht)
-		rx_status->encoding = RX_ENC_HT;
+		rx_status->flag |= RX_FLAG_HT;
 
 	rx_status->flag |= RX_FLAG_MACTIME_START;
 
@@ -356,7 +360,7 @@ void rtl92se_tx_fill_desc(struct ieee80211_hw *hw,
 
 	if (pci_dma_mapping_error(rtlpci->pdev, mapping)) {
 		RT_TRACE(rtlpriv, COMP_SEND, DBG_TRACE,
-			 "DMA mapping error\n");
+			 "DMA mapping error");
 		return;
 	}
 	if (mac->opmode == NL80211_IFTYPE_STATION) {
@@ -525,7 +529,7 @@ void rtl92se_tx_fill_cmddesc(struct ieee80211_hw *hw, u8 *pdesc,
 
 	if (pci_dma_mapping_error(rtlpci->pdev, mapping)) {
 		RT_TRACE(rtlpriv, COMP_SEND, DBG_TRACE,
-			 "DMA mapping error\n");
+			 "DMA mapping error");
 		return;
 	}
 	/* Clear all status	*/
@@ -583,7 +587,7 @@ void rtl92se_set_desc(struct ieee80211_hw *hw, u8 *pdesc, bool istx,
 			SET_TX_DESC_NEXT_DESC_ADDRESS(pdesc, *(u32 *) val);
 			break;
 		default:
-			WARN_ONCE(true, "rtl8192se: ERR txdesc :%d not processed\n",
+			RT_ASSERT(false, "ERR txdesc :%d not process\n",
 				  desc_name);
 			break;
 		}
@@ -603,15 +607,14 @@ void rtl92se_set_desc(struct ieee80211_hw *hw, u8 *pdesc, bool istx,
 			SET_RX_STATUS_DESC_EOR(pdesc, 1);
 			break;
 		default:
-			WARN_ONCE(true, "rtl8192se: ERR rxdesc :%d not processed\n",
+			RT_ASSERT(false, "ERR rxdesc :%d not process\n",
 				  desc_name);
 			break;
 		}
 	}
 }
 
-u64 rtl92se_get_desc(struct ieee80211_hw *hw,
-		     u8 *desc, bool istx, u8 desc_name)
+u32 rtl92se_get_desc(u8 *desc, bool istx, u8 desc_name)
 {
 	u32 ret = 0;
 
@@ -624,7 +627,7 @@ u64 rtl92se_get_desc(struct ieee80211_hw *hw,
 			ret = GET_TX_DESC_TX_BUFFER_ADDRESS(desc);
 			break;
 		default:
-			WARN_ONCE(true, "rtl8192se: ERR txdesc :%d not processed\n",
+			RT_ASSERT(false, "ERR txdesc :%d not process\n",
 				  desc_name);
 			break;
 		}
@@ -640,7 +643,7 @@ u64 rtl92se_get_desc(struct ieee80211_hw *hw,
 			ret = GET_RX_STATUS_DESC_BUFF_ADDR(desc);
 			break;
 		default:
-			WARN_ONCE(true, "rtl8192se: ERR rxdesc :%d not processed\n",
+			RT_ASSERT(false, "ERR rxdesc :%d not process\n",
 				  desc_name);
 			break;
 		}

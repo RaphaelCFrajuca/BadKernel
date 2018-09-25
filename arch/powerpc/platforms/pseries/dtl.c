@@ -21,12 +21,13 @@
  */
 
 #include <linux/slab.h>
+#include <linux/debugfs.h>
 #include <linux/spinlock.h>
 #include <asm/smp.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/firmware.h>
 #include <asm/lppaca.h>
-#include <asm/debugfs.h>
+#include <asm/debug.h>
 #include <asm/plpar_wrappers.h>
 #include <asm/machdep.h>
 

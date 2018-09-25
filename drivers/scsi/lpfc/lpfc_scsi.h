@@ -1,11 +1,9 @@
 /*******************************************************************
  * This file is part of the Emulex Linux Device Driver for         *
  * Fibre Channel Host Bus Adapters.                                *
- * Copyright (C) 2017-2018 Broadcom. All Rights Reserved. The term *
- * “Broadcom” refers to Broadcom Inc and/or its subsidiaries.  *
- * Copyright (C) 2004-2016 Emulex.  All rights reserved.           *
+ * Copyright (C) 2004-2015 Emulex.  All rights reserved.           *
  * EMULEX and SLI are trademarks of Emulex.                        *
- * www.broadcom.com                                                *
+ * www.emulex.com                                                  *
  *                                                                 *
  * This program is free software; you can redistribute it and/or   *
  * modify it under the terms of version 2 of the GNU General       *
@@ -53,7 +51,6 @@ struct lpfc_device_data {
 	struct list_head listentry;
 	struct lpfc_rport_data *rport_data;
 	struct lpfc_device_id device_id;
-	uint8_t priority;
 	bool oas_enabled;
 	bool available;
 };
@@ -137,8 +134,6 @@ struct lpfc_scsi_buf {
 
 	uint32_t timeout;
 
-	uint16_t flags;  /* TBD convert exch_busy to flags */
-#define LPFC_SBUF_XBUSY         0x1     /* SLI4 hba reported XB on WCQE cmpl */
 	uint16_t exch_busy;     /* SLI4 hba reported XB on complete WCQE */
 	uint16_t status;	/* From IOCB Word 7- ulpStatus */
 	uint32_t result;	/* From IOCB Word 4. */
@@ -168,8 +163,6 @@ struct lpfc_scsi_buf {
 	 * Iotag is in here
 	 */
 	struct lpfc_iocbq cur_iocbq;
-	uint16_t cpu;
-
 	wait_queue_head_t *waitq;
 	unsigned long start_time;
 
@@ -184,15 +177,13 @@ struct lpfc_scsi_buf {
 #endif
 };
 
-#define LPFC_SCSI_DMA_EXT_SIZE	264
-#define LPFC_BPL_SIZE		1024
-#define MDAC_DIRECT_CMD		0x22
+#define LPFC_SCSI_DMA_EXT_SIZE 264
+#define LPFC_BPL_SIZE          1024
+#define MDAC_DIRECT_CMD                  0x22
 
-#define FIND_FIRST_OAS_LUN	0
-#define NO_MORE_OAS_LUN		-1
-#define NOT_OAS_ENABLED_LUN	NO_MORE_OAS_LUN
-
-#define TXRDY_PAYLOAD_LEN	12
+#define FIND_FIRST_OAS_LUN		 0
+#define NO_MORE_OAS_LUN			-1
+#define NOT_OAS_ENABLED_LUN		NO_MORE_OAS_LUN
 
 int lpfc_sli4_scmd_to_wqidx_distr(struct lpfc_hba *phba,
 				  struct lpfc_scsi_buf *lpfc_cmd);

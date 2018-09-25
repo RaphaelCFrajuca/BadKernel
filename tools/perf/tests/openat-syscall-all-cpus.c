@@ -1,15 +1,5 @@
-// SPDX-License-Identifier: GPL-2.0
-#include <errno.h>
-#include <inttypes.h>
-/* For the CPU_* macros */
-#include <pthread.h>
-
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include <api/fs/fs.h>
 #include <linux/err.h>
-#include <api/fs/tracing_path.h>
 #include "evsel.h"
 #include "tests.h"
 #include "thread_map.h"
@@ -17,7 +7,7 @@
 #include "debug.h"
 #include "stat.h"
 
-int test__openat_syscall_event_on_all_cpus(struct test *test __maybe_unused, int subtest __maybe_unused)
+int test__openat_syscall_event_on_all_cpus(void)
 {
 	int err = -1, fd, cpu;
 	struct cpu_map *cpus;
@@ -51,7 +41,7 @@ int test__openat_syscall_event_on_all_cpus(struct test *test __maybe_unused, int
 	if (perf_evsel__open(evsel, cpus, threads) < 0) {
 		pr_debug("failed to open counter: %s, "
 			 "tweak /proc/sys/kernel/perf_event_paranoid?\n",
-			 str_error_r(errno, sbuf, sizeof(sbuf)));
+			 strerror_r(errno, sbuf, sizeof(sbuf)));
 		goto out_evsel_delete;
 	}
 
@@ -72,7 +62,7 @@ int test__openat_syscall_event_on_all_cpus(struct test *test __maybe_unused, int
 		if (sched_setaffinity(0, sizeof(cpu_set), &cpu_set) < 0) {
 			pr_debug("sched_setaffinity() failed on CPU %d: %s ",
 				 cpus->map[cpu],
-				 str_error_r(errno, sbuf, sizeof(sbuf)));
+				 strerror_r(errno, sbuf, sizeof(sbuf)));
 			goto out_close_fd;
 		}
 		for (i = 0; i < ncalls; ++i) {
@@ -83,7 +73,7 @@ int test__openat_syscall_event_on_all_cpus(struct test *test __maybe_unused, int
 	}
 
 	/*
-	 * Here we need to explicitly preallocate the counts, as if
+	 * Here we need to explicitely preallocate the counts, as if
 	 * we use the auto allocation it will allocate just for 1 cpu,
 	 * as we start by cpu 0.
 	 */
@@ -116,7 +106,7 @@ int test__openat_syscall_event_on_all_cpus(struct test *test __maybe_unused, int
 
 	perf_evsel__free_counts(evsel);
 out_close_fd:
-	perf_evsel__close_fd(evsel);
+	perf_evsel__close_fd(evsel, 1, threads->nr);
 out_evsel_delete:
 	perf_evsel__delete(evsel);
 out_thread_map_delete:

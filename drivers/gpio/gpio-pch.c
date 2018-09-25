@@ -17,7 +17,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/pci.h>
-#include <linux/gpio/driver.h>
+#include <linux/gpio.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/slab.h>
@@ -109,7 +109,7 @@ struct pch_gpio {
 static void pch_gpio_set(struct gpio_chip *gpio, unsigned nr, int val)
 {
 	u32 reg_val;
-	struct pch_gpio *chip =	gpiochip_get_data(gpio);
+	struct pch_gpio *chip =	container_of(gpio, struct pch_gpio, gpio);
 	unsigned long flags;
 
 	spin_lock_irqsave(&chip->spinlock, flags);
@@ -125,15 +125,15 @@ static void pch_gpio_set(struct gpio_chip *gpio, unsigned nr, int val)
 
 static int pch_gpio_get(struct gpio_chip *gpio, unsigned nr)
 {
-	struct pch_gpio *chip =	gpiochip_get_data(gpio);
+	struct pch_gpio *chip =	container_of(gpio, struct pch_gpio, gpio);
 
-	return (ioread32(&chip->reg->pi) >> nr) & 1;
+	return ioread32(&chip->reg->pi) & (1 << nr);
 }
 
 static int pch_gpio_direction_output(struct gpio_chip *gpio, unsigned nr,
 				     int val)
 {
-	struct pch_gpio *chip =	gpiochip_get_data(gpio);
+	struct pch_gpio *chip =	container_of(gpio, struct pch_gpio, gpio);
 	u32 pm;
 	u32 reg_val;
 	unsigned long flags;
@@ -158,7 +158,7 @@ static int pch_gpio_direction_output(struct gpio_chip *gpio, unsigned nr,
 
 static int pch_gpio_direction_input(struct gpio_chip *gpio, unsigned nr)
 {
-	struct pch_gpio *chip =	gpiochip_get_data(gpio);
+	struct pch_gpio *chip =	container_of(gpio, struct pch_gpio, gpio);
 	u32 pm;
 	unsigned long flags;
 
@@ -211,7 +211,7 @@ static void pch_gpio_restore_reg_conf(struct pch_gpio *chip)
 
 static int pch_gpio_to_irq(struct gpio_chip *gpio, unsigned offset)
 {
-	struct pch_gpio *chip = gpiochip_get_data(gpio);
+	struct pch_gpio *chip = container_of(gpio, struct pch_gpio, gpio);
 	return chip->irq_base + offset;
 }
 
@@ -220,7 +220,7 @@ static void pch_gpio_setup(struct pch_gpio *chip)
 	struct gpio_chip *gpio = &chip->gpio;
 
 	gpio->label = dev_name(chip->dev);
-	gpio->parent = chip->dev;
+	gpio->dev = chip->dev;
 	gpio->owner = THIS_MODULE;
 	gpio->direction_input = pch_gpio_direction_input;
 	gpio->get = pch_gpio_get;
@@ -331,19 +331,14 @@ static irqreturn_t pch_gpio_handler(int irq, void *dev_id)
 	return ret;
 }
 
-static int pch_gpio_alloc_generic_chip(struct pch_gpio *chip,
-				       unsigned int irq_start,
-				       unsigned int num)
+static void pch_gpio_alloc_generic_chip(struct pch_gpio *chip,
+				unsigned int irq_start, unsigned int num)
 {
 	struct irq_chip_generic *gc;
 	struct irq_chip_type *ct;
-	int rv;
 
-	gc = devm_irq_alloc_generic_chip(chip->dev, "pch_gpio", 1, irq_start,
-					 chip->base, handle_simple_irq);
-	if (!gc)
-		return -ENOMEM;
-
+	gc = irq_alloc_generic_chip("pch_gpio", 1, irq_start, chip->base,
+				    handle_simple_irq);
 	gc->private = chip;
 	ct = gc->chip_types;
 
@@ -352,11 +347,8 @@ static int pch_gpio_alloc_generic_chip(struct pch_gpio *chip,
 	ct->chip.irq_unmask = pch_irq_unmask;
 	ct->chip.irq_set_type = pch_irq_type;
 
-	rv = devm_irq_setup_generic_chip(chip->dev, gc, IRQ_MSK(num),
-					 IRQ_GC_INIT_MASK_CACHE,
-					 IRQ_NOREQUEST | IRQ_NOPROBE, 0);
-
-	return rv;
+	irq_setup_generic_chip(gc, IRQ_MSK(num), IRQ_GC_INIT_MASK_CACHE,
+			       IRQ_NOREQUEST | IRQ_NOPROBE, 0);
 }
 
 static int pch_gpio_probe(struct pci_dev *pdev,
@@ -402,17 +394,13 @@ static int pch_gpio_probe(struct pci_dev *pdev,
 	pci_set_drvdata(pdev, chip);
 	spin_lock_init(&chip->spinlock);
 	pch_gpio_setup(chip);
-#ifdef CONFIG_OF_GPIO
-	chip->gpio.of_node = pdev->dev.of_node;
-#endif
-	ret = gpiochip_add_data(&chip->gpio, chip);
+	ret = gpiochip_add(&chip->gpio);
 	if (ret) {
 		dev_err(&pdev->dev, "PCH gpio: Failed to register GPIO\n");
 		goto err_gpiochip_add;
 	}
 
-	irq_base = devm_irq_alloc_descs(&pdev->dev, -1, 0,
-					gpio_pins[chip->ioh], NUMA_NO_NODE);
+	irq_base = irq_alloc_descs(-1, 0, gpio_pins[chip->ioh], NUMA_NO_NODE);
 	if (irq_base < 0) {
 		dev_warn(&pdev->dev, "PCH gpio: Failed to get IRQ base num\n");
 		chip->irq_base = -1;
@@ -425,23 +413,21 @@ static int pch_gpio_probe(struct pci_dev *pdev,
 	iowrite32(msk, &chip->reg->imask);
 	iowrite32(msk, &chip->reg->ien);
 
-	ret = devm_request_irq(&pdev->dev, pdev->irq, pch_gpio_handler,
-			       IRQF_SHARED, KBUILD_MODNAME, chip);
+	ret = request_irq(pdev->irq, pch_gpio_handler,
+			  IRQF_SHARED, KBUILD_MODNAME, chip);
 	if (ret != 0) {
 		dev_err(&pdev->dev,
 			"%s request_irq failed\n", __func__);
 		goto err_request_irq;
 	}
 
-	ret = pch_gpio_alloc_generic_chip(chip, irq_base,
-					  gpio_pins[chip->ioh]);
-	if (ret)
-		goto err_request_irq;
+	pch_gpio_alloc_generic_chip(chip, irq_base, gpio_pins[chip->ioh]);
 
 end:
 	return 0;
 
 err_request_irq:
+	irq_free_descs(irq_base, gpio_pins[chip->ioh]);
 	gpiochip_remove(&chip->gpio);
 
 err_gpiochip_add:
@@ -462,6 +448,12 @@ err_pci_enable:
 static void pch_gpio_remove(struct pci_dev *pdev)
 {
 	struct pch_gpio *chip = pci_get_drvdata(pdev);
+
+	if (chip->irq_base != -1) {
+		free_irq(pdev->irq, chip);
+
+		irq_free_descs(chip->irq_base, gpio_pins[chip->ioh]);
+	}
 
 	gpiochip_remove(&chip->gpio);
 	pci_iounmap(pdev, chip->base);

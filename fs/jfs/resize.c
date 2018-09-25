@@ -98,7 +98,7 @@ int jfs_extendfs(struct super_block *sb, s64 newLVSize, int newLogSize)
 		goto out;
 	}
 
-	VolumeSize = i_size_read(sb->s_bdev->bd_inode) >> sb->s_blocksize_bits;
+	VolumeSize = sb->s_bdev->bd_inode->i_size >> sb->s_blocksize_bits;
 
 	if (VolumeSize) {
 		if (newLVSize > VolumeSize) {
@@ -211,7 +211,7 @@ int jfs_extendfs(struct super_block *sb, s64 newLVSize, int newLogSize)
 	txQuiesce(sb);
 
 	/* Reset size of direct inode */
-	sbi->direct_inode->i_size =  i_size_read(sb->s_bdev->bd_inode);
+	sbi->direct_inode->i_size =  sb->s_bdev->bd_inode->i_size;
 
 	if (sbi->mntflag & JFS_INLINELOG) {
 		/*
@@ -379,14 +379,8 @@ int jfs_extendfs(struct super_block *sb, s64 newLVSize, int newLogSize)
 	 * cached in meta-data cache, and not written out
 	 * by txCommit();
 	 */
-	rc = filemap_fdatawait(ipbmap->i_mapping);
-	if (rc)
-		goto error_out;
-
-	rc = filemap_write_and_wait(ipbmap->i_mapping);
-	if (rc)
-		goto error_out;
-
+	filemap_fdatawait(ipbmap->i_mapping);
+	filemap_write_and_wait(ipbmap->i_mapping);
 	diWriteSpecial(ipbmap, 0);
 
 	newPage = nPages;	/* first new page number */

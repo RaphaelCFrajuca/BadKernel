@@ -36,7 +36,7 @@
 
 static DEFINE_SPINLOCK(eeh_eventlist_lock);
 static struct semaphore eeh_eventlist_sem;
-static LIST_HEAD(eeh_eventlist);
+LIST_HEAD(eeh_eventlist);
 
 /**
  * eeh_event_handler - Dispatch EEH events.
@@ -73,16 +73,18 @@ static int eeh_event_handler(void * dummy)
 		/* We might have event without binding PE */
 		pe = event->pe;
 		if (pe) {
+			eeh_pe_state_mark(pe, EEH_PE_RECOVERING);
 			if (pe->type & EEH_PE_PHB)
-				pr_info("EEH: Detected error on PHB#%x\n",
+				pr_info("EEH: Detected error on PHB#%d\n",
 					 pe->phb->global_number);
 			else
 				pr_info("EEH: Detected PCI bus error on "
-					"PHB#%x-PE#%x\n",
+					"PHB#%d-PE#%x\n",
 					pe->phb->global_number, pe->addr);
-			eeh_handle_normal_event(pe);
+			eeh_handle_event(pe);
+			eeh_pe_state_clear(pe, EEH_PE_RECOVERING);
 		} else {
-			eeh_handle_special_event();
+			eeh_handle_event(NULL);
 		}
 
 		kfree(event);

@@ -24,6 +24,9 @@ struct wm831x_clk {
 	struct clk_hw xtal_hw;
 	struct clk_hw fll_hw;
 	struct clk_hw clkout_hw;
+	struct clk *xtal;
+	struct clk *fll;
+	struct clk *clkout;
 	bool xtal_ena;
 };
 
@@ -52,9 +55,10 @@ static const struct clk_ops wm831x_xtal_ops = {
 	.recalc_rate = wm831x_xtal_recalc_rate,
 };
 
-static const struct clk_init_data wm831x_xtal_init = {
+static struct clk_init_data wm831x_xtal_init = {
 	.name = "xtal",
 	.ops = &wm831x_xtal_ops,
+	.flags = CLK_IS_ROOT,
 };
 
 static const unsigned long wm831x_fll_auto_rates[] = {
@@ -97,8 +101,7 @@ static int wm831x_fll_prepare(struct clk_hw *hw)
 	if (ret != 0)
 		dev_crit(wm831x->dev, "Failed to enable FLL: %d\n", ret);
 
-	/* wait 2-3 ms for new frequency taking effect */
-	usleep_range(2000, 3000);
+	usleep_range(2000, 2000);
 
 	return ret;
 }
@@ -225,7 +228,7 @@ static const struct clk_ops wm831x_fll_ops = {
 	.get_parent = wm831x_fll_get_parent,
 };
 
-static const struct clk_init_data wm831x_fll_init = {
+static struct clk_init_data wm831x_fll_init = {
 	.name = "fll",
 	.ops = &wm831x_fll_ops,
 	.parent_names = wm831x_fll_parents,
@@ -338,7 +341,7 @@ static const struct clk_ops wm831x_clkout_ops = {
 	.set_parent = wm831x_clkout_set_parent,
 };
 
-static const struct clk_init_data wm831x_clkout_init = {
+static struct clk_init_data wm831x_clkout_init = {
 	.name = "clkout",
 	.ops = &wm831x_clkout_ops,
 	.parent_names = wm831x_clkout_parents,
@@ -368,19 +371,19 @@ static int wm831x_clk_probe(struct platform_device *pdev)
 	clkdata->xtal_ena = ret & WM831X_XTAL_ENA;
 
 	clkdata->xtal_hw.init = &wm831x_xtal_init;
-	ret = devm_clk_hw_register(&pdev->dev, &clkdata->xtal_hw);
-	if (ret)
-		return ret;
+	clkdata->xtal = devm_clk_register(&pdev->dev, &clkdata->xtal_hw);
+	if (IS_ERR(clkdata->xtal))
+		return PTR_ERR(clkdata->xtal);
 
 	clkdata->fll_hw.init = &wm831x_fll_init;
-	ret = devm_clk_hw_register(&pdev->dev, &clkdata->fll_hw);
-	if (ret)
-		return ret;
+	clkdata->fll = devm_clk_register(&pdev->dev, &clkdata->fll_hw);
+	if (IS_ERR(clkdata->fll))
+		return PTR_ERR(clkdata->fll);
 
 	clkdata->clkout_hw.init = &wm831x_clkout_init;
-	ret = devm_clk_hw_register(&pdev->dev, &clkdata->clkout_hw);
-	if (ret)
-		return ret;
+	clkdata->clkout = devm_clk_register(&pdev->dev, &clkdata->clkout_hw);
+	if (IS_ERR(clkdata->clkout))
+		return PTR_ERR(clkdata->clkout);
 
 	platform_set_drvdata(pdev, clkdata);
 

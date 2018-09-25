@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef ASMARM_DMA_IOMMU_H
 #define ASMARM_DMA_IOMMU_H
 
@@ -7,9 +6,8 @@
 #include <linux/mm_types.h>
 #include <linux/scatterlist.h>
 #include <linux/dma-debug.h>
+#include <linux/kmemcheck.h>
 #include <linux/kref.h>
-
-#define ARM_MAPPING_ERROR		(~(dma_addr_t)0x0)
 
 struct dma_iommu_mapping {
 	/* iommu specific data */
@@ -34,8 +32,6 @@ void arm_iommu_release_mapping(struct dma_iommu_mapping *mapping);
 int arm_iommu_attach_device(struct device *dev,
 					struct dma_iommu_mapping *mapping);
 void arm_iommu_detach_device(struct device *dev);
-
-int arm_dma_supported(struct device *dev, u64 mask);
 
 #endif /* __KERNEL__ */
 #endif

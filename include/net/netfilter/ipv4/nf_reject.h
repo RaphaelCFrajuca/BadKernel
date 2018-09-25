@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _IPV4_NF_REJECT_H
 #define _IPV4_NF_REJECT_H
 

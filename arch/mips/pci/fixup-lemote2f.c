@@ -30,7 +30,7 @@
 #define PCID		7
 
 /* all the pci device has the PCIA pin, check the datasheet. */
-static char irq_tab[][5] = {
+static char irq_tab[][5] __initdata = {
 	/*	INTA	INTB	INTC	INTD */
 	{0, 0, 0, 0, 0},	/*  11: Unused */
 	{0, 0, 0, 0, 0},	/*  12: Unused */
@@ -51,7 +51,7 @@ static char irq_tab[][5] = {
 	{0, 0, 0, 0, 0},	/*  27: Unused */
 };
 
-int pcibios_map_irq(const struct pci_dev *dev, u8 slot, u8 pin)
+int __init pcibios_map_irq(const struct pci_dev *dev, u8 slot, u8 pin)
 {
 	int virq;
 

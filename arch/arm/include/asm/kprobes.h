@@ -16,9 +16,6 @@
 #ifndef _ARM_KPROBES_H
 #define _ARM_KPROBES_H
 
-#include <asm-generic/kprobes.h>
-
-#ifdef CONFIG_KPROBES
 #include <linux/types.h>
 #include <linux/ptrace.h>
 #include <linux/notifier.h>
@@ -86,5 +83,4 @@ struct arch_optimized_insn {
 	 */
 };
 
-#endif /* CONFIG_KPROBES */
 #endif /* _ARM_KPROBES_H */

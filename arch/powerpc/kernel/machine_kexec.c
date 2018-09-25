@@ -98,14 +98,12 @@ void machine_kexec(struct kimage *image)
 	int save_ftrace_enabled;
 
 	save_ftrace_enabled = __ftrace_enabled_save();
-	this_cpu_disable_ftrace();
 
 	if (ppc_md.machine_kexec)
 		ppc_md.machine_kexec(image);
 	else
 		default_machine_kexec(image);
 
-	this_cpu_enable_ftrace();
 	__ftrace_enabled_restore(save_ftrace_enabled);
 
 	/* Fall back to normal restart if we're still alive. */
@@ -230,12 +228,17 @@ static struct property memory_limit_prop = {
 
 static void __init export_crashk_values(struct device_node *node)
 {
+	struct property *prop;
+
 	/* There might be existing crash kernel properties, but we can't
 	 * be sure what's in them, so remove them. */
-	of_remove_property(node, of_find_property(node,
-				"linux,crashkernel-base", NULL));
-	of_remove_property(node, of_find_property(node,
-				"linux,crashkernel-size", NULL));
+	prop = of_find_property(node, "linux,crashkernel-base", NULL);
+	if (prop)
+		of_remove_property(node, prop);
+
+	prop = of_find_property(node, "linux,crashkernel-size", NULL);
+	if (prop)
+		of_remove_property(node, prop);
 
 	if (crashk_res.start != 0) {
 		crashk_base = cpu_to_be_ulong(crashk_res.start),
@@ -255,13 +258,16 @@ static void __init export_crashk_values(struct device_node *node)
 static int __init kexec_setup(void)
 {
 	struct device_node *node;
+	struct property *prop;
 
 	node = of_find_node_by_path("/chosen");
 	if (!node)
 		return -ENOENT;
 
 	/* remove any stale properties so ours can be found */
-	of_remove_property(node, of_find_property(node, kernel_end_prop.name, NULL));
+	prop = of_find_property(node, kernel_end_prop.name, NULL);
+	if (prop)
+		of_remove_property(node, prop);
 
 	/* information needed by userspace when using default_machine_kexec */
 	kernel_end = cpu_to_be_ulong(__pa(_end));

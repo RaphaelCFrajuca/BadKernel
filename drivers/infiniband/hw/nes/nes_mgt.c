@@ -122,10 +122,9 @@ static void nes_replenish_mgt_rq(struct nes_vnic_mgt *mgtvnic)
 /**
  * nes_mgt_rq_wqes_timeout
  */
-static void nes_mgt_rq_wqes_timeout(struct timer_list *t)
+static void nes_mgt_rq_wqes_timeout(unsigned long parm)
 {
-	struct nes_vnic_mgt *mgtvnic = from_timer(mgtvnic, t,
-						       rq_wqes_timer);
+	struct nes_vnic_mgt *mgtvnic = (struct nes_vnic_mgt *)parm;
 
 	atomic_set(&mgtvnic->rx_skb_timer_running, 0);
 	if (atomic_read(&mgtvnic->rx_skbs_needed))
@@ -321,7 +320,8 @@ static int get_fpdu_info(struct nes_device *nesdev, struct nes_qp *nesqp,
 
 	/* Found one */
 	fpdu_info = kzalloc(sizeof(*fpdu_info), GFP_ATOMIC);
-	if (!fpdu_info) {
+	if (fpdu_info == NULL) {
+		nes_debug(NES_DBG_PAU, "Failed to alloc a fpdu_info.\n");
 		rc = -ENOMEM;
 		goto out;
 	}
@@ -729,7 +729,8 @@ static int nes_change_quad_hash(struct nes_device *nesdev,
 	}
 
 	qh_chg = kmalloc(sizeof *qh_chg, GFP_ATOMIC);
-	if (!qh_chg) {
+	if (qh_chg == NULL) {
+		nes_debug(NES_DBG_PAU, "Failed to get a cqp_request.\n");
 		ret = -ENOMEM;
 		goto chg_qh_err;
 	}
@@ -878,10 +879,11 @@ int nes_init_mgt_qp(struct nes_device *nesdev, struct net_device *netdev, struct
 	int ret;
 
 	/* Allocate space the all mgt QPs once */
-	mgtvnic = kcalloc(NES_MGT_QP_COUNT, sizeof(struct nes_vnic_mgt),
-			  GFP_KERNEL);
-	if (!mgtvnic)
+	mgtvnic = kzalloc(NES_MGT_QP_COUNT * sizeof(struct nes_vnic_mgt), GFP_KERNEL);
+	if (mgtvnic == NULL) {
+		nes_debug(NES_DBG_INIT, "Unable to allocate memory for mgt structure\n");
 		return -ENOMEM;
+	}
 
 	/* Allocate fragment, RQ, and CQ; Reuse CEQ based on the PCI function */
 	/* We are not sending from this NIC so sq is not allocated */
@@ -1042,8 +1044,9 @@ int nes_init_mgt_qp(struct nes_device *nesdev, struct net_device *netdev, struct
 			mgtvnic->mgt.rx_skb[counter] = skb;
 		}
 
-		timer_setup(&mgtvnic->rq_wqes_timer, nes_mgt_rq_wqes_timeout,
-			    0);
+		init_timer(&mgtvnic->rq_wqes_timer);
+		mgtvnic->rq_wqes_timer.function = nes_mgt_rq_wqes_timeout;
+		mgtvnic->rq_wqes_timer.data = (unsigned long)mgtvnic;
 
 		wqe_count = NES_MGT_WQ_COUNT - 1;
 		mgtvnic->mgt.rq_head = wqe_count;

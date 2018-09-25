@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _SCSI_SCSI_TCQ_H
 #define _SCSI_SCSI_TCQ_H
 
@@ -40,7 +39,7 @@ static inline struct scsi_cmnd *scsi_host_find_tag(struct Scsi_Host *shost,
 
 	if (!req)
 		return NULL;
-	return blk_mq_rq_to_pdu(req);
+	return req->special;
 }
 
 #endif /* CONFIG_BLOCK */

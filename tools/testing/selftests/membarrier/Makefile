@@ -1,6 +1,10 @@
 CFLAGS += -g -I../../../../usr/include/
 
-TEST_GEN_PROGS := membarrier_test
+TEST_PROGS := membarrier_test
+
+all: $(TEST_PROGS)
 
 include ../lib.mk
 
+clean:
+	$(RM) $(TEST_PROGS)

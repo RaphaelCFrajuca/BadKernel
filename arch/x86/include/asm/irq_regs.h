@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Per-cpu current frame pointer - the location of the last exception frame on
  * the stack, stored in the per-cpu area.

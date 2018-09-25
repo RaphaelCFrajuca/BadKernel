@@ -55,7 +55,7 @@ extern int __cvmx_helper_rgmii_probe(int interface);
 extern void cvmx_helper_rgmii_internal_loopback(int port);
 
 /**
- * Configure all of the ASX, GMX, and PKO registers required
+ * Configure all of the ASX, GMX, and PKO regsiters required
  * to get RGMII to function on the supplied interface.
  *
  * @interface: PKO Interface to configure (0 or 1)
@@ -80,7 +80,8 @@ extern cvmx_helper_link_info_t __cvmx_helper_rgmii_link_get(int ipd_port);
  * Configure an IPD/PKO port for the specified link state. This
  * function does not influence auto negotiation at the PHY level.
  * The passed link state must always match the link state returned
- * by cvmx_helper_link_get().
+ * by cvmx_helper_link_get(). It is normally best to use
+ * cvmx_helper_link_autoconf() instead.
  *
  * @ipd_port:  IPD/PKO port to configure
  * @link_info: The new link state

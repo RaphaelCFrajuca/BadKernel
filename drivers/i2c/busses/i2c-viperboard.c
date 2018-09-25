@@ -337,7 +337,7 @@ static int vprbrd_i2c_xfer(struct i2c_adapter *i2c, struct i2c_msg *msgs,
 		}
 		mutex_unlock(&vb->lock);
 	}
-	return num;
+	return 0;
 error:
 	mutex_unlock(&vb->lock);
 	return error;
@@ -354,7 +354,7 @@ static const struct i2c_algorithm vprbrd_algorithm = {
 	.functionality	= vprbrd_i2c_func,
 };
 
-static const struct i2c_adapter_quirks vprbrd_quirks = {
+static struct i2c_adapter_quirks vprbrd_quirks = {
 	.max_read_len = 2048,
 	.max_write_len = 2048,
 };

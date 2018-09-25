@@ -32,7 +32,6 @@
 #include <linux/math64.h>
 #include <linux/uaccess.h>
 #include <linux/random.h>
-#include <linux/ctype.h>
 #include "ubifs.h"
 
 static DEFINE_SPINLOCK(dbg_lock);
@@ -234,7 +233,7 @@ static void dump_ch(const struct ubifs_ch *ch)
 void ubifs_dump_inode(struct ubifs_info *c, const struct inode *inode)
 {
 	const struct ubifs_inode *ui = ubifs_inode(inode);
-	struct fscrypt_name nm = {0};
+	struct qstr nm = { .name = NULL };
 	union ubifs_key key;
 	struct ubifs_dent_node *dent, *pdent = NULL;
 	int count = 2;
@@ -261,7 +260,7 @@ void ubifs_dump_inode(struct ubifs_info *c, const struct inode *inode)
 	pr_err("\txattr_names    %u\n", ui->xattr_names);
 	pr_err("\tdirty          %u\n", ui->dirty);
 	pr_err("\txattr          %u\n", ui->xattr);
-	pr_err("\tbulk_read      %u\n", ui->bulk_read);
+	pr_err("\tbulk_read      %u\n", ui->xattr);
 	pr_err("\tsynced_i_size  %llu\n",
 	       (unsigned long long)ui->synced_i_size);
 	pr_err("\tui_size        %llu\n",
@@ -287,13 +286,11 @@ void ubifs_dump_inode(struct ubifs_info *c, const struct inode *inode)
 			break;
 		}
 
-		pr_err("\t%d: inode %llu, type %s, len %d\n",
-		       count++, (unsigned long long) le64_to_cpu(dent->inum),
-		       get_dent_type(dent->type),
-		       le16_to_cpu(dent->nlen));
+		pr_err("\t%d: %s (%s)\n",
+		       count++, dent->name, get_dent_type(dent->type));
 
-		fname_name(&nm) = dent->name;
-		fname_len(&nm) = le16_to_cpu(dent->nlen);
+		nm.name = dent->name;
+		nm.len = le16_to_cpu(dent->nlen);
 		kfree(pdent);
 		pdent = dent;
 		key_read(c, &dent->key, &key);
@@ -467,8 +464,7 @@ void ubifs_dump_node(const struct ubifs_info *c, const void *node)
 			pr_err("(bad name length, not printing, bad or corrupted node)");
 		else {
 			for (i = 0; i < nlen && dent->name[i]; i++)
-				pr_cont("%c", isprint(dent->name[i]) ?
-					dent->name[i] : '?');
+				pr_cont("%c", dent->name[i]);
 		}
 		pr_cont("\n");
 
@@ -1111,7 +1107,7 @@ int dbg_check_dir(struct ubifs_info *c, const struct inode *dir)
 	unsigned int nlink = 2;
 	union ubifs_key key;
 	struct ubifs_dent_node *dent, *pdent = NULL;
-	struct fscrypt_name nm = {0};
+	struct qstr nm = { .name = NULL };
 	loff_t size = UBIFS_INO_NODE_SZ;
 
 	if (!dbg_is_chk_gen(c))
@@ -1132,9 +1128,9 @@ int dbg_check_dir(struct ubifs_info *c, const struct inode *dir)
 			return err;
 		}
 
-		fname_name(&nm) = dent->name;
-		fname_len(&nm) = le16_to_cpu(dent->nlen);
-		size += CALC_DENT_SIZE(fname_len(&nm));
+		nm.name = dent->name;
+		nm.len = le16_to_cpu(dent->nlen);
+		size += CALC_DENT_SIZE(nm.len);
 		if (dent->type == UBIFS_ITYPE_DIR)
 			nlink += 1;
 		kfree(pdent);
@@ -2391,8 +2387,8 @@ int dbg_check_nondata_nodes_order(struct ubifs_info *c, struct list_head *head)
 			ubifs_dump_node(c, sa->node);
 			return -EINVAL;
 		}
-		if (sb->type != UBIFS_INO_NODE && sb->type != UBIFS_DENT_NODE &&
-		    sb->type != UBIFS_XENT_NODE) {
+		if (sa->type != UBIFS_INO_NODE && sa->type != UBIFS_DENT_NODE &&
+		    sa->type != UBIFS_XENT_NODE) {
 			ubifs_err(c, "bad node type %d", sb->type);
 			ubifs_dump_node(c, sb->node);
 			return -EINVAL;

@@ -221,12 +221,11 @@ void del_sysfs_port_mcg_attr(struct mlx4_ib_dev *device, int port_num,
 static int add_port_entries(struct mlx4_ib_dev *device, int port_num)
 {
 	int i;
-	char buff[11];
+	char buff[10];
 	struct mlx4_ib_iov_port *port = NULL;
 	int ret = 0 ;
 	struct ib_port_attr attr;
 
-	memset(&attr, 0, sizeof(attr));
 	/* get the physical gid and pkey table sizes.*/
 	ret = __mlx4_ib_query_port(&device->ib_dev, port_num, &attr, 1);
 	if (ret)

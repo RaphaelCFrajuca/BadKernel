@@ -20,8 +20,6 @@ expression E;
 (
   kfree(E);
 |
-  kzfree(E);
-|
   debugfs_remove(E);
 |
   debugfs_remove_recursive(E);
@@ -41,7 +39,7 @@ position p;
 @@
 
 * if (E != NULL)
-*	\(kfree@p\|kzfree@p\|debugfs_remove@p\|debugfs_remove_recursive@p\|
+*	\(kfree@p\|debugfs_remove@p\|debugfs_remove_recursive@p\|
 *         usb_free_urb@p\|kmem_cache_destroy@p\|mempool_destroy@p\|
 *         dma_pool_destroy@p\)(E);
 
@@ -55,5 +53,5 @@ cocci.print_main("NULL check before that freeing function is not needed", p)
 p << r.p;
 @@
 
-msg = "WARNING: NULL check before some freeing functions is not needed."
+msg = "WARNING: NULL check before freeing functions like kfree, debugfs_remove, debugfs_remove_recursive or usb_free_urb is not needed. Maybe consider reorganizing relevant code to avoid passing NULL values."
 coccilib.report.print_report(p[0], msg)

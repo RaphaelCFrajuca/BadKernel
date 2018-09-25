@@ -125,14 +125,14 @@ static int __init wax_init_chip(struct parisc_device *dev)
 	return ret;
 }
 
-static const struct parisc_device_id wax_tbl[] __initconst = {
+static struct parisc_device_id wax_tbl[] = {
   	{ HPHW_BA, HVERSION_REV_ANY_ID, HVERSION_ANY_ID, 0x0008e },
 	{ 0, }
 };
 
 MODULE_DEVICE_TABLE(parisc, wax_tbl);
 
-struct parisc_driver wax_driver __refdata = {
+struct parisc_driver wax_driver = {
 	.name =		"wax",
 	.id_table =	wax_tbl,
 	.probe =	wax_init_chip,

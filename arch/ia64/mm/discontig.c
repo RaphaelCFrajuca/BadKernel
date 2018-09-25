@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2000, 2003 Silicon Graphics, Inc.  All rights reserved.
  * Copyright (c) 2001 Intel Corp.
@@ -38,7 +37,7 @@ struct early_node_data {
 	struct ia64_node_data *node_data;
 	unsigned long pernode_addr;
 	unsigned long pernode_size;
-#ifdef CONFIG_ZONE_DMA32
+#ifdef CONFIG_ZONE_DMA
 	unsigned long num_dma_physpages;
 #endif
 	unsigned long min_pfn;
@@ -669,7 +668,7 @@ static __init int count_node_pages(unsigned long start, unsigned long len, int n
 {
 	unsigned long end = start + len;
 
-#ifdef CONFIG_ZONE_DMA32
+#ifdef CONFIG_ZONE_DMA
 	if (start <= __pa(MAX_DMA_ADDRESS))
 		mem_data[node].num_dma_physpages +=
 			(min(end, __pa(MAX_DMA_ADDRESS)) - start) >>PAGE_SHIFT;
@@ -724,8 +723,8 @@ void __init paging_init(void)
 	}
 
 	memset(max_zone_pfns, 0, sizeof(max_zone_pfns));
-#ifdef CONFIG_ZONE_DMA32
-	max_zone_pfns[ZONE_DMA32] = max_dma;
+#ifdef CONFIG_ZONE_DMA
+	max_zone_pfns[ZONE_DMA] = max_dma;
 #endif
 	max_zone_pfns[ZONE_NORMAL] = max_pfn;
 	free_area_init_nodes(max_zone_pfns);
@@ -754,14 +753,12 @@ void arch_refresh_nodedata(int update_node, pg_data_t *update_pgdat)
 #endif
 
 #ifdef CONFIG_SPARSEMEM_VMEMMAP
-int __meminit vmemmap_populate(unsigned long start, unsigned long end, int node,
-		struct vmem_altmap *altmap)
+int __meminit vmemmap_populate(unsigned long start, unsigned long end, int node)
 {
 	return vmemmap_populate_basepages(start, end, node);
 }
 
-void vmemmap_free(unsigned long start, unsigned long end,
-		struct vmem_altmap *altmap)
+void vmemmap_free(unsigned long start, unsigned long end)
 {
 }
 #endif

@@ -256,6 +256,9 @@ static int sdricoh_blockio(struct sdricoh_host *host, int read,
 		}
 	}
 
+	if (len)
+		return -EIO;
+
 	return 0;
 }
 
@@ -385,7 +388,7 @@ static int sdricoh_get_ro(struct mmc_host *mmc)
 	return (status & STATUS_CARD_LOCKED);
 }
 
-static const struct mmc_host_ops sdricoh_ops = {
+static struct mmc_host_ops sdricoh_ops = {
 	.request = sdricoh_request,
 	.set_ios = sdricoh_set_ios,
 	.get_ro = sdricoh_get_ro,
@@ -395,10 +398,10 @@ static const struct mmc_host_ops sdricoh_ops = {
 static int sdricoh_init_mmc(struct pci_dev *pci_dev,
 			    struct pcmcia_device *pcmcia_dev)
 {
-	int result;
-	void __iomem *iobase;
-	struct mmc_host *mmc;
-	struct sdricoh_host *host;
+	int result = 0;
+	void __iomem *iobase = NULL;
+	struct mmc_host *mmc = NULL;
+	struct sdricoh_host *host = NULL;
 	struct device *dev = &pcmcia_dev->dev;
 	/* map iomem */
 	if (pci_resource_len(pci_dev, SDRICOH_PCI_REGION) !=
@@ -416,7 +419,7 @@ static int sdricoh_init_mmc(struct pci_dev *pci_dev,
 	if (readl(iobase + R104_VERSION) != 0x4000) {
 		dev_dbg(dev, "no supported mmc controller found\n");
 		result = -ENODEV;
-		goto unmap_io;
+		goto err;
 	}
 	/* allocate privdata */
 	mmc = pcmcia_dev->priv =
@@ -424,7 +427,7 @@ static int sdricoh_init_mmc(struct pci_dev *pci_dev,
 	if (!mmc) {
 		dev_err(dev, "mmc_alloc_host failed\n");
 		result = -ENOMEM;
-		goto unmap_io;
+		goto err;
 	}
 	host = mmc_priv(mmc);
 
@@ -448,7 +451,8 @@ static int sdricoh_init_mmc(struct pci_dev *pci_dev,
 	if (sdricoh_reset(host)) {
 		dev_dbg(dev, "could not reset\n");
 		result = -EIO;
-		goto free_host;
+		goto err;
+
 	}
 
 	result = mmc_add_host(mmc);
@@ -457,10 +461,13 @@ static int sdricoh_init_mmc(struct pci_dev *pci_dev,
 		dev_dbg(dev, "mmc host registered\n");
 		return 0;
 	}
-free_host:
-	mmc_free_host(mmc);
-unmap_io:
-	pci_iounmap(pci_dev, iobase);
+
+err:
+	if (iobase)
+		pci_iounmap(pci_dev, iobase);
+	if (mmc)
+		mmc_free_host(mmc);
+
 	return result;
 }
 

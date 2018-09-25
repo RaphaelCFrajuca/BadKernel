@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 #
 # Building a vDSO image for AArch64.
 #

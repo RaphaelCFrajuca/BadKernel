@@ -31,18 +31,19 @@
 #include "usbusx2y.h"
 #include "usX2Yhwdep.h"
 
-static vm_fault_t snd_us428ctls_vm_fault(struct vm_fault *vmf)
+static int snd_us428ctls_vm_fault(struct vm_area_struct *area,
+				  struct vm_fault *vmf)
 {
 	unsigned long offset;
 	struct page * page;
 	void *vaddr;
 
 	snd_printdd("ENTER, start %lXh, pgoff %ld\n",
-		   vmf->vma->vm_start,
+		   area->vm_start,
 		   vmf->pgoff);
 	
 	offset = vmf->pgoff << PAGE_SHIFT;
-	vaddr = (char *)((struct usX2Ydev *)vmf->vma->vm_private_data)->us428ctls_sharedmem + offset;
+	vaddr = (char*)((struct usX2Ydev *)area->vm_private_data)->us428ctls_sharedmem + offset;
 	page = virt_to_page(vaddr);
 	get_page(page);
 	vmf->page = page;
@@ -86,18 +87,18 @@ static int snd_us428ctls_mmap(struct snd_hwdep * hw, struct file *filp, struct v
 	return 0;
 }
 
-static __poll_t snd_us428ctls_poll(struct snd_hwdep *hw, struct file *file, poll_table *wait)
+static unsigned int snd_us428ctls_poll(struct snd_hwdep *hw, struct file *file, poll_table *wait)
 {
-	__poll_t	mask = 0;
+	unsigned int	mask = 0;
 	struct usX2Ydev	*us428 = hw->private_data;
 	struct us428ctls_sharedmem *shm = us428->us428ctls_sharedmem;
 	if (us428->chip_status & USX2Y_STAT_CHIP_HUP)
-		return EPOLLHUP;
+		return POLLHUP;
 
 	poll_wait(file, &us428->us428ctls_wait_queue_head, wait);
 
 	if (shm != NULL && shm->CtlSnapShotLast != shm->CtlSnapShotRed)
-		mask |= EPOLLIN;
+		mask |= POLLIN;
 
 	return mask;
 }
@@ -198,22 +199,24 @@ static int snd_usX2Y_hwdep_dsp_load(struct snd_hwdep *hw,
 				    struct snd_hwdep_dsp_image *dsp)
 {
 	struct usX2Ydev *priv = hw->private_data;
-	struct usb_device* dev = priv->dev;
-	int lret, err;
-	char *buf;
-
+	int	lret, err = -EINVAL;
 	snd_printdd( "dsp_load %s\n", dsp->name);
 
-	buf = memdup_user(dsp->image, dsp->length);
-	if (IS_ERR(buf))
-		return PTR_ERR(buf);
+	if (access_ok(VERIFY_READ, dsp->image, dsp->length)) {
+		struct usb_device* dev = priv->dev;
+		char *buf;
 
-	err = usb_set_interface(dev, 0, 1);
-	if (err)
-		snd_printk(KERN_ERR "usb_set_interface error \n");
-	else
-		err = usb_bulk_msg(dev, usb_sndbulkpipe(dev, 2), buf, dsp->length, &lret, 6000);
-	kfree(buf);
+		buf = memdup_user(dsp->image, dsp->length);
+		if (IS_ERR(buf))
+			return PTR_ERR(buf);
+
+		err = usb_set_interface(dev, 0, 1);
+		if (err)
+			snd_printk(KERN_ERR "usb_set_interface error \n");
+		else
+			err = usb_bulk_msg(dev, usb_sndbulkpipe(dev, 2), buf, dsp->length, &lret, 6000);
+		kfree(buf);
+	}
 	if (err)
 		return err;
 	if (dsp->index == 1) {
@@ -256,7 +259,7 @@ int usX2Y_hwdep_new(struct snd_card *card, struct usb_device* device)
 	hw->ops.mmap = snd_us428ctls_mmap;
 	hw->ops.poll = snd_us428ctls_poll;
 	hw->exclusive = 1;
-	sprintf(hw->name, "/dev/bus/usb/%03d/%03d", device->bus->busnum, device->devnum);
+	sprintf(hw->name, "/proc/bus/usb/%03d/%03d", device->bus->busnum, device->devnum);
 	return 0;
 }
 

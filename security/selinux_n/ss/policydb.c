@@ -1,7 +1,7 @@
 /*
  * Implementation of the policy database.
  *
- * Author : Stephen Smalley, <sds@tycho.nsa.gov>
+ * Author : Stephen Smalley, <sds@epoch.ncsc.mil>
  */
 
 /*
@@ -17,11 +17,6 @@
  *
  *      Added support for the policy capability bitmap
  *
- * Update: Mellanox Techonologies
- *
- *	Added Infiniband support
- *
- * Copyright (C) 2016 Mellanox Techonologies
  * Copyright (C) 2007 Hewlett-Packard Development Company, L.P.
  * Copyright (C) 2004-2005 Trusted Computer Solutions, Inc.
  * Copyright (C) 2003 - 2004 Tresys Technology, LLC
@@ -81,85 +76,80 @@ static struct policydb_compat_info policydb_compat[] = {
 	{
 		.version	= POLICYDB_VERSION_BASE,
 		.sym_num	= SYM_NUM - 3,
-		.ocon_num	= OCON_NUM - 3,
+		.ocon_num	= OCON_NUM - 1,
 	},
 	{
 		.version	= POLICYDB_VERSION_BOOL,
 		.sym_num	= SYM_NUM - 2,
-		.ocon_num	= OCON_NUM - 3,
+		.ocon_num	= OCON_NUM - 1,
 	},
 	{
 		.version	= POLICYDB_VERSION_IPV6,
 		.sym_num	= SYM_NUM - 2,
-		.ocon_num	= OCON_NUM - 2,
+		.ocon_num	= OCON_NUM,
 	},
 	{
 		.version	= POLICYDB_VERSION_NLCLASS,
 		.sym_num	= SYM_NUM - 2,
-		.ocon_num	= OCON_NUM - 2,
+		.ocon_num	= OCON_NUM,
 	},
 	{
 		.version	= POLICYDB_VERSION_MLS,
 		.sym_num	= SYM_NUM,
-		.ocon_num	= OCON_NUM - 2,
+		.ocon_num	= OCON_NUM,
 	},
 	{
 		.version	= POLICYDB_VERSION_AVTAB,
 		.sym_num	= SYM_NUM,
-		.ocon_num	= OCON_NUM - 2,
+		.ocon_num	= OCON_NUM,
 	},
 	{
 		.version	= POLICYDB_VERSION_RANGETRANS,
 		.sym_num	= SYM_NUM,
-		.ocon_num	= OCON_NUM - 2,
+		.ocon_num	= OCON_NUM,
 	},
 	{
 		.version	= POLICYDB_VERSION_POLCAP,
 		.sym_num	= SYM_NUM,
-		.ocon_num	= OCON_NUM - 2,
+		.ocon_num	= OCON_NUM,
 	},
 	{
 		.version	= POLICYDB_VERSION_PERMISSIVE,
 		.sym_num	= SYM_NUM,
-		.ocon_num	= OCON_NUM - 2,
+		.ocon_num	= OCON_NUM,
 	},
 	{
 		.version	= POLICYDB_VERSION_BOUNDARY,
 		.sym_num	= SYM_NUM,
-		.ocon_num	= OCON_NUM - 2,
+		.ocon_num	= OCON_NUM,
 	},
 	{
 		.version	= POLICYDB_VERSION_FILENAME_TRANS,
 		.sym_num	= SYM_NUM,
-		.ocon_num	= OCON_NUM - 2,
+		.ocon_num	= OCON_NUM,
 	},
 	{
 		.version	= POLICYDB_VERSION_ROLETRANS,
 		.sym_num	= SYM_NUM,
-		.ocon_num	= OCON_NUM - 2,
+		.ocon_num	= OCON_NUM,
 	},
 	{
 		.version	= POLICYDB_VERSION_NEW_OBJECT_DEFAULTS,
 		.sym_num	= SYM_NUM,
-		.ocon_num	= OCON_NUM - 2,
+		.ocon_num	= OCON_NUM,
 	},
 	{
 		.version	= POLICYDB_VERSION_DEFAULT_TYPE,
 		.sym_num	= SYM_NUM,
-		.ocon_num	= OCON_NUM - 2,
+		.ocon_num	= OCON_NUM,
 	},
 	{
 		.version	= POLICYDB_VERSION_CONSTRAINT_NAMES,
 		.sym_num	= SYM_NUM,
-		.ocon_num	= OCON_NUM - 2,
+		.ocon_num	= OCON_NUM,
 	},
 	{
 		.version	= POLICYDB_VERSION_XPERMS_IOCTL,
-		.sym_num	= SYM_NUM,
-		.ocon_num	= OCON_NUM - 2,
-	},
-	{
-		.version	= POLICYDB_VERSION_INFINIBAND,
 		.sym_num	= SYM_NUM,
 		.ocon_num	= OCON_NUM,
 	},
@@ -188,9 +178,10 @@ static int roles_init(struct policydb *p)
 	int rc;
 	struct role_datum *role;
 
+	rc = -ENOMEM;
 	role = kzalloc(sizeof(*role), GFP_KERNEL);
 	if (!role)
-		return -ENOMEM;
+		goto out;
 
 	rc = -EINVAL;
 	role->value = ++p->p_roles.nprim;
@@ -536,9 +527,9 @@ static int policydb_index(struct policydb *p)
 	printk(KERN_DEBUG "SELinux:  %d users, %d roles, %d types, %d bools",
 	       p->p_users.nprim, p->p_roles.nprim, p->p_types.nprim, p->p_bools.nprim);
 	if (p->mls_enabled)
-		printk(KERN_CONT ", %d sens, %d cats", p->p_levels.nprim,
+		printk(", %d sens, %d cats", p->p_levels.nprim,
 		       p->p_cats.nprim);
-	printk(KERN_CONT "\n");
+	printk("\n");
 
 	printk(KERN_DEBUG "SELinux:  %d classes, %d rules\n",
 	       p->p_classes.nprim, p->te_avtab.nel);
@@ -548,30 +539,34 @@ static int policydb_index(struct policydb *p)
 	symtab_hash_eval(p->symtab);
 #endif
 
-	p->class_val_to_struct = kcalloc(p->p_classes.nprim,
-					 sizeof(*p->class_val_to_struct),
-					 GFP_KERNEL);
+	rc = -ENOMEM;
+	p->class_val_to_struct =
+		kmalloc(p->p_classes.nprim * sizeof(*(p->class_val_to_struct)),
+			GFP_KERNEL);
 	if (!p->class_val_to_struct)
-		return -ENOMEM;
+		goto out;
 
-	p->role_val_to_struct = kcalloc(p->p_roles.nprim,
-					sizeof(*p->role_val_to_struct),
-					GFP_KERNEL);
+	rc = -ENOMEM;
+	p->role_val_to_struct =
+		kmalloc(p->p_roles.nprim * sizeof(*(p->role_val_to_struct)),
+			GFP_KERNEL);
 	if (!p->role_val_to_struct)
-		return -ENOMEM;
+		goto out;
 
-	p->user_val_to_struct = kcalloc(p->p_users.nprim,
-					sizeof(*p->user_val_to_struct),
-					GFP_KERNEL);
+	rc = -ENOMEM;
+	p->user_val_to_struct =
+		kmalloc(p->p_users.nprim * sizeof(*(p->user_val_to_struct)),
+			GFP_KERNEL);
 	if (!p->user_val_to_struct)
-		return -ENOMEM;
+		goto out;
 
 	/* Yes, I want the sizeof the pointer, not the structure */
+	rc = -ENOMEM;
 	p->type_val_to_struct_array = flex_array_alloc(sizeof(struct type_datum *),
 						       p->p_types.nprim,
 						       GFP_KERNEL | __GFP_ZERO);
 	if (!p->type_val_to_struct_array)
-		return -ENOMEM;
+		goto out;
 
 	rc = flex_array_prealloc(p->type_val_to_struct_array, 0,
 				 p->p_types.nprim, GFP_KERNEL | __GFP_ZERO);
@@ -583,11 +578,12 @@ static int policydb_index(struct policydb *p)
 		goto out;
 
 	for (i = 0; i < SYM_NUM; i++) {
+		rc = -ENOMEM;
 		p->sym_val_to_name[i] = flex_array_alloc(sizeof(char *),
 							 p->symtab[i].nprim,
 							 GFP_KERNEL | __GFP_ZERO);
 		if (!p->sym_val_to_name[i])
-			return -ENOMEM;
+			goto out;
 
 		rc = flex_array_prealloc(p->sym_val_to_name[i],
 					 0, p->symtab[i].nprim,
@@ -884,6 +880,8 @@ void policydb_destroy(struct policydb *p)
 	ebitmap_destroy(&p->filename_trans_ttypes);
 	ebitmap_destroy(&p->policycaps);
 	ebitmap_destroy(&p->permissive_map);
+
+	return;
 }
 
 /*
@@ -966,7 +964,7 @@ int policydb_context_isvalid(struct policydb *p, struct context *c)
 		 * Role must be authorized for the type.
 		 */
 		role = p->role_val_to_struct[c->role - 1];
-		if (!role || !ebitmap_get_bit(&role->types, c->type - 1))
+		if (!ebitmap_get_bit(&role->types, c->type - 1))
 			/* role may not be associated with type */
 			return 0;
 
@@ -1096,9 +1094,6 @@ static int str_read(char **strp, gfp_t flags, void *fp, u32 len)
 	int rc;
 	char *str;
 
-	if ((len == 0) || (len == (u32)-1))
-		return -EINVAL;
-
 	str = kmalloc(len + 1, flags);
 	if (!str)
 		return -ENOMEM;
@@ -1122,9 +1117,10 @@ static int perm_read(struct policydb *p, struct hashtab *h, void *fp)
 	__le32 buf[2];
 	u32 len;
 
+	rc = -ENOMEM;
 	perdatum = kzalloc(sizeof(*perdatum), GFP_KERNEL);
 	if (!perdatum)
-		return -ENOMEM;
+		goto bad;
 
 	rc = next_entry(buf, fp, sizeof buf);
 	if (rc)
@@ -1155,9 +1151,10 @@ static int common_read(struct policydb *p, struct hashtab *h, void *fp)
 	u32 len, nel;
 	int i, rc;
 
+	rc = -ENOMEM;
 	comdatum = kzalloc(sizeof(*comdatum), GFP_KERNEL);
 	if (!comdatum)
-		return -ENOMEM;
+		goto bad;
 
 	rc = next_entry(buf, fp, sizeof buf);
 	if (rc)
@@ -1320,9 +1317,10 @@ static int class_read(struct policydb *p, struct hashtab *h, void *fp)
 	u32 len, len2, ncons, nel;
 	int i, rc;
 
+	rc = -ENOMEM;
 	cladatum = kzalloc(sizeof(*cladatum), GFP_KERNEL);
 	if (!cladatum)
-		return -ENOMEM;
+		goto bad;
 
 	rc = next_entry(buf, fp, sizeof(u32)*6);
 	if (rc)
@@ -1413,9 +1411,10 @@ static int role_read(struct policydb *p, struct hashtab *h, void *fp)
 	__le32 buf[3];
 	u32 len;
 
+	rc = -ENOMEM;
 	role = kzalloc(sizeof(*role), GFP_KERNEL);
 	if (!role)
-		return -ENOMEM;
+		goto bad;
 
 	if (p->policyvers >= POLICYDB_VERSION_BOUNDARY)
 		to_read = 3;
@@ -1469,9 +1468,10 @@ static int type_read(struct policydb *p, struct hashtab *h, void *fp)
 	__le32 buf[4];
 	u32 len;
 
+	rc = -ENOMEM;
 	typdatum = kzalloc(sizeof(*typdatum), GFP_KERNEL);
 	if (!typdatum)
-		return -ENOMEM;
+		goto bad;
 
 	if (p->policyvers >= POLICYDB_VERSION_BOUNDARY)
 		to_read = 4;
@@ -1548,9 +1548,10 @@ static int user_read(struct policydb *p, struct hashtab *h, void *fp)
 	__le32 buf[3];
 	u32 len;
 
+	rc = -ENOMEM;
 	usrdatum = kzalloc(sizeof(*usrdatum), GFP_KERNEL);
 	if (!usrdatum)
-		return -ENOMEM;
+		goto bad;
 
 	if (p->policyvers >= POLICYDB_VERSION_BOUNDARY)
 		to_read = 3;
@@ -1598,9 +1599,10 @@ static int sens_read(struct policydb *p, struct hashtab *h, void *fp)
 	__le32 buf[2];
 	u32 len;
 
+	rc = -ENOMEM;
 	levdatum = kzalloc(sizeof(*levdatum), GFP_ATOMIC);
 	if (!levdatum)
-		return -ENOMEM;
+		goto bad;
 
 	rc = next_entry(buf, fp, sizeof buf);
 	if (rc)
@@ -1614,7 +1616,7 @@ static int sens_read(struct policydb *p, struct hashtab *h, void *fp)
 		goto bad;
 
 	rc = -ENOMEM;
-	levdatum->level = kmalloc(sizeof(*levdatum->level), GFP_ATOMIC);
+	levdatum->level = kmalloc(sizeof(struct mls_level), GFP_ATOMIC);
 	if (!levdatum->level)
 		goto bad;
 
@@ -1639,9 +1641,10 @@ static int cat_read(struct policydb *p, struct hashtab *h, void *fp)
 	__le32 buf[3];
 	u32 len;
 
+	rc = -ENOMEM;
 	catdatum = kzalloc(sizeof(*catdatum), GFP_ATOMIC);
 	if (!catdatum)
-		return -ENOMEM;
+		goto bad;
 
 	rc = next_entry(buf, fp, sizeof buf);
 	if (rc)
@@ -1853,7 +1856,7 @@ static int range_read(struct policydb *p, void *fp)
 
 	rc = next_entry(buf, fp, sizeof(u32));
 	if (rc)
-		return rc;
+		goto out;
 
 	nel = le32_to_cpu(buf[0]);
 	for (i = 0; i < nel; i++) {
@@ -1930,6 +1933,7 @@ static int filename_trans_read(struct policydb *p, void *fp)
 	nel = le32_to_cpu(buf[0]);
 
 	for (i = 0; i < nel; i++) {
+		ft = NULL;
 		otype = NULL;
 		name = NULL;
 
@@ -2006,7 +2010,7 @@ static int genfs_read(struct policydb *p, void *fp)
 
 	rc = next_entry(buf, fp, sizeof(u32));
 	if (rc)
-		return rc;
+		goto out;
 	nel = le32_to_cpu(buf[0]);
 
 	for (i = 0; i < nel; i++) {
@@ -2098,10 +2102,9 @@ static int genfs_read(struct policydb *p, void *fp)
 	}
 	rc = 0;
 out:
-	if (newgenfs) {
+	if (newgenfs)
 		kfree(newgenfs->fstype);
-		kfree(newgenfs);
-	}
+	kfree(newgenfs);
 	ocontext_destroy(newc, OCON_FSUSE);
 
 	return rc;
@@ -2221,51 +2224,6 @@ static int ocontext_read(struct policydb *p, struct policydb_compat_info *info,
 					goto out;
 				break;
 			}
-			case OCON_IBPKEY:
-				rc = next_entry(nodebuf, fp, sizeof(u32) * 4);
-				if (rc)
-					goto out;
-
-				c->u.ibpkey.subnet_prefix = be64_to_cpu(*((__be64 *)nodebuf));
-
-				if (nodebuf[2] > 0xffff ||
-				    nodebuf[3] > 0xffff) {
-					rc = -EINVAL;
-					goto out;
-				}
-
-				c->u.ibpkey.low_pkey = le32_to_cpu(nodebuf[2]);
-				c->u.ibpkey.high_pkey = le32_to_cpu(nodebuf[3]);
-
-				rc = context_read_and_validate(&c->context[0],
-							       p,
-							       fp);
-				if (rc)
-					goto out;
-				break;
-			case OCON_IBENDPORT:
-				rc = next_entry(buf, fp, sizeof(u32) * 2);
-				if (rc)
-					goto out;
-				len = le32_to_cpu(buf[0]);
-
-				rc = str_read(&c->u.ibendport.dev_name, GFP_KERNEL, fp, len);
-				if (rc)
-					goto out;
-
-				if (buf[1] > 0xff || buf[1] == 0) {
-					rc = -EINVAL;
-					goto out;
-				}
-
-				c->u.ibendport.port = le32_to_cpu(buf[1]);
-
-				rc = context_read_and_validate(&c->context[0],
-							       p,
-							       fp);
-				if (rc)
-					goto out;
-				break;
 			}
 		}
 	}
@@ -2310,7 +2268,7 @@ int policydb_read(struct policydb *p, void *fp)
 	len = le32_to_cpu(buf[1]);
 	if (len != strlen(POLICYDB_STRING)) {
 		printk(KERN_ERR "SELinux:  policydb string length %d does not "
-		       "match expected length %zu\n",
+		       "match expected length %Zu\n",
 		       len, strlen(POLICYDB_STRING));
 		goto bad;
 	}
@@ -2461,7 +2419,6 @@ int policydb_read(struct policydb *p, void *fp)
 		} else
 			tr->tclass = p->process_class;
 
-		rc = -EINVAL;
 		if (!policydb_role_isvalid(p, tr->role) ||
 		    !policydb_type_isvalid(p, tr->type) ||
 		    !policydb_class_isvalid(p, tr->tclass) ||
@@ -3194,33 +3151,6 @@ static int ocontext_write(struct policydb *p, struct policydb_compat_info *info,
 				for (j = 0; j < 4; j++)
 					nodebuf[j + 4] = c->u.node6.mask[j]; /* network order */
 				rc = put_entry(nodebuf, sizeof(u32), 8, fp);
-				if (rc)
-					return rc;
-				rc = context_write(p, &c->context[0], fp);
-				if (rc)
-					return rc;
-				break;
-			case OCON_IBPKEY:
-				*((__be64 *)nodebuf) = cpu_to_be64(c->u.ibpkey.subnet_prefix);
-
-				nodebuf[2] = cpu_to_le32(c->u.ibpkey.low_pkey);
-				nodebuf[3] = cpu_to_le32(c->u.ibpkey.high_pkey);
-
-				rc = put_entry(nodebuf, sizeof(u32), 4, fp);
-				if (rc)
-					return rc;
-				rc = context_write(p, &c->context[0], fp);
-				if (rc)
-					return rc;
-				break;
-			case OCON_IBENDPORT:
-				len = strlen(c->u.ibendport.dev_name);
-				buf[0] = cpu_to_le32(len);
-				buf[1] = cpu_to_le32(c->u.ibendport.port);
-				rc = put_entry(buf, sizeof(u32), 2, fp);
-				if (rc)
-					return rc;
-				rc = put_entry(c->u.ibendport.dev_name, 1, len, fp);
 				if (rc)
 					return rc;
 				rc = context_write(p, &c->context[0], fp);

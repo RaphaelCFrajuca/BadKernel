@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  Copyright (C) 1995  Linus Torvalds
  *  Adapted from 'alpha' version by Gary Thomas
@@ -94,7 +93,7 @@ static const char *chrp_names[] = {
 	"Total Impact Briq"
 };
 
-static void chrp_show_cpuinfo(struct seq_file *m)
+void chrp_show_cpuinfo(struct seq_file *m)
 {
 	int i, sdramen;
 	unsigned int t;
@@ -240,7 +239,7 @@ out:
 	of_node_put(np);
 }
 
-static void __noreturn briq_restart(char *cmd)
+static void briq_restart(char *cmd)
 {
 	local_irq_disable();
 	if (briq_SPOR)
@@ -254,7 +253,7 @@ static void __noreturn briq_restart(char *cmd)
  * But unfortunately, the firmware does not connect /chosen/{stdin,stdout}
  * the the built-in serial node. Instead, a /failsafe node is created.
  */
-static __init void chrp_init(void)
+static __init void chrp_init_early(void)
 {
 	struct device_node *node;
 	const char *property;
@@ -299,7 +298,7 @@ out_put:
 	of_node_put(node);
 }
 
-static void __init chrp_setup_arch(void)
+void __init chrp_setup_arch(void)
 {
 	struct device_node *root = of_find_node_by_path("/");
 	const char *machine = NULL;
@@ -369,7 +368,7 @@ static void chrp_8259_cascade(struct irq_desc *desc)
 	struct irq_chip *chip = irq_desc_get_chip(desc);
 	unsigned int cascade_irq = i8259_irq();
 
-	if (cascade_irq)
+	if (cascade_irq != NO_IRQ)
 		generic_handle_irq(cascade_irq);
 
 	chip->irq_eoi(&desc->irq_data);
@@ -382,7 +381,7 @@ static void __init chrp_find_openpic(void)
 {
 	struct device_node *np, *root;
 	int len, i, j;
-	int isu_size;
+	int isu_size, idu_size;
 	const unsigned int *iranges, *opprop = NULL;
 	int oplen = 0;
 	unsigned long opaddr;
@@ -427,9 +426,11 @@ static void __init chrp_find_openpic(void)
 	}
 
 	isu_size = 0;
+	idu_size = 0;
 	if (len > 0 && iranges[1] != 0) {
 		printk(KERN_INFO "OpenPIC irqs %d..%d in IDU\n",
 		       iranges[0], iranges[0] + iranges[1] - 1);
+		idu_size = iranges[1];
 	}
 	if (len > 1)
 		isu_size = iranges[3];
@@ -513,7 +514,7 @@ static void __init chrp_find_8259(void)
 	}
 	if (chrp_mpic != NULL) {
 		cascade_irq = irq_of_parse_and_map(pic, 0);
-		if (!cascade_irq)
+		if (cascade_irq == NO_IRQ)
 			printk(KERN_ERR "i8259: failed to map cascade irq\n");
 		else
 			irq_set_chained_handler(cascade_irq,
@@ -521,7 +522,7 @@ static void __init chrp_find_8259(void)
 	}
 }
 
-static void __init chrp_init_IRQ(void)
+void __init chrp_init_IRQ(void)
 {
 #if defined(CONFIG_VT) && defined(CONFIG_INPUT_ADBHID) && defined(CONFIG_XMON)
 	struct device_node *kbd;
@@ -553,7 +554,7 @@ static void __init chrp_init_IRQ(void)
 #endif
 }
 
-static void __init
+void __init
 chrp_init2(void)
 {
 #ifdef CONFIG_NVRAM
@@ -586,8 +587,6 @@ static int __init chrp_probe(void)
 
 	pm_power_off = rtas_power_off;
 
-	chrp_init();
-
 	return 1;
 }
 
@@ -596,6 +595,7 @@ define_machine(chrp) {
 	.probe			= chrp_probe,
 	.setup_arch		= chrp_setup_arch,
 	.init			= chrp_init2,
+	.init_early		= chrp_init_early,
 	.show_cpuinfo		= chrp_show_cpuinfo,
 	.init_IRQ		= chrp_init_IRQ,
 	.restart		= rtas_restart,

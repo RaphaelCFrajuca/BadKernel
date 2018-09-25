@@ -1,8 +1,19 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Wireless Host Controller (WHC) driver.
  *
  * Copyright (C) 2007 Cambridge Silicon Radio Ltd.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License version
+ * 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -202,7 +213,7 @@ static void whc_endpoint_reset(struct usb_hcd *usb_hcd,
 }
 
 
-static const struct hc_driver whc_hc_driver = {
+static struct hc_driver whc_hc_driver = {
 	.description = "whci-hcd",
 	.product_desc = "Wireless host controller",
 	.hcd_priv_size = sizeof(struct whc) - sizeof(struct usb_hcd),
@@ -246,14 +257,14 @@ static int whc_probe(struct umc_dev *umc)
 
 	ret = whc_init(whc);
 	if (ret)
-		goto error_whc_init;
+		goto error;
 
 	wusbhc->dev = dev;
 	wusbhc->uwb_rc = uwb_rc_get_by_grandpa(umc->dev.parent);
 	if (!wusbhc->uwb_rc) {
 		ret = -ENODEV;
 		dev_err(dev, "cannot get radio controller\n");
-		goto error_uwb_rc;
+		goto error;
 	}
 
 	if (whc->n_devices > USB_MAXCHILDREN) {
@@ -300,9 +311,8 @@ error_usb_add_hcd:
 	wusbhc_destroy(wusbhc);
 error_wusbhc_create:
 	uwb_rc_put(wusbhc->uwb_rc);
-error_uwb_rc:
+error:
 	whc_clean_up(whc);
-error_whc_init:
 	usb_put_hcd(usb_hcd);
 	return ret;
 }

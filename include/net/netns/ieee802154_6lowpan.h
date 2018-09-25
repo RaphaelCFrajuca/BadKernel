@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * ieee802154 6lowpan in net namespaces
  */

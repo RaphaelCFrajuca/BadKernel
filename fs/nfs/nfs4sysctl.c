@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * linux/fs/nfs/nfs4sysctl.c
  *
@@ -13,7 +12,7 @@
 #include "nfs4idmap.h"
 #include "callback.h"
 
-static const int nfs_set_port_min;
+static const int nfs_set_port_min = 0;
 static const int nfs_set_port_max = 65535;
 static struct ctl_table_header *nfs4_callback_sysctl_table;
 

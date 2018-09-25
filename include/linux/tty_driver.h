@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_TTY_DRIVER_H
 #define _LINUX_TTY_DRIVER_H
 
@@ -8,7 +7,7 @@
  * defined; unless noted otherwise, they are optional, and can be
  * filled in with a null pointer.
  *
- * struct tty_struct * (*lookup)(struct tty_driver *self, struct file *, int idx)
+ * struct tty_struct * (*lookup)(struct tty_driver *self, int idx)
  *
  *	Return the tty device corresponding to idx, NULL if there is not
  *	one currently in use and an ERR_PTR value on error. Called under
@@ -244,7 +243,6 @@
 #include <linux/list.h>
 #include <linux/cdev.h>
 #include <linux/termios.h>
-#include <linux/seq_file.h>
 
 struct tty_struct;
 struct tty_driver;
@@ -252,7 +250,7 @@ struct serial_icounter_struct;
 
 struct tty_operations {
 	struct tty_struct * (*lookup)(struct tty_driver *driver,
-			struct file *filp, int idx);
+			struct inode *inode, int idx);
 	int  (*install)(struct tty_driver *driver, struct tty_struct *tty);
 	void (*remove)(struct tty_driver *driver, struct tty_struct *tty);
 	int  (*open)(struct tty_struct * tty, struct file * filp);
@@ -287,14 +285,13 @@ struct tty_operations {
 	int (*set_termiox)(struct tty_struct *tty, struct termiox *tnew);
 	int (*get_icount)(struct tty_struct *tty,
 				struct serial_icounter_struct *icount);
-	void (*show_fdinfo)(struct tty_struct *tty, struct seq_file *m);
 #ifdef CONFIG_CONSOLE_POLL
 	int (*poll_init)(struct tty_driver *driver, int line, char *options);
 	int (*poll_get_char)(struct tty_driver *driver, int line);
 	void (*poll_put_char)(struct tty_driver *driver, int line, char ch);
 #endif
-	int (*proc_show)(struct seq_file *, void *);
-} __randomize_layout;
+	const struct file_operations *proc_fops;
+};
 
 struct tty_driver {
 	int	magic;		/* magic number for this structure */
@@ -328,7 +325,7 @@ struct tty_driver {
 
 	const struct tty_operations *ops;
 	struct list_head tty_drivers;
-} __randomize_layout;
+};
 
 extern struct list_head tty_drivers;
 

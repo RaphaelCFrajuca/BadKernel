@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /* industrial I/O data types needed both in and out of kernel
  *
  * Copyright (c) 2008 Jonathan Cameron
@@ -38,12 +37,6 @@ enum iio_chan_type {
 	IIO_VELOCITY,
 	IIO_CONCENTRATION,
 	IIO_RESISTANCE,
-	IIO_PH,
-	IIO_UVINDEX,
-	IIO_ELECTRICALCONDUCTIVITY,
-	IIO_COUNT,
-	IIO_INDEX,
-	IIO_GRAVITY,
 };
 
 enum iio_modifier {
@@ -83,7 +76,6 @@ enum iio_modifier {
 	IIO_MOD_Q,
 	IIO_MOD_CO2,
 	IIO_MOD_VOC,
-	IIO_MOD_LIGHT_UV,
 };
 
 enum iio_event_type {

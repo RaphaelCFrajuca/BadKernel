@@ -51,7 +51,8 @@ void rtl8723e_phy_rf6052_set_bandwidth(struct ieee80211_hw *hw, u8 bandwidth)
 			      rtlphy->rfreg_chnlval[0]);
 		break;
 	default:
-		pr_err("unknown bandwidth: %#X\n", bandwidth);
+		RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
+			 "unknown bandwidth: %#X\n", bandwidth);
 		break;
 	}
 }
@@ -503,7 +504,7 @@ static bool _rtl8723e_phy_rf6052_config_parafile(struct ieee80211_hw *hw)
 
 		if (rtstatus != true) {
 			RT_TRACE(rtlpriv, COMP_INIT, DBG_TRACE,
-				 "Radio[%d] Fail!!\n", rfpath);
+				 "Radio[%d] Fail!!", rfpath);
 			return false;
 		}
 	}

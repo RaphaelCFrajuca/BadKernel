@@ -1,8 +1,7 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <malloc.h>
 #include <stdlib.h>
 #include <string.h>
-#include "utils.h"
+#include "../utils.h"
 
 #define SIZE 256
 #define ITERATIONS 10000

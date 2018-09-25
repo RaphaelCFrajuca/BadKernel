@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause) */
 /*
  * include/uapi/linux/tipc_config.h: Header for TIPC configuration interface
  *
@@ -185,11 +184,6 @@
 #define TIPC_DEF_LINK_WIN 50
 #define TIPC_MAX_LINK_WIN 8191
 
-/*
- * Default MTU for UDP media
- */
-
-#define TIPC_DEF_LINK_UDP_MTU 14000
 
 struct tipc_node_info {
 	__be32 addr;			/* network address of node */

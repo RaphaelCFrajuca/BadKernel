@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef CEPH_MSGR_H
 #define CEPH_MSGR_H
 

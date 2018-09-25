@@ -260,7 +260,6 @@ struct virtio_gpu_cmd_submit {
 };
 
 #define VIRTIO_GPU_CAPSET_VIRGL 1
-#define VIRTIO_GPU_CAPSET_VIRGL2 2
 
 /* VIRTIO_GPU_CMD_GET_CAPSET_INFO */
 struct virtio_gpu_get_capset_info {
@@ -288,7 +287,7 @@ struct virtio_gpu_get_capset {
 /* VIRTIO_GPU_RESP_OK_CAPSET */
 struct virtio_gpu_resp_capset {
 	struct virtio_gpu_ctrl_hdr hdr;
-	__u8 capset_data[];
+	uint8_t capset_data[];
 };
 
 #define VIRTIO_GPU_EVENT_DISPLAY (1 << 0)

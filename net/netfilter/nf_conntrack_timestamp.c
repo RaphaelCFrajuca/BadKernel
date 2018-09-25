@@ -6,8 +6,6 @@
  * published by the Free Software Foundation (or any later at your option).
  */
 
-#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
-
 #include <linux/netfilter.h>
 #include <linux/slab.h>
 #include <linux/kernel.h>
@@ -35,7 +33,7 @@ static struct ctl_table tstamp_sysctl_table[] = {
 };
 #endif /* CONFIG_SYSCTL */
 
-static const struct nf_ct_ext_type tstamp_extend = {
+static struct nf_ct_ext_type tstamp_extend __read_mostly = {
 	.len	= sizeof(struct nf_conn_tstamp),
 	.align	= __alignof__(struct nf_conn_tstamp),
 	.id	= NF_CT_EXT_TSTAMP,
@@ -60,7 +58,7 @@ static int nf_conntrack_tstamp_init_sysctl(struct net *net)
 	net->ct.tstamp_sysctl_header = register_net_sysctl(net,	"net/netfilter",
 							   table);
 	if (!net->ct.tstamp_sysctl_header) {
-		pr_err("can't register to sysctl\n");
+		printk(KERN_ERR "nf_ct_tstamp: can't register to sysctl.\n");
 		goto out_register;
 	}
 	return 0;
@@ -106,7 +104,7 @@ int nf_conntrack_tstamp_init(void)
 	int ret;
 	ret = nf_ct_extend_register(&tstamp_extend);
 	if (ret < 0)
-		pr_err("Unable to register extension\n");
+		pr_err("nf_ct_tstamp: Unable to register extension\n");
 	return ret;
 }
 

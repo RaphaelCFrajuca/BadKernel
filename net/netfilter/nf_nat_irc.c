@@ -10,8 +10,6 @@
  * 2 of the License, or (at your option) any later version.
  */
 
-#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
-
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/tcp.h>
@@ -39,6 +37,7 @@ static unsigned int help(struct sk_buff *skb,
 	struct nf_conn *ct = exp->master;
 	union nf_inet_addr newaddr;
 	u_int16_t port;
+	unsigned int ret;
 
 	/* Reply comes from server. */
 	newaddr = ct->tuplehash[IP_CT_DIR_REPLY].tuple.dst.u3;
@@ -81,17 +80,17 @@ static unsigned int help(struct sk_buff *skb,
 	 */
 	/* AAA = "us", ie. where server normally talks to. */
 	snprintf(buffer, sizeof(buffer), "%u %u", ntohl(newaddr.ip), port);
-	pr_debug("inserting '%s' == %pI4, port %u\n",
+	pr_debug("nf_nat_irc: inserting '%s' == %pI4, port %u\n",
 		 buffer, &newaddr.ip, port);
 
-	if (!nf_nat_mangle_tcp_packet(skb, ct, ctinfo, protoff, matchoff,
-				      matchlen, buffer, strlen(buffer))) {
+	ret = nf_nat_mangle_tcp_packet(skb, ct, ctinfo, protoff, matchoff,
+				       matchlen, buffer, strlen(buffer));
+	if (ret != NF_ACCEPT) {
 		nf_ct_helper_log(skb, ct, "cannot mangle packet");
 		nf_ct_unexpect_related(exp);
-		return NF_DROP;
 	}
 
-	return NF_ACCEPT;
+	return ret;
 }
 
 static void __exit nf_nat_irc_fini(void)
@@ -108,9 +107,10 @@ static int __init nf_nat_irc_init(void)
 }
 
 /* Prior to 2.6.11, we had a ports param.  No longer, but don't break users. */
-static int warn_set(const char *val, const struct kernel_param *kp)
+static int warn_set(const char *val, struct kernel_param *kp)
 {
-	pr_info("kernel >= 2.6.10 only uses 'ports' for conntrack modules\n");
+	printk(KERN_INFO KBUILD_MODNAME
+	       ": kernel >= 2.6.10 only uses 'ports' for conntrack modules\n");
 	return 0;
 }
 module_param_call(ports, warn_set, NULL, NULL, 0);

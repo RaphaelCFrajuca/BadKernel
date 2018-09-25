@@ -1,10 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  Atheros AR933X SoC built-in UART driver
  *
  *  Copyright (C) 2011 Gabor Juhos <juhosg@openwrt.org>
  *
  *  Based on drivers/char/serial.c, by Linus Torvalds, Theodore Ts'o.
+ *
+ *  This program is free software; you can redistribute it and/or modify it
+ *  under the terms of the GNU General Public License version 2 as published
+ *  by the Free Software Foundation.
  */
 
 #include <linux/module.h>
@@ -51,7 +54,7 @@ struct ar933x_uart_port {
 
 static inline bool ar933x_uart_console_enabled(void)
 {
-	return IS_ENABLED(CONFIG_SERIAL_AR933X_CONSOLE);
+	return config_enabled(CONFIG_SERIAL_AR933X_CONSOLE);
 }
 
 static inline unsigned int ar933x_uart_read(struct ar933x_uart_port *up,
@@ -490,7 +493,7 @@ static int ar933x_uart_verify_port(struct uart_port *port,
 	return 0;
 }
 
-static const struct uart_ops ar933x_uart_ops = {
+static struct uart_ops ar933x_uart_ops = {
 	.tx_empty	= ar933x_uart_tx_empty,
 	.set_mctrl	= ar933x_uart_set_mctrl,
 	.get_mctrl	= ar933x_uart_get_mctrl,
@@ -633,7 +636,7 @@ static int ar933x_uart_probe(struct platform_device *pdev)
 	int ret;
 
 	np = pdev->dev.of_node;
-	if (IS_ENABLED(CONFIG_OF) && np) {
+	if (config_enabled(CONFIG_OF) && np) {
 		id = of_alias_get_id(np, "serial");
 		if (id < 0) {
 			dev_err(&pdev->dev, "unable to get alias id, err=%d\n",

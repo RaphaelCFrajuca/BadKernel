@@ -65,7 +65,7 @@ typedef struct {
 } hfcsusb_vdata;
 
 /* VID/PID device list */
-static const struct usb_device_id hfcusb_idtab[] = {
+static struct usb_device_id hfcusb_idtab[] = {
 	{
 		USB_DEVICE(0x0959, 0x2bd0),
 		.driver_info = (unsigned long) &((hfcsusb_vdata)
@@ -343,9 +343,8 @@ handle_led(hfcusb_data *hfc, int event)
 
 /* ISDN l1 timer T3 expires */
 static void
-l1_timer_expire_t3(struct timer_list *t)
+l1_timer_expire_t3(hfcusb_data *hfc)
 {
-	hfcusb_data *hfc = from_timer(hfc, t, t3_timer);
 	hfc->d_if.ifc.l1l2(&hfc->d_if.ifc, PH_DEACTIVATE | INDICATION,
 			   NULL);
 
@@ -361,9 +360,8 @@ l1_timer_expire_t3(struct timer_list *t)
 
 /* ISDN l1 timer T4 expires */
 static void
-l1_timer_expire_t4(struct timer_list *t)
+l1_timer_expire_t4(hfcusb_data *hfc)
 {
-	hfcusb_data *hfc = from_timer(hfc, t, t4_timer);
 	hfc->d_if.ifc.l1l2(&hfc->d_if.ifc, PH_DEACTIVATE | INDICATION,
 			   NULL);
 
@@ -801,7 +799,7 @@ collect_rx_frame(usb_fifo *fifo, __u8 *data, int len, int finish)
 	}
 	if (len) {
 		if (fifo->skbuff->len + len < fifo->max_size) {
-			skb_put_data(fifo->skbuff, data, len);
+			memcpy(skb_put(fifo->skbuff, len), data, len);
 		} else {
 			DBG(HFCUSB_DBG_FIFO_ERR,
 			    "HCF-USB: got frame exceeded fifo->max_size(%d) fifo(%d)",
@@ -1167,10 +1165,14 @@ hfc_usb_init(hfcusb_data *hfc)
 	hfc->old_led_state = 0;
 
 	/* init the t3 timer */
-	timer_setup(&hfc->t3_timer, l1_timer_expire_t3, 0);
+	init_timer(&hfc->t3_timer);
+	hfc->t3_timer.data = (long) hfc;
+	hfc->t3_timer.function = (void *) l1_timer_expire_t3;
 
 	/* init the t4 timer */
-	timer_setup(&hfc->t4_timer, l1_timer_expire_t4, 0);
+	init_timer(&hfc->t4_timer);
+	hfc->t4_timer.data = (long) hfc;
+	hfc->t4_timer.function = (void *) l1_timer_expire_t4;
 
 	/* init the background machinery for control requests */
 	hfc->ctrl_read.bRequestType = 0xc0;

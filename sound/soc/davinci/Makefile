@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 # DAVINCI Platform Support
 snd-soc-edma-objs := edma-pcm.o
 snd-soc-davinci-i2s-objs := davinci-i2s.o

@@ -38,9 +38,12 @@ static unsigned int numachip1_get_apic_id(unsigned long x)
 	return id;
 }
 
-static u32 numachip1_set_apic_id(unsigned int id)
+static unsigned long numachip1_set_apic_id(unsigned int id)
 {
-	return (id & 0xff) << 24;
+	unsigned long x;
+
+	x = ((id & 0xffU) << 24);
+	return x;
 }
 
 static unsigned int numachip2_get_apic_id(unsigned long x)
@@ -51,12 +54,12 @@ static unsigned int numachip2_get_apic_id(unsigned long x)
 	return ((mcfg >> (28 - 8)) & 0xfff00) | (x >> 24);
 }
 
-static u32 numachip2_set_apic_id(unsigned int id)
+static unsigned long numachip2_set_apic_id(unsigned int id)
 {
 	return id << 24;
 }
 
-static int numachip_apic_id_valid(u32 apicid)
+static int numachip_apic_id_valid(int apicid)
 {
 	/* Trust what bootloader passes in MADT */
 	return 1;
@@ -249,10 +252,12 @@ static const struct apic apic_numachip1 __refconst = {
 	.irq_delivery_mode		= dest_Fixed,
 	.irq_dest_mode			= 0, /* physical */
 
+	.target_cpus			= online_target_cpus,
 	.disable_esr			= 0,
 	.dest_logical			= 0,
 	.check_apicid_used		= NULL,
 
+	.vector_allocation_domain	= default_vector_allocation_domain,
 	.init_apic_ldr			= flat_init_apic_ldr,
 
 	.ioapic_phys_id_map		= NULL,
@@ -264,8 +269,9 @@ static const struct apic apic_numachip1 __refconst = {
 
 	.get_apic_id			= numachip1_get_apic_id,
 	.set_apic_id			= numachip1_set_apic_id,
+	.apic_id_mask			= 0xffU << 24,
 
-	.calc_dest_apicid		= apic_default_calc_apicid,
+	.cpu_mask_to_apicid_and		= default_cpu_mask_to_apicid_and,
 
 	.send_IPI			= numachip_send_IPI_one,
 	.send_IPI_mask			= numachip_send_IPI_mask,
@@ -298,10 +304,12 @@ static const struct apic apic_numachip2 __refconst = {
 	.irq_delivery_mode		= dest_Fixed,
 	.irq_dest_mode			= 0, /* physical */
 
+	.target_cpus			= online_target_cpus,
 	.disable_esr			= 0,
 	.dest_logical			= 0,
 	.check_apicid_used		= NULL,
 
+	.vector_allocation_domain	= default_vector_allocation_domain,
 	.init_apic_ldr			= flat_init_apic_ldr,
 
 	.ioapic_phys_id_map		= NULL,
@@ -313,8 +321,9 @@ static const struct apic apic_numachip2 __refconst = {
 
 	.get_apic_id			= numachip2_get_apic_id,
 	.set_apic_id			= numachip2_set_apic_id,
+	.apic_id_mask			= 0xffU << 24,
 
-	.calc_dest_apicid		= apic_default_calc_apicid,
+	.cpu_mask_to_apicid_and		= default_cpu_mask_to_apicid_and,
 
 	.send_IPI			= numachip_send_IPI_one,
 	.send_IPI_mask			= numachip_send_IPI_mask,

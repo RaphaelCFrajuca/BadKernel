@@ -1146,9 +1146,9 @@ mISDNisar_irq(struct isar_hw *isar)
 EXPORT_SYMBOL(mISDNisar_irq);
 
 static void
-ftimer_handler(struct timer_list *t)
+ftimer_handler(unsigned long data)
 {
-	struct isar_ch *ch = from_timer(ch, t, ftimer);
+	struct isar_ch *ch = (struct isar_ch *)data;
 
 	pr_debug("%s: ftimer flags %lx\n", ch->is->name, ch->bch.Flags);
 	test_and_clear_bit(FLG_FTI_RUN, &ch->bch.Flags);
@@ -1635,9 +1635,13 @@ init_isar(struct isar_hw *isar)
 	}
 	if (isar->version != 1)
 		return -EINVAL;
-	timer_setup(&isar->ch[0].ftimer, ftimer_handler, 0);
+	isar->ch[0].ftimer.function = &ftimer_handler;
+	isar->ch[0].ftimer.data = (long)&isar->ch[0];
+	init_timer(&isar->ch[0].ftimer);
 	test_and_set_bit(FLG_INITIALIZED, &isar->ch[0].bch.Flags);
-	timer_setup(&isar->ch[1].ftimer, ftimer_handler, 0);
+	isar->ch[1].ftimer.function = &ftimer_handler;
+	isar->ch[1].ftimer.data = (long)&isar->ch[1];
+	init_timer(&isar->ch[1].ftimer);
 	test_and_set_bit(FLG_INITIALIZED, &isar->ch[1].bch.Flags);
 	return 0;
 }

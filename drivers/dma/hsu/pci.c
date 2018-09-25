@@ -23,41 +23,21 @@
 
 #define HSU_PCI_CHAN_OFFSET	0x100
 
-#define PCI_DEVICE_ID_INTEL_MFLD_HSU_DMA	0x081e
-#define PCI_DEVICE_ID_INTEL_MRFLD_HSU_DMA	0x1192
-
 static irqreturn_t hsu_pci_irq(int irq, void *dev)
 {
 	struct hsu_dma_chip *chip = dev;
-	struct pci_dev *pdev = to_pci_dev(chip->dev);
 	u32 dmaisr;
-	u32 status;
 	unsigned short i;
-	int ret = 0;
-	int err;
-
-	/*
-	 * On Intel Tangier B0 and Anniedale the interrupt line, disregarding
-	 * to have different numbers, is shared between HSU DMA and UART IPs.
-	 * Thus on such SoCs we are expecting that IRQ handler is called in
-	 * UART driver only.
-	 */
-	if (pdev->device == PCI_DEVICE_ID_INTEL_MRFLD_HSU_DMA)
-		return IRQ_HANDLED;
+	irqreturn_t ret = IRQ_NONE;
 
 	dmaisr = readl(chip->regs + HSU_PCI_DMAISR);
 	for (i = 0; i < chip->hsu->nr_channels; i++) {
-		if (dmaisr & 0x1) {
-			err = hsu_dma_get_status(chip, i, &status);
-			if (err > 0)
-				ret |= 1;
-			else if (err == 0)
-				ret |= hsu_dma_do_irq(chip, i, status);
-		}
+		if (dmaisr & 0x1)
+			ret |= hsu_dma_irq(chip, i);
 		dmaisr >>= 1;
 	}
 
-	return IRQ_RETVAL(ret);
+	return ret;
 }
 
 static int hsu_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
@@ -90,15 +70,13 @@ static int hsu_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (!chip)
 		return -ENOMEM;
 
-	ret = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_ALL_TYPES);
-	if (ret < 0)
-		return ret;
-
 	chip->dev = &pdev->dev;
 	chip->regs = pcim_iomap_table(pdev)[0];
 	chip->length = pci_resource_len(pdev, 0);
 	chip->offset = HSU_PCI_CHAN_OFFSET;
-	chip->irq = pci_irq_vector(pdev, 0);
+	chip->irq = pdev->irq;
+
+	pci_enable_msi(pdev);
 
 	ret = hsu_dma_probe(chip);
 	if (ret)
@@ -126,8 +104,8 @@ static void hsu_pci_remove(struct pci_dev *pdev)
 }
 
 static const struct pci_device_id hsu_pci_id_table[] = {
-	{ PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_MFLD_HSU_DMA), 0 },
-	{ PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_MRFLD_HSU_DMA), 0 },
+	{ PCI_VDEVICE(INTEL, 0x081e), 0 },
+	{ PCI_VDEVICE(INTEL, 0x1192), 0 },
 	{ }
 };
 MODULE_DEVICE_TABLE(pci, hsu_pci_id_table);

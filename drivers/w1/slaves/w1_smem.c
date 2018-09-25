@@ -27,10 +27,15 @@
 #include <linux/device.h>
 #include <linux/types.h>
 
-#include <linux/w1.h>
+#include "../w1.h"
+#include "../w1_int.h"
+#include "../w1_family.h"
 
-#define W1_FAMILY_SMEM_01	0x01
-#define W1_FAMILY_SMEM_81	0x81
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Evgeniy Polyakov <zbr@ioremap.net>");
+MODULE_DESCRIPTION("Driver for 1-wire Dallas network protocol, 64bit memory family.");
+MODULE_ALIAS("w1-family-" __stringify(W1_FAMILY_SMEM_01));
+MODULE_ALIAS("w1-family-" __stringify(W1_FAMILY_SMEM_81));
 
 static struct w1_family w1_smem_family_01 = {
 	.fid = W1_FAMILY_SMEM_01,
@@ -65,9 +70,3 @@ static void __exit w1_smem_fini(void)
 
 module_init(w1_smem_init);
 module_exit(w1_smem_fini);
-
-MODULE_AUTHOR("Evgeniy Polyakov <zbr@ioremap.net>");
-MODULE_DESCRIPTION("Driver for 1-wire Dallas network protocol, 64bit memory family.");
-MODULE_LICENSE("GPL");
-MODULE_ALIAS("w1-family-" __stringify(W1_FAMILY_SMEM_01));
-MODULE_ALIAS("w1-family-" __stringify(W1_FAMILY_SMEM_81));

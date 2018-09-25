@@ -76,7 +76,6 @@ static struct sg_table *udl_map_dma_buf(struct dma_buf_attachment *attach,
 	struct udl_drm_dmabuf_attachment *udl_attach = attach->priv;
 	struct udl_gem_object *obj = to_udl_bo(attach->dmabuf->priv);
 	struct drm_device *dev = obj->base.dev;
-	struct udl_device *udl = dev->dev_private;
 	struct scatterlist *rd, *wr;
 	struct sg_table *sgt = NULL;
 	unsigned int i;
@@ -113,7 +112,7 @@ static struct sg_table *udl_map_dma_buf(struct dma_buf_attachment *attach,
 		return ERR_PTR(-ENOMEM);
 	}
 
-	mutex_lock(&udl->gem_lock);
+	mutex_lock(&dev->struct_mutex);
 
 	rd = obj->sg->sgl;
 	wr = sgt->sgl;
@@ -138,7 +137,7 @@ static struct sg_table *udl_map_dma_buf(struct dma_buf_attachment *attach,
 	attach->priv = udl_attach;
 
 err_unlock:
-	mutex_unlock(&udl->gem_lock);
+	mutex_unlock(&dev->struct_mutex);
 	return sgt;
 }
 
@@ -187,15 +186,15 @@ static int udl_dmabuf_mmap(struct dma_buf *dma_buf,
 	return -EINVAL;
 }
 
-static const struct dma_buf_ops udl_dmabuf_ops = {
+static struct dma_buf_ops udl_dmabuf_ops = {
 	.attach			= udl_attach_dma_buf,
 	.detach			= udl_detach_dma_buf,
 	.map_dma_buf		= udl_map_dma_buf,
 	.unmap_dma_buf		= udl_unmap_dma_buf,
-	.map			= udl_dmabuf_kmap,
-	.map_atomic		= udl_dmabuf_kmap_atomic,
-	.unmap			= udl_dmabuf_kunmap,
-	.unmap_atomic		= udl_dmabuf_kunmap_atomic,
+	.kmap			= udl_dmabuf_kmap,
+	.kmap_atomic		= udl_dmabuf_kmap_atomic,
+	.kunmap			= udl_dmabuf_kunmap,
+	.kunmap_atomic		= udl_dmabuf_kunmap_atomic,
 	.mmap			= udl_dmabuf_mmap,
 	.release		= drm_gem_dmabuf_release,
 };
@@ -210,7 +209,7 @@ struct dma_buf *udl_gem_prime_export(struct drm_device *dev,
 	exp_info.flags = flags;
 	exp_info.priv = obj;
 
-	return drm_gem_dmabuf_export(dev, &exp_info);
+	return dma_buf_export(&exp_info);
 }
 
 static int udl_prime_create(struct drm_device *dev,
@@ -229,7 +228,7 @@ static int udl_prime_create(struct drm_device *dev,
 		return -ENOMEM;
 
 	obj->sg = sg;
-	obj->pages = kvmalloc_array(npages, sizeof(struct page *), GFP_KERNEL);
+	obj->pages = drm_malloc_ab(npages, sizeof(struct page *));
 	if (obj->pages == NULL) {
 		DRM_ERROR("obj pages is NULL %d\n", npages);
 		return -ENOMEM;

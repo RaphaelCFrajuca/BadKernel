@@ -608,9 +608,8 @@ static struct mtd_info *cfi_intelext_setup(struct mtd_info *mtd)
 	mtd->size = devsize * cfi->numchips;
 
 	mtd->numeraseregions = cfi->cfiq->NumEraseRegions * cfi->numchips;
-	mtd->eraseregions = kcalloc(mtd->numeraseregions,
-				    sizeof(struct mtd_erase_region_info),
-				    GFP_KERNEL);
+	mtd->eraseregions = kmalloc(sizeof(struct mtd_erase_region_info)
+			* mtd->numeraseregions, GFP_KERNEL);
 	if (!mtd->eraseregions)
 		goto setup_err;
 
@@ -627,8 +626,6 @@ static struct mtd_info *cfi_intelext_setup(struct mtd_info *mtd)
 			mtd->eraseregions[(j*cfi->cfiq->NumEraseRegions)+i].erasesize = ersize;
 			mtd->eraseregions[(j*cfi->cfiq->NumEraseRegions)+i].numblocks = ernum;
 			mtd->eraseregions[(j*cfi->cfiq->NumEraseRegions)+i].lockmap = kmalloc(ernum / 8 + 1, GFP_KERNEL);
-			if (!mtd->eraseregions[(j*cfi->cfiq->NumEraseRegions)+i].lockmap)
-				goto setup_err;
 		}
 		offset += (ersize * ernum);
 	}
@@ -665,10 +662,6 @@ static struct mtd_info *cfi_intelext_setup(struct mtd_info *mtd)
 	return mtd;
 
  setup_err:
-	if (mtd->eraseregions)
-		for (i=0; i<cfi->cfiq->NumEraseRegions; i++)
-			for (j=0; j<cfi->numchips; j++)
-				kfree(mtd->eraseregions[(j*cfi->cfiq->NumEraseRegions)+i].lockmap);
 	kfree(mtd->eraseregions);
 	kfree(mtd);
 	kfree(cfi->cmdset_priv);
@@ -759,9 +752,7 @@ static int cfi_intelext_partition_fixup(struct mtd_info *mtd,
 		newcfi = kmalloc(sizeof(struct cfi_private) + numvirtchips * sizeof(struct flchip), GFP_KERNEL);
 		if (!newcfi)
 			return -ENOMEM;
-		shared = kmalloc_array(cfi->numchips,
-				       sizeof(struct flchip_shared),
-				       GFP_KERNEL);
+		shared = kmalloc(sizeof(struct flchip_shared) * cfi->numchips, GFP_KERNEL);
 		if (!shared) {
 			kfree(newcfi);
 			return -ENOMEM;
@@ -2019,8 +2010,20 @@ static int __xipram do_erase_oneblock(struct map_info *map, struct flchip *chip,
 
 static int cfi_intelext_erase_varsize(struct mtd_info *mtd, struct erase_info *instr)
 {
-	return cfi_varsize_frob(mtd, do_erase_oneblock, instr->addr,
-				instr->len, NULL);
+	unsigned long ofs, len;
+	int ret;
+
+	ofs = instr->addr;
+	len = instr->len;
+
+	ret = cfi_varsize_frob(mtd, do_erase_oneblock, ofs, len, NULL);
+	if (ret)
+		return ret;
+
+	instr->state = MTD_ERASE_DONE;
+	mtd_erase_callback(instr);
+
+	return 0;
 }
 
 static void cfi_intelext_sync (struct mtd_info *mtd)

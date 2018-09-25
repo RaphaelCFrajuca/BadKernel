@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _BCACHE_SYSFS_H_
 #define _BCACHE_SYSFS_H_
 

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * This is a maximally equidistributed combined Tausworthe generator
  * based on code from GNU Scientific Library 1.5 (30 Jun 2004)
@@ -48,7 +47,7 @@ static inline void prandom_state_selftest(void)
 }
 #endif
 
-static DEFINE_PER_CPU(struct rnd_state, net_rand_state) __latent_entropy;
+static DEFINE_PER_CPU(struct rnd_state, net_rand_state);
 
 /**
  *	prandom_u32_state - seeded pseudo-random number generator.
@@ -82,7 +81,7 @@ u32 prandom_u32(void)
 	u32 res;
 
 	res = prandom_u32_state(state);
-	put_cpu_var(net_rand_state);
+	put_cpu_var(state);
 
 	return res;
 }
@@ -129,7 +128,7 @@ void prandom_bytes(void *buf, size_t bytes)
 	struct rnd_state *state = &get_cpu_var(net_rand_state);
 
 	prandom_bytes_state(state, buf, bytes);
-	put_cpu_var(net_rand_state);
+	put_cpu_var(state);
 }
 EXPORT_SYMBOL(prandom_bytes);
 
@@ -213,11 +212,11 @@ static int __init prandom_init(void)
 }
 core_initcall(prandom_init);
 
-static void __prandom_timer(struct timer_list *unused);
+static void __prandom_timer(unsigned long dontcare);
 
-static DEFINE_TIMER(seed_timer, __prandom_timer);
+static DEFINE_TIMER(seed_timer, __prandom_timer, 0, 0);
 
-static void __prandom_timer(struct timer_list *unused)
+static void __prandom_timer(unsigned long dontcare)
 {
 	u32 entropy;
 	unsigned long expires;
@@ -234,6 +233,7 @@ static void __prandom_timer(struct timer_list *unused)
 
 static void __init __prandom_start_seed_timer(void)
 {
+	set_timer_slack(&seed_timer, HZ);
 	seed_timer.expires = jiffies + msecs_to_jiffies(40 * MSEC_PER_SEC);
 	add_timer(&seed_timer);
 }
@@ -255,7 +255,6 @@ void prandom_seed_full_state(struct rnd_state __percpu *pcpu_state)
 		prandom_warmup(state);
 	}
 }
-EXPORT_SYMBOL(prandom_seed_full_state);
 
 /*
  *	Generate better values after random number generator

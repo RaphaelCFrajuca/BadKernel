@@ -174,7 +174,7 @@ DPRINTK(KERN_DEBUG "read_status %02x\n", status);
 	return status;
 }
 
-static int use_cnt;
+static int use_cnt = 0;
 
 static irqreturn_t mfc3_interrupt(int irq, void *dev_id)
 {

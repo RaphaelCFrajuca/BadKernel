@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *	fs/bfs/file.c
  *	BFS file operations.

@@ -1,3 +1,5 @@
+ccflags-y += -D__CHECK_ENDIAN__
+
 obj-$(CONFIG_MT7601U)	+= mt7601u.o
 
 mt7601u-objs	= \

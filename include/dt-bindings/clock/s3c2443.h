@@ -26,8 +26,6 @@
 #define ARMCLK			4
 #define HCLK			5
 #define PCLK			6
-#define MPLL			7
-#define EPLL			8
 
 /* Special clocks */
 #define SCLK_HSSPI0		16

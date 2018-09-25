@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * xfrm4_state.c
  *
@@ -91,3 +90,11 @@ void __init xfrm4_state_init(void)
 {
 	xfrm_state_register_afinfo(&xfrm4_state_afinfo);
 }
+
+#if 0
+void __exit xfrm4_state_fini(void)
+{
+	xfrm_state_unregister_afinfo(&xfrm4_state_afinfo);
+}
+#endif  /*  0  */
+

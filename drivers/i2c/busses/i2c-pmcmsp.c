@@ -329,8 +329,10 @@ static int pmcmsptwi_probe(struct platform_device *pldev)
 	i2c_set_adapdata(&pmcmsptwi_adapter, &pmcmsptwi_data);
 
 	rc = i2c_add_adapter(&pmcmsptwi_adapter);
-	if (rc)
+	if (rc) {
+		dev_err(&pldev->dev, "Unable to register I2C adapter\n");
 		goto ret_unmap;
+	}
 
 	return 0;
 
@@ -564,10 +566,10 @@ static int pmcmsptwi_master_xfer(struct i2c_adapter *adap,
 		 * TODO: We could potentially loop and retry in the case
 		 * of MSP_TWI_XFER_TIMEOUT.
 		 */
-		return -EIO;
+		return -1;
 	}
 
-	return num;
+	return 0;
 }
 
 static u32 pmcmsptwi_i2c_func(struct i2c_adapter *adapter)
@@ -577,7 +579,7 @@ static u32 pmcmsptwi_i2c_func(struct i2c_adapter *adapter)
 		I2C_FUNC_SMBUS_WORD_DATA | I2C_FUNC_SMBUS_PROC_CALL;
 }
 
-static const struct i2c_adapter_quirks pmcmsptwi_i2c_quirks = {
+static struct i2c_adapter_quirks pmcmsptwi_i2c_quirks = {
 	.flags = I2C_AQ_COMB_WRITE_THEN_READ,
 	.max_write_len = MSP_MAX_BYTES_PER_RW,
 	.max_read_len = MSP_MAX_BYTES_PER_RW,
@@ -587,7 +589,7 @@ static const struct i2c_adapter_quirks pmcmsptwi_i2c_quirks = {
 
 /* -- Initialization -- */
 
-static const struct i2c_algorithm pmcmsptwi_algo = {
+static struct i2c_algorithm pmcmsptwi_algo = {
 	.master_xfer	= pmcmsptwi_master_xfer,
 	.functionality	= pmcmsptwi_i2c_func,
 };

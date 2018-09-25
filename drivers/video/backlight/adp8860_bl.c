@@ -18,7 +18,7 @@
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 
-#include <linux/platform_data/adp8860.h>
+#include <linux/i2c/adp8860.h>
 #define ADP8860_EXT_FEATURES
 #define ADP8860_USE_LEDS
 
@@ -223,7 +223,7 @@ static int adp8860_led_probe(struct i2c_client *client)
 	struct led_info *cur_led;
 	int ret, i;
 
-	led = devm_kcalloc(&client->dev, pdata->num_leds, sizeof(*led),
+	led = devm_kzalloc(&client->dev, sizeof(*led) * pdata->num_leds,
 				GFP_KERNEL);
 	if (led == NULL)
 		return -ENOMEM;
@@ -566,13 +566,11 @@ static ssize_t adp8860_bl_ambient_light_level_show(struct device *dev,
 
 	mutex_lock(&data->lock);
 	error = adp8860_read(data->client, ADP8860_PH1LEVL, &reg_val);
-	if (!error) {
-		ret_val = reg_val;
-		error = adp8860_read(data->client, ADP8860_PH1LEVH, &reg_val);
-	}
+	ret_val = reg_val;
+	error |= adp8860_read(data->client, ADP8860_PH1LEVH, &reg_val);
 	mutex_unlock(&data->lock);
 
-	if (error)
+	if (error < 0)
 		return error;
 
 	/* Return 13-bit conversion value for the first light sensor */
@@ -623,12 +621,10 @@ static ssize_t adp8860_bl_ambient_light_zone_store(struct device *dev,
 
 		/* Set user supplied ambient light zone */
 		mutex_lock(&data->lock);
-		ret = adp8860_read(data->client, ADP8860_CFGR, &reg_val);
-		if (!ret) {
-			reg_val &= ~(CFGR_BLV_MASK << CFGR_BLV_SHIFT);
-			reg_val |= (val - 1) << CFGR_BLV_SHIFT;
-			adp8860_write(data->client, ADP8860_CFGR, reg_val);
-		}
+		adp8860_read(data->client, ADP8860_CFGR, &reg_val);
+		reg_val &= ~(CFGR_BLV_MASK << CFGR_BLV_SHIFT);
+		reg_val |= (val - 1) << CFGR_BLV_SHIFT;
+		adp8860_write(data->client, ADP8860_CFGR, reg_val);
 		mutex_unlock(&data->lock);
 	}
 

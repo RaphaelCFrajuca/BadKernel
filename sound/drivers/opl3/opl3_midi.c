@@ -131,8 +131,8 @@ static void debug_alloc(struct snd_opl3 *opl3, char *s, int voice) {
 
 	printk(KERN_DEBUG "time %.5i: %s [%.2i]: ", opl3->use_time, s, voice);
 	for (i = 0; i < opl3->max_voices; i++)
-		printk(KERN_CONT "%c", *(str + opl3->voices[i].state + 1));
-	printk(KERN_CONT "\n");
+		printk("%c", *(str + opl3->voices[i].state + 1));
+	printk("\n");
 }
 #endif
 
@@ -238,10 +238,10 @@ static int opl3_get_voice(struct snd_opl3 *opl3, int instr_4op,
 /*
  * System timer interrupt function
  */
-void snd_opl3_timer_func(struct timer_list *t)
+void snd_opl3_timer_func(unsigned long data)
 {
 
-	struct snd_opl3 *opl3 = from_timer(opl3, t, tlist);
+	struct snd_opl3 *opl3 = (struct snd_opl3 *)data;
 	unsigned long flags;
 	int again = 0;
 	int i;

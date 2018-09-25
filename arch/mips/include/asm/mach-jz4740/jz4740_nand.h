@@ -16,7 +16,7 @@
 #ifndef __ASM_MACH_JZ4740_JZ4740_NAND_H__
 #define __ASM_MACH_JZ4740_JZ4740_NAND_H__
 
-#include <linux/mtd/rawnand.h>
+#include <linux/mtd/nand.h>
 #include <linux/mtd/partitions.h>
 
 #define JZ_NAND_NUM_BANKS 4
@@ -25,9 +25,11 @@ struct jz_nand_platform_data {
 	int			num_partitions;
 	struct mtd_partition	*partitions;
 
+	struct nand_ecclayout	*ecc_layout;
+
 	unsigned char banks[JZ_NAND_NUM_BANKS];
 
-	void (*ident_callback)(struct platform_device *, struct mtd_info *,
+	void (*ident_callback)(struct platform_device *, struct nand_chip *,
 				struct mtd_partition **, int *num_partitions);
 };
 

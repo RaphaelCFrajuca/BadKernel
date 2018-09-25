@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* Generic part */
 
 typedef struct {
@@ -125,7 +124,7 @@ static inline int splice_branch(struct inode *inode,
 
 	/* We are done with atomic stuff, now do the rest of housekeeping */
 
-	inode->i_ctime = current_time(inode);
+	inode->i_ctime = CURRENT_TIME_SEC;
 
 	/* had we spliced it onto indirect block? */
 	if (where->bh)
@@ -143,7 +142,7 @@ changed:
 	return -EAGAIN;
 }
 
-static int get_block(struct inode * inode, sector_t block,
+static inline int get_block(struct inode * inode, sector_t block,
 			struct buffer_head *bh, int create)
 {
 	int err = -EIO;
@@ -344,7 +343,7 @@ do_indirects:
 		}
 		first_whole++;
 	}
-	inode->i_mtime = inode->i_ctime = current_time(inode);
+	inode->i_mtime = inode->i_ctime = CURRENT_TIME_SEC;
 	mark_inode_dirty(inode);
 }
 

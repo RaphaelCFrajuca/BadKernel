@@ -16,7 +16,7 @@
 	model = "TQ TQMa53";
 	compatible = "tq,tqma53", "fsl,imx53";
 
-	memory@70000000 {
+	memory {
 		reg = <0x70000000 0x40000000>; /* Up to 1GiB */
 	};
 
@@ -55,6 +55,7 @@
 &ecspi1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_ecspi1>;
+	fsl,spi-num-chipselects = <4>;
 	cs-gpios = <&gpio2 30 0>, <&gpio3 19 0>,
 		   <&gpio3 24 0>, <&gpio3 25 0>;
 	status = "disabled";
@@ -217,7 +218,7 @@
 &uart1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_uart1>;
-	uart-has-rtscts;
+	fsl,uart-has-rtscts;
 	status = "disabled";
 };
 
@@ -248,6 +249,7 @@
 &cspi {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_cspi>;
+	fsl,spi-num-chipselects = <3>;
 	cs-gpios = <&gpio1 18 0>, <&gpio1 19 0>,
 		   <&gpio1 21 0>;
 	status = "disabled";
@@ -272,7 +274,7 @@
 	};
 
 	eeprom: 24c64@50 {
-		compatible = "atmel,24c64";
+		compatible = "at,24c64";
 		pagesize = <32>;
 		reg = <0x50>;
 	};

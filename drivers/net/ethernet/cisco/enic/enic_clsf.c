@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/if.h>
 #include <linux/if_ether.h>
 #include <linux/if_link.h>
@@ -122,9 +121,9 @@ struct enic_rfs_fltr_node *htbl_fltr_search(struct enic *enic, u16 fltr_id)
 }
 
 #ifdef CONFIG_RFS_ACCEL
-void enic_flow_may_expire(struct timer_list *t)
+void enic_flow_may_expire(unsigned long data)
 {
-	struct enic *enic = from_timer(enic, t, rfs_h.rfs_may_expire);
+	struct enic *enic = (struct enic *)data;
 	bool res;
 	int j;
 

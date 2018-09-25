@@ -1,11 +1,17 @@
-// SPDX-License-Identifier: GPL-2.0
-/*
- * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
- * Description: CoreSight Funnel driver
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/init.h>
 #include <linux/types.h>
 #include <linux/device.h>
@@ -63,6 +69,7 @@ static int funnel_enable(struct coresight_device *csdev, int inport,
 {
 	struct funnel_drvdata *drvdata = dev_get_drvdata(csdev->dev.parent);
 
+	pm_runtime_get_sync(drvdata->dev);
 	funnel_enable_hw(drvdata, inport);
 
 	dev_info(drvdata->dev, "FUNNEL inport %d enabled\n", inport);
@@ -88,6 +95,7 @@ static void funnel_disable(struct coresight_device *csdev, int inport,
 	struct funnel_drvdata *drvdata = dev_get_drvdata(csdev->dev.parent);
 
 	funnel_disable_hw(drvdata, inport);
+	pm_runtime_put(drvdata->dev);
 
 	dev_info(drvdata->dev, "FUNNEL inport %d disabled\n", inport);
 }
@@ -169,7 +177,7 @@ static int funnel_probe(struct amba_device *adev, const struct amba_id *id)
 	struct coresight_platform_data *pdata = NULL;
 	struct funnel_drvdata *drvdata;
 	struct resource *res = &adev->res;
-	struct coresight_desc desc = { 0 };
+	struct coresight_desc *desc;
 	struct device_node *np = adev->dev.of_node;
 
 	if (np) {
@@ -200,15 +208,30 @@ static int funnel_probe(struct amba_device *adev, const struct amba_id *id)
 	drvdata->base = base;
 	pm_runtime_put(&adev->dev);
 
-	desc.type = CORESIGHT_DEV_TYPE_LINK;
-	desc.subtype.link_subtype = CORESIGHT_DEV_SUBTYPE_LINK_MERG;
-	desc.ops = &funnel_cs_ops;
-	desc.pdata = pdata;
-	desc.dev = dev;
-	desc.groups = coresight_funnel_groups;
-	drvdata->csdev = coresight_register(&desc);
+	desc = devm_kzalloc(dev, sizeof(*desc), GFP_KERNEL);
+	if (!desc)
+		return -ENOMEM;
 
-	return PTR_ERR_OR_ZERO(drvdata->csdev);
+	desc->type = CORESIGHT_DEV_TYPE_LINK;
+	desc->subtype.link_subtype = CORESIGHT_DEV_SUBTYPE_LINK_MERG;
+	desc->ops = &funnel_cs_ops;
+	desc->pdata = pdata;
+	desc->dev = dev;
+	desc->groups = coresight_funnel_groups;
+	drvdata->csdev = coresight_register(desc);
+	if (IS_ERR(drvdata->csdev))
+		return PTR_ERR(drvdata->csdev);
+
+	dev_info(dev, "FUNNEL initialized\n");
+	return 0;
+}
+
+static int funnel_remove(struct amba_device *adev)
+{
+	struct funnel_drvdata *drvdata = amba_get_drvdata(adev);
+
+	coresight_unregister(drvdata->csdev);
+	return 0;
 }
 
 #ifdef CONFIG_PM
@@ -237,15 +260,10 @@ static const struct dev_pm_ops funnel_dev_pm_ops = {
 	SET_RUNTIME_PM_OPS(funnel_runtime_suspend, funnel_runtime_resume, NULL)
 };
 
-static const struct amba_id funnel_ids[] = {
+static struct amba_id funnel_ids[] = {
 	{
-		.id     = 0x000bb908,
-		.mask   = 0x000fffff,
-	},
-	{
-		/* Coresight SoC-600 */
-		.id     = 0x000bb9eb,
-		.mask   = 0x000fffff,
+		.id     = 0x0003b908,
+		.mask   = 0x0003ffff,
 	},
 	{ 0, 0},
 };
@@ -255,9 +273,13 @@ static struct amba_driver funnel_driver = {
 		.name	= "coresight-funnel",
 		.owner	= THIS_MODULE,
 		.pm	= &funnel_dev_pm_ops,
-		.suppress_bind_attrs = true,
 	},
 	.probe		= funnel_probe,
+	.remove		= funnel_remove,
 	.id_table	= funnel_ids,
 };
-builtin_amba_driver(funnel_driver);
+
+module_amba_driver(funnel_driver);
+
+MODULE_LICENSE("GPL v2");
+MODULE_DESCRIPTION("CoreSight Funnel driver");

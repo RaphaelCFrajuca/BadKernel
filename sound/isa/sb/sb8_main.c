@@ -46,19 +46,19 @@ MODULE_LICENSE("GPL");
 #define SB8_DEN(v)	((SB8_CLOCK + (v) / 2) / (v))
 #define SB8_RATE(v)	(SB8_CLOCK / SB8_DEN(v))
 
-static const struct snd_ratnum clock = {
+static struct snd_ratnum clock = {
 	.num = SB8_CLOCK,
 	.den_min = 1,
 	.den_max = 256,
 	.den_step = 1,
 };
 
-static const struct snd_pcm_hw_constraint_ratnums hw_constraints_clock = {
+static struct snd_pcm_hw_constraint_ratnums hw_constraints_clock = {
 	.nrats = 1,
 	.rats = &clock,
 };
 
-static const struct snd_ratnum stereo_clocks[] = {
+static struct snd_ratnum stereo_clocks[] = {
 	{
 		.num = SB8_CLOCK,
 		.den_min = SB8_DEN(22050),
@@ -447,7 +447,7 @@ static snd_pcm_uframes_t snd_sb8_capture_pointer(struct snd_pcm_substream *subst
 
  */
 
-static const struct snd_pcm_hardware snd_sb8_playback =
+static struct snd_pcm_hardware snd_sb8_playback =
 {
 	.info =			(SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_INTERLEAVED |
 				 SNDRV_PCM_INFO_MMAP_VALID),
@@ -466,7 +466,7 @@ static const struct snd_pcm_hardware snd_sb8_playback =
 	.fifo_size =		0,
 };
 
-static const struct snd_pcm_hardware snd_sb8_capture =
+static struct snd_pcm_hardware snd_sb8_capture =
 {
 	.info =			(SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_INTERLEAVED |
 				 SNDRV_PCM_INFO_MMAP_VALID),
@@ -572,7 +572,7 @@ static int snd_sb8_close(struct snd_pcm_substream *substream)
  *  Initialization part
  */
  
-static const struct snd_pcm_ops snd_sb8_playback_ops = {
+static struct snd_pcm_ops snd_sb8_playback_ops = {
 	.open =			snd_sb8_open,
 	.close =		snd_sb8_close,
 	.ioctl =		snd_pcm_lib_ioctl,
@@ -583,7 +583,7 @@ static const struct snd_pcm_ops snd_sb8_playback_ops = {
 	.pointer =		snd_sb8_playback_pointer,
 };
 
-static const struct snd_pcm_ops snd_sb8_capture_ops = {
+static struct snd_pcm_ops snd_sb8_capture_ops = {
 	.open =			snd_sb8_open,
 	.close =		snd_sb8_close,
 	.ioctl =		snd_pcm_lib_ioctl,

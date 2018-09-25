@@ -1,5 +1,4 @@
 #!/bin/bash
-# SPDX-License-Identifier: GPL-2.0
 #
 # NAME
 #	failcmd.sh - run a command with injecting slab/page allocation failures

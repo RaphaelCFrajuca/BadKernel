@@ -22,7 +22,6 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/of.h>
-#include <linux/of_device.h>
 #include <linux/regmap.h>
 #include <linux/regulator/driver.h>
 #include <linux/regulator/of_regulator.h>
@@ -162,7 +161,7 @@ static int ltc3589_set_suspend_mode(struct regulator_dev *rdev,
 }
 
 /* SW1, SW2, SW3, LDO2 */
-static const struct regulator_ops ltc3589_linear_regulator_ops = {
+static struct regulator_ops ltc3589_linear_regulator_ops = {
 	.enable = regulator_enable_regmap,
 	.disable = regulator_disable_regmap,
 	.is_enabled = regulator_is_enabled_regmap,
@@ -176,18 +175,18 @@ static const struct regulator_ops ltc3589_linear_regulator_ops = {
 };
 
 /* BB_OUT, LDO3 */
-static const struct regulator_ops ltc3589_fixed_regulator_ops = {
+static struct regulator_ops ltc3589_fixed_regulator_ops = {
 	.enable = regulator_enable_regmap,
 	.disable = regulator_disable_regmap,
 	.is_enabled = regulator_is_enabled_regmap,
 };
 
 /* LDO1 */
-static const struct regulator_ops ltc3589_fixed_standby_regulator_ops = {
+static struct regulator_ops ltc3589_fixed_standby_regulator_ops = {
 };
 
 /* LDO4 */
-static const struct regulator_ops ltc3589_table_regulator_ops = {
+static struct regulator_ops ltc3589_table_regulator_ops = {
 	.enable = regulator_enable_regmap,
 	.disable = regulator_disable_regmap,
 	.is_enabled = regulator_is_enabled_regmap,
@@ -471,11 +470,7 @@ static int ltc3589_probe(struct i2c_client *client,
 		return -ENOMEM;
 
 	i2c_set_clientdata(client, ltc3589);
-	if (client->dev.of_node)
-		ltc3589->variant = (enum ltc3589_variant)
-			of_device_get_match_data(&client->dev);
-	else
-		ltc3589->variant = id->driver_data;
+	ltc3589->variant = id->driver_data;
 	ltc3589->dev = dev;
 
 	descs = ltc3589->regulator_descs;
@@ -525,21 +520,18 @@ static int ltc3589_probe(struct i2c_client *client,
 		}
 	}
 
-	if (client->irq) {
-		ret = devm_request_threaded_irq(dev, client->irq, NULL,
-						ltc3589_isr,
-						IRQF_TRIGGER_LOW | IRQF_ONESHOT,
-						client->name, ltc3589);
-		if (ret) {
-			dev_err(dev, "Failed to request IRQ: %d\n", ret);
-			return ret;
-		}
+	ret = devm_request_threaded_irq(dev, client->irq, NULL, ltc3589_isr,
+					IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+					client->name, ltc3589);
+	if (ret) {
+		dev_err(dev, "Failed to request IRQ: %d\n", ret);
+		return ret;
 	}
 
 	return 0;
 }
 
-static const struct i2c_device_id ltc3589_i2c_id[] = {
+static struct i2c_device_id ltc3589_i2c_id[] = {
 	{ "ltc3589",   LTC3589   },
 	{ "ltc3589-1", LTC3589_1 },
 	{ "ltc3589-2", LTC3589_2 },
@@ -547,27 +539,9 @@ static const struct i2c_device_id ltc3589_i2c_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, ltc3589_i2c_id);
 
-static const struct of_device_id ltc3589_of_match[] = {
-	{
-		.compatible = "lltc,ltc3589",
-		.data = (void *)LTC3589,
-	},
-	{
-		.compatible = "lltc,ltc3589-1",
-		.data = (void *)LTC3589_1,
-	},
-	{
-		.compatible = "lltc,ltc3589-2",
-		.data = (void *)LTC3589_2,
-	},
-	{ },
-};
-MODULE_DEVICE_TABLE(of, ltc3589_of_match);
-
 static struct i2c_driver ltc3589_driver = {
 	.driver = {
 		.name = DRIVER_NAME,
-		.of_match_table = of_match_ptr(ltc3589_of_match),
 	},
 	.probe = ltc3589_probe,
 	.id_table = ltc3589_i2c_id,

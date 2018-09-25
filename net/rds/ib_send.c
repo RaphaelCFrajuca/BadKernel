@@ -36,7 +36,6 @@
 #include <linux/dmapool.h>
 #include <linux/ratelimit.h>
 
-#include "rds_single_path.h"
 #include "rds.h"
 #include "ib.h"
 
@@ -201,7 +200,7 @@ void rds_ib_send_init_ring(struct rds_ib_connection *ic)
 
 		send->s_op = NULL;
 
-		send->s_wr.wr_id = i;
+		send->s_wr.wr_id = i | RDS_IB_SEND_OP;
 		send->s_wr.sg_list = send->s_sge;
 		send->s_wr.ex.imm_data = 0;
 
@@ -269,7 +268,9 @@ void rds_ib_send_cqe_handler(struct rds_ib_connection *ic, struct ib_wc *wc)
 
 	oldest = rds_ib_ring_oldest(&ic->i_send_ring);
 
-	completed = rds_ib_ring_completed(&ic->i_send_ring, wc->wr_id, oldest);
+	completed = rds_ib_ring_completed(&ic->i_send_ring,
+					  (wc->wr_id & ~RDS_IB_SEND_OP),
+					  oldest);
 
 	for (i = 0; i < completed; i++) {
 		send = &ic->i_sends[oldest];
@@ -305,8 +306,8 @@ void rds_ib_send_cqe_handler(struct rds_ib_connection *ic, struct ib_wc *wc)
 
 	/* We expect errors as the qp is drained during shutdown */
 	if (wc->status != IB_WC_SUCCESS && rds_conn_up(conn)) {
-		rds_ib_conn_error(conn, "send completion on <%pI4,%pI4> had status %u (%s), disconnecting and reconnecting\n",
-				  &conn->c_laddr, &conn->c_faddr, wc->status,
+		rds_ib_conn_error(conn, "send completion on %pI4 had status %u (%s), disconnecting and reconnecting\n",
+				  &conn->c_faddr, wc->status,
 				  ib_wc_status_msg(wc->status));
 	}
 }
@@ -661,15 +662,13 @@ int rds_ib_xmit(struct rds_connection *conn, struct rds_message *rm,
 			}
 		}
 
-		rds_ib_set_wr_signal_state(ic, send, false);
+		rds_ib_set_wr_signal_state(ic, send, 0);
 
 		/*
 		 * Always signal the last one if we're stopping due to flow control.
 		 */
-		if (ic->i_flowctl && flow_controlled && i == (work_alloc - 1)) {
-			rds_ib_set_wr_signal_state(ic, send, true);
-			send->s_wr.send_flags |= IB_SEND_SOLICITED;
-		}
+		if (ic->i_flowctl && flow_controlled && i == (work_alloc-1))
+			send->s_wr.send_flags |= IB_SEND_SIGNALED | IB_SEND_SOLICITED;
 
 		if (send->s_wr.send_flags & IB_SEND_SIGNALED)
 			nr_sig++;
@@ -707,8 +706,11 @@ int rds_ib_xmit(struct rds_connection *conn, struct rds_message *rm,
 	if (scat == &rm->data.op_sg[rm->data.op_count]) {
 		prev->s_op = ic->i_data_op;
 		prev->s_wr.send_flags |= IB_SEND_SOLICITED;
-		if (!(prev->s_wr.send_flags & IB_SEND_SIGNALED))
-			nr_sig += rds_ib_set_wr_signal_state(ic, prev, true);
+		if (!(prev->s_wr.send_flags & IB_SEND_SIGNALED)) {
+			ic->i_unsignaled_wrs = rds_ib_sysctl_max_unsig_wrs;
+			prev->s_wr.send_flags |= IB_SEND_SIGNALED;
+			nr_sig++;
+		}
 		ic->i_data_op = NULL;
 	}
 
@@ -769,6 +771,7 @@ int rds_ib_xmit_atomic(struct rds_connection *conn, struct rm_atomic_op *op)
 
 	work_alloc = rds_ib_ring_alloc(&ic->i_send_ring, 1, &pos);
 	if (work_alloc != 1) {
+		rds_ib_ring_unalloc(&ic->i_send_ring, work_alloc);
 		rds_ib_stats_inc(s_ib_tx_ring_full);
 		ret = -ENOMEM;
 		goto out;
@@ -791,7 +794,6 @@ int rds_ib_xmit_atomic(struct rds_connection *conn, struct rm_atomic_op *op)
 		send->s_atomic_wr.compare_add_mask = op->op_m_fadd.nocarry_mask;
 		send->s_atomic_wr.swap_mask = 0;
 	}
-	send->s_wr.send_flags = 0;
 	nr_sig = rds_ib_set_wr_signal_state(ic, send, op->op_notify);
 	send->s_atomic_wr.wr.num_sge = 1;
 	send->s_atomic_wr.wr.next = NULL;
@@ -984,9 +986,8 @@ out:
 	return ret;
 }
 
-void rds_ib_xmit_path_complete(struct rds_conn_path *cp)
+void rds_ib_xmit_complete(struct rds_connection *conn)
 {
-	struct rds_connection *conn = cp->cp_conn;
 	struct rds_ib_connection *ic = conn->c_transport_data;
 
 	/* We may have a pending ACK or window update we were unable

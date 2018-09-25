@@ -21,7 +21,7 @@
  * - we use this to detect read completion of backing pages
  * - the caller holds the waitqueue lock
  */
-static int cachefiles_read_waiter(wait_queue_entry_t *wait, unsigned mode,
+static int cachefiles_read_waiter(wait_queue_t *wait, unsigned mode,
 				  int sync, void *_key)
 {
 	struct cachefiles_one_read *monitor =
@@ -49,7 +49,7 @@ static int cachefiles_read_waiter(wait_queue_entry_t *wait, unsigned mode,
 	}
 
 	/* remove from the waitqueue */
-	list_del(&wait->entry);
+	list_del(&wait->task_list);
 
 	/* move onto the action list and queue for FS-Cache thread pool */
 	ASSERT(op);
@@ -201,10 +201,10 @@ static void cachefiles_read_copier(struct fscache_operation *_op)
 			error = -EIO;
 		}
 
-		put_page(monitor->back_page);
+		page_cache_release(monitor->back_page);
 
 		fscache_end_io(op, monitor->netfs_page, error);
-		put_page(monitor->netfs_page);
+		page_cache_release(monitor->netfs_page);
 		fscache_retrieval_complete(op, 1);
 		fscache_put_retrieval(op);
 		kfree(monitor);
@@ -263,7 +263,8 @@ static int cachefiles_read_backing_file_one(struct cachefiles_object *object,
 			goto backing_page_already_present;
 
 		if (!newpage) {
-			newpage = __page_cache_alloc(cachefiles_gfp);
+			newpage = __page_cache_alloc(cachefiles_gfp |
+						     __GFP_COLD);
 			if (!newpage)
 				goto nomem_monitor;
 		}
@@ -294,8 +295,8 @@ monitor_backing_page:
 	_debug("- monitor add");
 
 	/* install the monitor */
-	get_page(monitor->netfs_page);
-	get_page(backpage);
+	page_cache_get(monitor->netfs_page);
+	page_cache_get(backpage);
 	monitor->back_page = backpage;
 	monitor->monitor.private = backpage;
 	add_page_wait_queue(backpage, &monitor->monitor);
@@ -316,7 +317,7 @@ backing_page_already_present:
 	_debug("- present");
 
 	if (newpage) {
-		put_page(newpage);
+		page_cache_release(newpage);
 		newpage = NULL;
 	}
 
@@ -348,7 +349,7 @@ success:
 
 out:
 	if (backpage)
-		put_page(backpage);
+		page_cache_release(backpage);
 	if (monitor) {
 		fscache_put_retrieval(monitor->op);
 		kfree(monitor);
@@ -369,7 +370,7 @@ io_error:
 	goto out;
 
 nomem_page:
-	put_page(newpage);
+	page_cache_release(newpage);
 nomem_monitor:
 	fscache_put_retrieval(monitor->op);
 	kfree(monitor);
@@ -499,7 +500,8 @@ static int cachefiles_read_backing_file(struct cachefiles_object *object,
 				goto backing_page_already_present;
 
 			if (!newpage) {
-				newpage = __page_cache_alloc(cachefiles_gfp);
+				newpage = __page_cache_alloc(cachefiles_gfp |
+							     __GFP_COLD);
 				if (!newpage)
 					goto nomem;
 			}
@@ -535,7 +537,7 @@ static int cachefiles_read_backing_file(struct cachefiles_object *object,
 					    netpage->index, cachefiles_gfp);
 		if (ret < 0) {
 			if (ret == -EEXIST) {
-				put_page(netpage);
+				page_cache_release(netpage);
 				fscache_retrieval_complete(op, 1);
 				continue;
 			}
@@ -543,10 +545,10 @@ static int cachefiles_read_backing_file(struct cachefiles_object *object,
 		}
 
 		/* install a monitor */
-		get_page(netpage);
+		page_cache_get(netpage);
 		monitor->netfs_page = netpage;
 
-		get_page(backpage);
+		page_cache_get(backpage);
 		monitor->back_page = backpage;
 		monitor->monitor.private = backpage;
 		add_page_wait_queue(backpage, &monitor->monitor);
@@ -560,10 +562,10 @@ static int cachefiles_read_backing_file(struct cachefiles_object *object,
 			unlock_page(backpage);
 		}
 
-		put_page(backpage);
+		page_cache_release(backpage);
 		backpage = NULL;
 
-		put_page(netpage);
+		page_cache_release(netpage);
 		netpage = NULL;
 		continue;
 
@@ -608,7 +610,7 @@ static int cachefiles_read_backing_file(struct cachefiles_object *object,
 					    netpage->index, cachefiles_gfp);
 		if (ret < 0) {
 			if (ret == -EEXIST) {
-				put_page(netpage);
+				page_cache_release(netpage);
 				fscache_retrieval_complete(op, 1);
 				continue;
 			}
@@ -617,14 +619,14 @@ static int cachefiles_read_backing_file(struct cachefiles_object *object,
 
 		copy_highpage(netpage, backpage);
 
-		put_page(backpage);
+		page_cache_release(backpage);
 		backpage = NULL;
 
 		fscache_mark_page_cached(op, netpage);
 
 		/* the netpage is unlocked and marked up to date here */
 		fscache_end_io(op, netpage, 0);
-		put_page(netpage);
+		page_cache_release(netpage);
 		netpage = NULL;
 		fscache_retrieval_complete(op, 1);
 		continue;
@@ -637,11 +639,11 @@ static int cachefiles_read_backing_file(struct cachefiles_object *object,
 out:
 	/* tidy up */
 	if (newpage)
-		put_page(newpage);
+		page_cache_release(newpage);
 	if (netpage)
-		put_page(netpage);
+		page_cache_release(netpage);
 	if (backpage)
-		put_page(backpage);
+		page_cache_release(backpage);
 	if (monitor) {
 		fscache_put_retrieval(op);
 		kfree(monitor);
@@ -649,7 +651,7 @@ out:
 
 	list_for_each_entry_safe(netpage, _n, list, lru) {
 		list_del(&netpage->lru);
-		put_page(netpage);
+		page_cache_release(netpage);
 		fscache_retrieval_complete(op, 1);
 	}
 
@@ -715,7 +717,7 @@ int cachefiles_read_or_alloc_pages(struct fscache_retrieval *op,
 	/* calculate the shift required to use bmap */
 	shift = PAGE_SHIFT - inode->i_sb->s_blocksize_bits;
 
-	pagevec_init(&pagevec);
+	pagevec_init(&pagevec, 0);
 
 	op->op.flags &= FSCACHE_OP_KEEP_FLAGS;
 	op->op.flags |= FSCACHE_OP_ASYNC;
@@ -849,7 +851,7 @@ int cachefiles_allocate_pages(struct fscache_retrieval *op,
 
 	ret = cachefiles_has_space(cache, 0, *nr_pages);
 	if (ret == 0) {
-		pagevec_init(&pagevec);
+		pagevec_init(&pagevec, 0);
 
 		list_for_each_entry(page, pages, lru) {
 			if (pagevec_add(&pagevec, page) == 0)
@@ -959,7 +961,6 @@ error:
  * - cache withdrawal is prevented by the caller
  */
 void cachefiles_uncache_page(struct fscache_object *_object, struct page *page)
-	__releases(&object->fscache.cookie->lock)
 {
 	struct cachefiles_object *object;
 	struct cachefiles_cache *cache;

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  linux/fs/ext4/fsync.c
  *
@@ -62,13 +61,6 @@ static int ext4_sync_parent(struct inode *inode)
 			break;
 		iput(inode);
 		inode = next;
-		/*
-		 * The directory inode may have gone through rmdir by now. But
-		 * the inode itself and its blocks are still allocated (we hold
-		 * a reference to the inode so it didn't go through
-		 * ext4_evict_inode()) and so we are safe to flush metadata
-		 * blocks and the inode.
-		 */
 		ret = sync_mapping_buffers(inode->i_mapping);
 		if (ret)
 			break;
@@ -101,14 +93,11 @@ int ext4_sync_file(struct file *file, loff_t start, loff_t end, int datasync)
 	tid_t commit_tid;
 	bool needs_barrier = false;
 
-	if (unlikely(ext4_forced_shutdown(EXT4_SB(inode->i_sb))))
-		return -EIO;
-
 	J_ASSERT(ext4_journal_current_handle() == NULL);
 
 	trace_ext4_sync_file_enter(file, datasync);
 
-	if (sb_rdonly(inode->i_sb)) {
+	if (inode->i_sb->s_flags & MS_RDONLY) {
 		/* Make sure that we read updated s_mount_flags value */
 		smp_rmb();
 		if (EXT4_SB(inode->i_sb)->s_mount_flags & EXT4_MF_FS_ABORTED)
@@ -117,15 +106,13 @@ int ext4_sync_file(struct file *file, loff_t start, loff_t end, int datasync)
 	}
 
 	if (!journal) {
-		ret = __generic_file_fsync(file, start, end, datasync);
-		if (!ret)
+		ret = generic_file_fsync(file, start, end, datasync);
+		if (!ret && !hlist_empty(&inode->i_dentry))
 			ret = ext4_sync_parent(inode);
-		if (test_opt(inode->i_sb, BARRIER))
-			goto issue_flush;
 		goto out;
 	}
 
-	ret = file_write_and_wait_range(file, start, end);
+	ret = filemap_write_and_wait_range(inode->i_mapping, start, end);
 	if (ret)
 		return ret;
 	/*
@@ -153,7 +140,6 @@ int ext4_sync_file(struct file *file, loff_t start, loff_t end, int datasync)
 		needs_barrier = true;
 	ret = jbd2_complete_transaction(journal, commit_tid);
 	if (needs_barrier) {
-	issue_flush:
 		err = blkdev_issue_flush(inode->i_sb->s_bdev, GFP_KERNEL, NULL);
 		if (!ret)
 			ret = err;

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 config PPC_CHRP
 	bool "Common Hardware Reference Platform (CHRP) based machines"
 	depends on 6xx

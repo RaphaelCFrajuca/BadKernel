@@ -47,7 +47,7 @@ static struct map_info impa7_map[NUM_FLASHBANKS] = {
 /*
  * MTD partitioning stuff
  */
-static const struct mtd_partition partitions[] =
+static struct mtd_partition partitions[] =
 {
 	{
 		.name = "FileSystem",

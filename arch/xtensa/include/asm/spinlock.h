@@ -11,9 +11,6 @@
 #ifndef _XTENSA_SPINLOCK_H
 #define _XTENSA_SPINLOCK_H
 
-#include <asm/barrier.h>
-#include <asm/processor.h>
-
 /*
  * spinlock
  *
@@ -32,6 +29,10 @@
  */
 
 #define arch_spin_is_locked(x) ((x)->slock != 0)
+#define arch_spin_unlock_wait(lock) \
+	do { while (arch_spin_is_locked(lock)) cpu_relax(); } while (0)
+
+#define arch_spin_lock_flags(lock, flags) arch_spin_lock(lock)
 
 static inline void arch_spin_lock(arch_spinlock_t *lock)
 {
@@ -94,6 +95,8 @@ static inline void arch_spin_unlock(arch_spinlock_t *lock)
  *                (the positive value is the actual number of readers)
  *  0x80000000  one writer owns the rwlock, no other writers, no readers
  */
+
+#define arch_write_can_lock(x)  ((x)->lock == 0)
 
 static inline void arch_write_lock(arch_rwlock_t *rw)
 {
@@ -195,5 +198,8 @@ static inline void arch_read_unlock(arch_rwlock_t *rw)
 			: "a" (&rw->lock)
 			: "memory");
 }
+
+#define arch_read_lock_flags(lock, flags)	arch_read_lock(lock)
+#define arch_write_lock_flags(lock, flags)	arch_write_lock(lock)
 
 #endif	/* _XTENSA_SPINLOCK_H */

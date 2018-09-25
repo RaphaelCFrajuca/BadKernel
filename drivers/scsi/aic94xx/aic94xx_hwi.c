@@ -220,20 +220,16 @@ static int asd_init_scbs(struct asd_ha_struct *asd_ha)
 
 	/* allocate the index array and bitmap */
 	asd_ha->seq.tc_index_bitmap_bits = asd_ha->hw_prof.max_scbs;
-	asd_ha->seq.tc_index_array = kcalloc(asd_ha->seq.tc_index_bitmap_bits,
-					     sizeof(void *),
-					     GFP_KERNEL);
+	asd_ha->seq.tc_index_array = kzalloc(asd_ha->seq.tc_index_bitmap_bits*
+					     sizeof(void *), GFP_KERNEL);
 	if (!asd_ha->seq.tc_index_array)
 		return -ENOMEM;
 
 	bitmap_bytes = (asd_ha->seq.tc_index_bitmap_bits+7)/8;
 	bitmap_bytes = BITS_TO_LONGS(bitmap_bytes*8)*sizeof(unsigned long);
 	asd_ha->seq.tc_index_bitmap = kzalloc(bitmap_bytes, GFP_KERNEL);
-	if (!asd_ha->seq.tc_index_bitmap) {
-		kfree(asd_ha->seq.tc_index_array);
-		asd_ha->seq.tc_index_array = NULL;
+	if (!asd_ha->seq.tc_index_bitmap)
 		return -ENOMEM;
-	}
 
 	spin_lock_init(&seq->tc_index_lock);
 
@@ -292,8 +288,7 @@ static int asd_alloc_edbs(struct asd_ha_struct *asd_ha, gfp_t gfp_flags)
 	struct asd_seq_data *seq = &asd_ha->seq;
 	int i;
 
-	seq->edb_arr = kmalloc_array(seq->num_edbs, sizeof(*seq->edb_arr),
-				     gfp_flags);
+	seq->edb_arr = kmalloc(seq->num_edbs*sizeof(*seq->edb_arr), gfp_flags);
 	if (!seq->edb_arr)
 		return -ENOMEM;
 
@@ -325,8 +320,8 @@ static int asd_alloc_escbs(struct asd_ha_struct *asd_ha,
 	struct asd_ascb *escb;
 	int i, escbs;
 
-	seq->escb_arr = kmalloc_array(seq->num_escbs, sizeof(*seq->escb_arr),
-				      gfp_flags);
+	seq->escb_arr = kmalloc(seq->num_escbs*sizeof(*seq->escb_arr),
+				gfp_flags);
 	if (!seq->escb_arr)
 		return -ENOMEM;
 
@@ -482,7 +477,7 @@ static int asd_init_chip(struct asd_ha_struct *asd_ha)
 
 	err = asd_start_seqs(asd_ha);
 	if (err) {
-		asd_printk("couldn't start seqs for %s\n",
+		asd_printk("coudln't start seqs for %s\n",
 			   pci_name(asd_ha->pcidev));
 		goto out;
 	}
@@ -637,7 +632,7 @@ int asd_init_hw(struct asd_ha_struct *asd_ha)
 			   pci_name(asd_ha->pcidev));
 		return err;
 	}
-	err = pci_write_config_dword(asd_ha->pcidev, PCIC_HSTPCIX_CNTRL,
+	pci_write_config_dword(asd_ha->pcidev, PCIC_HSTPCIX_CNTRL,
 					v | SC_TMR_DIS);
 	if (err) {
 		asd_printk("couldn't disable split completion timer of %s\n",
@@ -723,8 +718,11 @@ Out:
  */
 static void asd_chip_reset(struct asd_ha_struct *asd_ha)
 {
+	struct sas_ha_struct *sas_ha = &asd_ha->sas_ha;
+
 	ASD_DPRINTK("chip reset for %s\n", pci_name(asd_ha->pcidev));
 	asd_chip_hardrst(asd_ha);
+	sas_ha->notify_ha_event(sas_ha, HAE_RESET);
 }
 
 /* ---------- Done List Routines ---------- */
@@ -1177,6 +1175,7 @@ static void asd_start_scb_timers(struct list_head *list)
 	struct asd_ascb *ascb;
 	list_for_each_entry(ascb, list, list) {
 		if (!ascb->uldd_timer) {
+			ascb->timer.data = (unsigned long) ascb;
 			ascb->timer.function = asd_ascb_timedout;
 			ascb->timer.expires = jiffies + AIC94XX_SCB_TIMEOUT;
 			add_timer(&ascb->timer);

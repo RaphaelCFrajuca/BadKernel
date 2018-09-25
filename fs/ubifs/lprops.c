@@ -244,6 +244,7 @@ static void remove_from_lpt_heap(struct ubifs_info *c,
 /**
  * lpt_heap_replace - replace lprops in a category heap.
  * @c: UBIFS file-system description object
+ * @old_lprops: LEB properties to replace
  * @new_lprops: LEB properties with which to replace
  * @cat: LEB category
  *
@@ -253,6 +254,7 @@ static void remove_from_lpt_heap(struct ubifs_info *c,
  * lprops.  This function does that.
  */
 static void lpt_heap_replace(struct ubifs_info *c,
+			     struct ubifs_lprops *old_lprops,
 			     struct ubifs_lprops *new_lprops, int cat)
 {
 	struct ubifs_lpt_heap *heap;
@@ -360,7 +362,7 @@ void ubifs_replace_cat(struct ubifs_info *c, struct ubifs_lprops *old_lprops,
 	case LPROPS_DIRTY:
 	case LPROPS_DIRTY_IDX:
 	case LPROPS_FREE:
-		lpt_heap_replace(c, new_lprops, cat);
+		lpt_heap_replace(c, old_lprops, new_lprops, cat);
 		break;
 	case LPROPS_UNCAT:
 	case LPROPS_EMPTY:
@@ -634,7 +636,7 @@ const struct ubifs_lprops *ubifs_change_lp(struct ubifs_info *c,
 /**
  * ubifs_get_lp_stats - get lprops statistics.
  * @c: UBIFS file-system description object
- * @lst: return statistics
+ * @st: return statistics
  */
 void ubifs_get_lp_stats(struct ubifs_info *c, struct ubifs_lp_stats *lst)
 {

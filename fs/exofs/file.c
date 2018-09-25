@@ -48,13 +48,13 @@ static int exofs_file_fsync(struct file *filp, loff_t start, loff_t end,
 	struct inode *inode = filp->f_mapping->host;
 	int ret;
 
-	ret = file_write_and_wait_range(filp, start, end);
+	ret = filemap_write_and_wait_range(inode->i_mapping, start, end);
 	if (ret)
 		return ret;
 
-	inode_lock(inode);
+	mutex_lock(&inode->i_mutex);
 	ret = sync_inode_metadata(filp->f_mapping->host, 1);
-	inode_unlock(inode);
+	mutex_unlock(&inode->i_mutex);
 	return ret;
 }
 

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: LGPL-2.1+ WITH Linux-syscall-note */
 /*
  * osd.h
  *

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Software async multibuffer crypto daemon headers
  *
@@ -41,7 +40,7 @@ struct mcryptd_instance_ctx {
 };
 
 struct mcryptd_hash_ctx {
-	struct crypto_ahash *child;
+	struct crypto_shash *child;
 	struct mcryptd_alg_state *alg_state;
 };
 
@@ -61,13 +60,13 @@ struct mcryptd_hash_request_ctx {
 	struct crypto_hash_walk walk;
 	u8 *out;
 	int flag;
-	struct ahash_request areq;
+	struct shash_desc desc;
 };
 
 struct mcryptd_ahash *mcryptd_alloc_ahash(const char *alg_name,
 					u32 type, u32 mask);
-struct crypto_ahash *mcryptd_ahash_child(struct mcryptd_ahash *tfm);
-struct ahash_request *mcryptd_ahash_desc(struct ahash_request *req);
+struct crypto_shash *mcryptd_ahash_child(struct mcryptd_ahash *tfm);
+struct shash_desc *mcryptd_shash_desc(struct ahash_request *req);
 void mcryptd_free_ahash(struct mcryptd_ahash *tfm);
 void mcryptd_flusher(struct work_struct *work);
 

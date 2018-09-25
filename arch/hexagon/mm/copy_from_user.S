@@ -44,7 +44,7 @@
 #define bytes r2
 #define loopcount r5
 
-#define FUNCNAME raw_copy_from_user
+#define FUNCNAME __copy_from_user_hexagon
 #include "copy_user_template.S"
 
 	/* LOAD FAULTS from COPY_FROM_USER */

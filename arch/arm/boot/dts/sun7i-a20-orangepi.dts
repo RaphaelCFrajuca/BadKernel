@@ -48,6 +48,7 @@
 
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pinctrl/sun4i-a10.h>
 
 / {
 	model = "Orange Pi";
@@ -135,7 +136,8 @@
 	pinctrl-0 = <&mmc0_pins_a>, <&mmc0_cd_pin_orangepi>;
 	vmmc-supply = <&reg_vcc3v3>;
 	bus-width = <4>;
-	cd-gpios = <&pio 7 10 GPIO_ACTIVE_LOW>; /* PH10 */
+	cd-gpios = <&pio 7 10 GPIO_ACTIVE_HIGH>; /* PH10 */
+	cd-inverted;
 	status = "okay";
 };
 
@@ -145,35 +147,45 @@
 
 &pio {
 	usb0_id_detect_pin: usb0_id_detect_pin@0 {
-		pins = "PH4";
-		function = "gpio_in";
-		bias-pull-up;
+		allwinner,pins = "PH4";
+		allwinner,function = "gpio_in";
+		allwinner,drive = <SUN4I_PINCTRL_10_MA>;
+		allwinner,pull = <SUN4I_PINCTRL_PULL_UP>;
 	};
 
 	mmc0_cd_pin_orangepi: mmc0_cd_pin@0 {
-		pins = "PH10";
-		function = "gpio_in";
-		bias-pull-up;
+		allwinner,pins = "PH10";
+		allwinner,function = "gpio_in";
+		allwinner,drive = <SUN4I_PINCTRL_10_MA>;
+		allwinner,pull = <SUN4I_PINCTRL_PULL_UP>;
 	};
 
 	usb2_vbus_pin_bananapro: usb2_vbus_pin@0 {
-		pins = "PH22";
-		function = "gpio_out";
+		allwinner,pins = "PH22";
+		allwinner,function = "gpio_out";
+		allwinner,drive = <SUN4I_PINCTRL_10_MA>;
+		allwinner,pull = <SUN4I_PINCTRL_NO_PULL>;
 	};
 
 	gmac_power_pin_orangepi: gmac_power_pin@0 {
-		pins = "PH23";
-		function = "gpio_out";
+		allwinner,pins = "PH23";
+		allwinner,function = "gpio_out";
+		allwinner,drive = <SUN4I_PINCTRL_10_MA>;
+		allwinner,pull = <SUN4I_PINCTRL_NO_PULL>;
 	};
 
 	led_pins_orangepi: led_pins@0 {
-		pins = "PH24";
-		function = "gpio_out";
+		allwinner,pins = "PH24";
+		allwinner,function = "gpio_out";
+		allwinner,drive = <SUN4I_PINCTRL_10_MA>;
+		allwinner,pull = <SUN4I_PINCTRL_NO_PULL>;
 	};
 
 	usb1_vbus_pin_bananapro: usb1_vbus_pin@0 {
-		pins = "PH26";
-		function = "gpio_out";
+		allwinner,pins = "PH26";
+		allwinner,function = "gpio_out";
+		allwinner,drive = <SUN4I_PINCTRL_10_MA>;
+		allwinner,pull = <SUN4I_PINCTRL_NO_PULL>;
 	};
 };
 

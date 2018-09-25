@@ -15,23 +15,17 @@
  */
 
 #include <linux/linkage.h>
-#include <asm/frame.h>
 #include "glue_helper-asm-avx2.S"
 
 .file "serpent-avx2-asm_64.S"
 
-.section	.rodata.cst16.bswap128_mask, "aM", @progbits, 16
+.data
 .align 16
+
 .Lbswap128_mask:
 	.byte 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
-
-.section	.rodata.cst16.xts_gf128mul_and_shl1_mask_0, "aM", @progbits, 16
-.align 16
 .Lxts_gf128mul_and_shl1_mask_0:
 	.byte 0x87, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0
-
-.section	.rodata.cst16.xts_gf128mul_and_shl1_mask_1, "aM", @progbits, 16
-.align 16
 .Lxts_gf128mul_and_shl1_mask_1:
 	.byte 0x0e, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0
 
@@ -679,7 +673,6 @@ ENTRY(serpent_ecb_enc_16way)
 	 *	%rsi: dst
 	 *	%rdx: src
 	 */
-	FRAME_BEGIN
 
 	vzeroupper;
 
@@ -691,7 +684,6 @@ ENTRY(serpent_ecb_enc_16way)
 
 	vzeroupper;
 
-	FRAME_END
 	ret;
 ENDPROC(serpent_ecb_enc_16way)
 
@@ -701,7 +693,6 @@ ENTRY(serpent_ecb_dec_16way)
 	 *	%rsi: dst
 	 *	%rdx: src
 	 */
-	FRAME_BEGIN
 
 	vzeroupper;
 
@@ -713,7 +704,6 @@ ENTRY(serpent_ecb_dec_16way)
 
 	vzeroupper;
 
-	FRAME_END
 	ret;
 ENDPROC(serpent_ecb_dec_16way)
 
@@ -723,7 +713,6 @@ ENTRY(serpent_cbc_dec_16way)
 	 *	%rsi: dst
 	 *	%rdx: src
 	 */
-	FRAME_BEGIN
 
 	vzeroupper;
 
@@ -736,7 +725,6 @@ ENTRY(serpent_cbc_dec_16way)
 
 	vzeroupper;
 
-	FRAME_END
 	ret;
 ENDPROC(serpent_cbc_dec_16way)
 
@@ -747,7 +735,6 @@ ENTRY(serpent_ctr_16way)
 	 *	%rdx: src (16 blocks)
 	 *	%rcx: iv (little endian, 128bit)
 	 */
-	FRAME_BEGIN
 
 	vzeroupper;
 
@@ -761,7 +748,6 @@ ENTRY(serpent_ctr_16way)
 
 	vzeroupper;
 
-	FRAME_END
 	ret;
 ENDPROC(serpent_ctr_16way)
 
@@ -772,7 +758,6 @@ ENTRY(serpent_xts_enc_16way)
 	 *	%rdx: src (16 blocks)
 	 *	%rcx: iv (t ⊕ αⁿ ∈ GF(2¹²⁸))
 	 */
-	FRAME_BEGIN
 
 	vzeroupper;
 
@@ -787,7 +772,6 @@ ENTRY(serpent_xts_enc_16way)
 
 	vzeroupper;
 
-	FRAME_END
 	ret;
 ENDPROC(serpent_xts_enc_16way)
 
@@ -798,7 +782,6 @@ ENTRY(serpent_xts_dec_16way)
 	 *	%rdx: src (16 blocks)
 	 *	%rcx: iv (t ⊕ αⁿ ∈ GF(2¹²⁸))
 	 */
-	FRAME_BEGIN
 
 	vzeroupper;
 
@@ -813,6 +796,5 @@ ENTRY(serpent_xts_dec_16way)
 
 	vzeroupper;
 
-	FRAME_END
 	ret;
 ENDPROC(serpent_xts_dec_16way)

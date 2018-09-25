@@ -970,10 +970,8 @@ static int tegra_emc_load_timings_from_dt(struct tegra_emc *emc,
 		timing = &emc->timings[i++];
 
 		err = load_one_timing_from_dt(emc, timing, child);
-		if (err) {
-			of_node_put(child);
+		if (err)
 			return err;
-		}
 	}
 
 	sort(emc->timings, emc->num_timings, sizeof(*timing), cmp_timings,
@@ -997,8 +995,10 @@ tegra_emc_find_node_by_ram_code(struct device_node *node, u32 ram_code)
 		u32 value;
 
 		err = of_property_read_u32(np, "nvidia,ram-code", &value);
-		if (err || (value != ram_code))
+		if (err || (value != ram_code)) {
+			of_node_put(np);
 			continue;
+		}
 
 		return np;
 	}
@@ -1115,9 +1115,10 @@ static int tegra_emc_probe(struct platform_device *pdev)
 	}
 
 	mc = of_find_device_by_node(np);
-	of_node_put(np);
 	if (!mc)
 		return -ENOENT;
+
+	of_node_put(np);
 
 	emc->mc = platform_get_drvdata(mc);
 	if (!emc->mc)
@@ -1134,7 +1135,9 @@ static int tegra_emc_probe(struct platform_device *pdev)
 	}
 
 	err = tegra_emc_load_timings_from_dt(emc, np);
+
 	of_node_put(np);
+
 	if (err)
 		return err;
 

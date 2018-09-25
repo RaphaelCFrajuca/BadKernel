@@ -22,8 +22,6 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
-#include <linux/sched/task.h>
-#include <linux/sched/task_stack.h>
 #include <linux/interrupt.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
@@ -52,7 +50,7 @@
 #include <asm/perfmon.h>
 #include <asm/processor.h>
 #include <asm/signal.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/delay.h>
 
 #ifdef CONFIG_PERFMON
@@ -1644,12 +1642,12 @@ pfm_write(struct file *file, const char __user *ubuf,
 	return -EINVAL;
 }
 
-static __poll_t
+static unsigned int
 pfm_poll(struct file *filp, poll_table * wait)
 {
 	pfm_context_t *ctx;
 	unsigned long flags;
-	__poll_t mask = 0;
+	unsigned int mask = 0;
 
 	if (PFM_IS_FILE(filp) == 0) {
 		printk(KERN_ERR "perfmon: pfm_poll: bad magic [%d]\n", task_pid_nr(current));
@@ -1670,7 +1668,7 @@ pfm_poll(struct file *filp, poll_table * wait)
 	PROTECT_CTX(ctx, flags);
 
 	if (PFM_CTXQ_EMPTY(ctx) == 0)
-		mask =  EPOLLIN | EPOLLRDNORM;
+		mask =  POLLIN | POLLRDNORM;
 
 	UNPROTECT_CTX(ctx, flags);
 
@@ -2334,7 +2332,8 @@ pfm_smpl_buffer_alloc(struct task_struct *task, struct file *filp, pfm_context_t
 	 */
 	insert_vm_struct(mm, vma);
 
-	vm_stat_account(vma->vm_mm, vma->vm_flags, vma_pages(vma));
+	vm_stat_account(vma->vm_mm, vma->vm_flags, vma->vm_file,
+							vma_pages(vma));
 	up_write(&task->mm->mmap_sem);
 
 	/*
@@ -2610,10 +2609,17 @@ pfm_get_task(pfm_context_t *ctx, pid_t pid, struct task_struct **task)
 	if (pid < 2) return -EPERM;
 
 	if (pid != task_pid_vnr(current)) {
+
+		read_lock(&tasklist_lock);
+
+		p = find_task_by_vpid(pid);
+
 		/* make sure task cannot go away while we operate on it */
-		p = find_get_task_by_vpid(pid);
-		if (!p)
-			return -ESRCH;
+		if (p) get_task_struct(p);
+
+		read_unlock(&tasklist_lock);
+
+		if (p == NULL) return -ESRCH;
 	}
 
 	ret = pfm_task_incompatible(ctx, p);
@@ -4537,8 +4543,8 @@ pfm_context_unload(pfm_context_t *ctx, void *arg, int count, struct pt_regs *reg
 
 
 /*
- * called only from exit_thread()
- * we come here only if the task has a context attached (loaded or masked)
+ * called only from exit_thread(): task == current
+ * we come here only if current has a context attached (loaded or masked)
  */
 void
 pfm_exit_thread(struct task_struct *task)
@@ -5708,6 +5714,13 @@ const struct seq_operations pfm_seq_ops = {
  	.show =		pfm_proc_show
 };
 
+static int
+pfm_proc_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &pfm_seq_ops);
+}
+
+
 /*
  * we come here as soon as local_cpu_data->pfm_syst_wide is set. this happens
  * during pfm_enable() hence before pfm_start(). We cannot assume monitoring
@@ -6530,6 +6543,13 @@ found:
 	return 0;
 }
 
+static const struct file_operations pfm_proc_fops = {
+	.open		= pfm_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= seq_release,
+};
+
 int __init
 pfm_init(void)
 {
@@ -6601,7 +6621,7 @@ pfm_init(void)
 	/*
 	 * create /proc/perfmon (mostly for debugging purposes)
 	 */
-	perfmon_dir = proc_create_seq("perfmon", S_IRUGO, NULL, &pfm_seq_ops);
+	perfmon_dir = proc_create("perfmon", S_IRUGO, NULL, &pfm_proc_fops);
 	if (perfmon_dir == NULL) {
 		printk(KERN_ERR "perfmon: cannot create /proc entry, perfmon disabled\n");
 		pmu_conf = NULL;

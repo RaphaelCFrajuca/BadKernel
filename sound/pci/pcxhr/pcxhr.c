@@ -986,7 +986,7 @@ static int pcxhr_hw_free(struct snd_pcm_substream *subs)
 /*
  *  CONFIGURATION SPACE for all pcms, mono pcm must update channels_max
  */
-static const struct snd_pcm_hardware pcxhr_caps =
+static struct snd_pcm_hardware pcxhr_caps =
 {
 	.info             = (SNDRV_PCM_INFO_MMAP |
 			     SNDRV_PCM_INFO_INTERLEAVED |
@@ -1146,7 +1146,7 @@ static snd_pcm_uframes_t pcxhr_stream_pointer(struct snd_pcm_substream *subs)
 }
 
 
-static const struct snd_pcm_ops pcxhr_ops = {
+static struct snd_pcm_ops pcxhr_ops = {
 	.open      = pcxhr_open,
 	.close     = pcxhr_close,
 	.ioctl     = snd_pcm_lib_ioctl,
@@ -1165,7 +1165,7 @@ int pcxhr_create_pcm(struct snd_pcxhr *chip)
 	struct snd_pcm *pcm;
 	char name[32];
 
-	snprintf(name, sizeof(name), "pcxhr %d", chip->chip_idx);
+	sprintf(name, "pcxhr %d", chip->chip_idx);
 	if ((err = snd_pcm_new(chip->card, name, 0,
 			       chip->nb_streams_play,
 			       chip->nb_streams_capt, &pcm)) < 0) {
@@ -1215,8 +1215,10 @@ static int pcxhr_create(struct pcxhr_mgr *mgr,
 	};
 
 	chip = kzalloc(sizeof(*chip), GFP_KERNEL);
-	if (!chip)
+	if (! chip) {
+		dev_err(card->dev, "cannot allocate chip\n");
 		return -ENOMEM;
+	}
 
 	chip->card = card;
 	chip->chip_idx = idx;
@@ -1250,7 +1252,7 @@ static void pcxhr_proc_info(struct snd_info_entry *entry,
 	struct snd_pcxhr *chip = entry->private_data;
 	struct pcxhr_mgr *mgr = chip->mgr;
 
-	snd_iprintf(buffer, "\n%s\n", mgr->name);
+	snd_iprintf(buffer, "\n%s\n", mgr->longname);
 
 	/* stats available when embedded DSP is running */
 	if (mgr->dsp_loaded & (1 << PCXHR_FIRMWARE_DSP_MAIN_INDEX)) {
@@ -1337,7 +1339,7 @@ static void pcxhr_proc_sync(struct snd_info_entry *entry,
 		max_clock = PCXHR_CLOCK_TYPE_MAX;
 	}
 
-	snd_iprintf(buffer, "\n%s\n", mgr->name);
+	snd_iprintf(buffer, "\n%s\n", mgr->longname);
 	snd_iprintf(buffer, "Current Sample Clock\t: %s\n",
 		    texts[mgr->cur_clock_type]);
 	snd_iprintf(buffer, "Current Sample Rate\t= %d\n",
@@ -1465,7 +1467,7 @@ static void pcxhr_proc_init(struct snd_pcxhr *chip)
 	    !snd_card_proc_new(chip->card, "gpio", &entry)) {
 		snd_info_set_text_ops(entry, chip, pcxhr_proc_gpio_read);
 		entry->c.text.write = pcxhr_proc_gpo_write;
-		entry->mode |= 0200;
+		entry->mode |= S_IWUSR;
 	}
 	if (!snd_card_proc_new(chip->card, "ltc", &entry))
 		snd_info_set_text_ops(entry, chip, pcxhr_proc_ltc);
@@ -1595,9 +1597,10 @@ static int pcxhr_probe(struct pci_dev *pci,
 	}
 	mgr->irq = pci->irq;
 
-	snprintf(mgr->name, sizeof(mgr->name),
-		 "Digigram at 0x%lx & 0x%lx, 0x%lx irq %i",
-		 mgr->port[0], mgr->port[1], mgr->port[2], mgr->irq);
+	sprintf(mgr->shortname, "Digigram %s", card_name);
+	sprintf(mgr->longname, "%s at 0x%lx & 0x%lx, 0x%lx irq %i",
+		mgr->shortname,
+		mgr->port[0], mgr->port[1], mgr->port[2], mgr->irq);
 
 	/* ISR lock  */
 	mutex_init(&mgr->lock);
@@ -1641,10 +1644,8 @@ static int pcxhr_probe(struct pci_dev *pci,
 		}
 
 		strcpy(card->driver, DRIVER_NAME);
-		snprintf(card->shortname, sizeof(card->shortname),
-			 "Digigram [PCM #%d]", i);
-		snprintf(card->longname, sizeof(card->longname),
-			 "%s [PCM #%d]", mgr->name, i);
+		sprintf(card->shortname, "%s [PCM #%d]", mgr->shortname, i);
+		sprintf(card->longname, "%s [PCM #%d]", mgr->longname, i);
 
 		if ((err = pcxhr_create(mgr, card, i)) < 0) {
 			snd_card_free(card);

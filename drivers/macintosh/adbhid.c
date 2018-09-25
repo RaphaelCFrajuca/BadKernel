@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * drivers/macintosh/adbhid.c
  *
@@ -268,7 +267,7 @@ adbhid_keyboard_input(unsigned char *data, int nb, int apoll)
 	int id = (data[0] >> 4) & 0x0f;
 
 	if (!adbhid[id]) {
-		pr_err("ADB HID on ID %d not yet registered, packet %#02x, %#02x, %#02x, %#02x\n",
+		printk(KERN_ERR "ADB HID on ID %d not yet registered, packet %#02x, %#02x, %#02x, %#02x\n",
 		       id, data[0], data[1], data[2], data[3]);
 		return;
 	}
@@ -320,7 +319,8 @@ adbhid_input_keycode(int id, int scancode, int repeat)
 					ahid->flags &= ~FLAG_CAPSLOCK_TRANSLATE;
 				}
 			} else {
-				pr_info("Spurious caps lock event (scancode 0xff).\n");
+				printk(KERN_INFO "Spurious caps lock event "
+						 "(scancode 0xff).\n");
 			}
 		}
 	}
@@ -396,8 +396,8 @@ adbhid_input_keycode(int id, int scancode, int repeat)
 		input_report_key(adbhid[id]->input, key, !up_flag);
 		input_sync(adbhid[id]->input);
 	} else
-		pr_info("Unhandled ADB key (scancode %#02x) %s.\n", keycode,
-			up_flag ? "released" : "pressed");
+		printk(KERN_INFO "Unhandled ADB key (scancode %#02x) %s.\n", keycode,
+		       up_flag ? "released" : "pressed");
 
 }
 
@@ -407,7 +407,7 @@ adbhid_mouse_input(unsigned char *data, int nb, int autopoll)
 	int id = (data[0] >> 4) & 0x0f;
 
 	if (!adbhid[id]) {
-		pr_err("ADB HID on ID %d not yet registered\n", id);
+		printk(KERN_ERR "ADB HID on ID %d not yet registered\n", id);
 		return;
 	}
 
@@ -505,7 +505,7 @@ adbhid_buttons_input(unsigned char *data, int nb, int autopoll)
 	int id = (data[0] >> 4) & 0x0f;
 
 	if (!adbhid[id]) {
-		pr_err("ADB HID on ID %d not yet registered\n", id);
+		printk(KERN_ERR "ADB HID on ID %d not yet registered\n", id);
 		return;
 	}
 
@@ -533,8 +533,8 @@ adbhid_buttons_input(unsigned char *data, int nb, int autopoll)
 			break;
 
 		default:
-			pr_info("Unhandled ADB_MISC event %02x, %02x, %02x, %02x\n",
-				data[0], data[1], data[2], data[3]);
+			printk(KERN_INFO "Unhandled ADB_MISC event %02x, %02x, %02x, %02x\n",
+			       data[0], data[1], data[2], data[3]);
 			break;
 		}
 	  }
@@ -608,14 +608,14 @@ adbhid_buttons_input(unsigned char *data, int nb, int autopoll)
 				break;
 
 			default:
-				pr_info("Unhandled ADB_MISC event %02x, %02x, %02x, %02x\n",
-					data[0], data[1], data[2], data[3]);
+				printk(KERN_INFO "Unhandled ADB_MISC event %02x, %02x, %02x, %02x\n",
+				       data[0], data[1], data[2], data[3]);
 				break;
 			}
 			break;
 		default:
-			pr_info("Unhandled ADB_MISC event %02x, %02x, %02x, %02x\n",
-				data[0], data[1], data[2], data[3]);
+			printk(KERN_INFO "Unhandled ADB_MISC event %02x, %02x, %02x, %02x\n",
+			       data[0], data[1], data[2], data[3]);
 			break;
 		}
 	  }
@@ -759,7 +759,7 @@ adbhid_input_register(int id, int default_id, int original_handler_id,
 	int i;
 
 	if (adbhid[id]) {
-		pr_err("Trying to reregister ADB HID on ID %d\n", id);
+		printk(KERN_ERR "Trying to reregister ADB HID on ID %d\n", id);
 		return -EEXIST;
 	}
 
@@ -798,24 +798,24 @@ adbhid_input_register(int id, int default_id, int original_handler_id,
 
 		memcpy(hid->keycode, adb_to_linux_keycodes, sizeof(adb_to_linux_keycodes));
 
-		pr_info("Detected ADB keyboard, type ");
+		printk(KERN_INFO "Detected ADB keyboard, type ");
 		switch (original_handler_id) {
 		default:
-			pr_cont("<unknown>.\n");
+			printk("<unknown>.\n");
 			input_dev->id.version = ADB_KEYBOARD_UNKNOWN;
 			break;
 
 		case 0x01: case 0x02: case 0x03: case 0x06: case 0x08:
 		case 0x0C: case 0x10: case 0x18: case 0x1B: case 0x1C:
 		case 0xC0: case 0xC3: case 0xC6:
-			pr_cont("ANSI.\n");
+			printk("ANSI.\n");
 			input_dev->id.version = ADB_KEYBOARD_ANSI;
 			break;
 
 		case 0x04: case 0x05: case 0x07: case 0x09: case 0x0D:
 		case 0x11: case 0x14: case 0x19: case 0x1D: case 0xC1:
 		case 0xC4: case 0xC7:
-			pr_cont("ISO, swapping keys.\n");
+			printk("ISO, swapping keys.\n");
 			input_dev->id.version = ADB_KEYBOARD_ISO;
 			i = hid->keycode[10];
 			hid->keycode[10] = hid->keycode[50];
@@ -824,7 +824,7 @@ adbhid_input_register(int id, int default_id, int original_handler_id,
 
 		case 0x12: case 0x15: case 0x16: case 0x17: case 0x1A:
 		case 0x1E: case 0xC2: case 0xC5: case 0xC8: case 0xC9:
-			pr_cont("JIS.\n");
+			printk("JIS.\n");
 			input_dev->id.version = ADB_KEYBOARD_JIS;
 			break;
 		}
@@ -883,7 +883,7 @@ adbhid_input_register(int id, int default_id, int original_handler_id,
 		/* else fall through */
 
 	default:
-		pr_info("Trying to register unknown ADB device to input layer.\n");
+		printk(KERN_INFO "Trying to register unknown ADB device to input layer.\n");
 		err = -ENODEV;
 		goto fail;
 	}
@@ -1072,12 +1072,12 @@ adbhid_probe(void)
 			    (req.reply[1] == 0x4b) && (req.reply[2] == 0x4f) &&
 			    (req.reply[3] == 0x49) && (req.reply[4] == 0x54)) {
 				if (adb_try_handler_change(id, 0x42)) {
-					pr_cont("\nADB MacAlly 2-button mouse at %d, handler set to 0x42", id);
+					printk("\nADB MacAlly 2-button mouse at %d, handler set to 0x42", id);
 					mouse_kind = ADBMOUSE_MACALLY2;
 				}
 			}
 		}
-		pr_cont("\n");
+		printk("\n");
 
 		adb_get_infos(id, &default_id, &cur_handler_id);
 		reg |= adbhid_input_reregister(id, default_id, org_handler_id,
@@ -1092,12 +1092,12 @@ init_trackpad(int id)
 	struct adb_request req;
 	unsigned char r1_buffer[8];
 
-	pr_cont(" (trackpad)");
+	printk(" (trackpad)");
 
 	adb_request(&req, NULL, ADBREQ_SYNC | ADBREQ_REPLY, 1,
 		    ADB_READREG(id,1));
 	if (req.reply_len < 8)
-	    pr_cont("bad length for reg. 1\n");
+	    printk("bad length for reg. 1\n");
 	else
 	{
 	    memcpy(r1_buffer, &req.reply[1], 8);
@@ -1145,7 +1145,7 @@ init_trackball(int id)
 {
 	struct adb_request req;
 
-	pr_cont(" (trackman/mouseman)");
+	printk(" (trackman/mouseman)");
 
 	adb_request(&req, NULL, ADBREQ_SYNC, 3,
 	ADB_WRITEREG(id,1), 00,0x81);
@@ -1177,7 +1177,7 @@ init_turbomouse(int id)
 {
 	struct adb_request req;
 
-	pr_cont(" (TurboMouse 5)");
+        printk(" (TurboMouse 5)");
 
 	adb_request(&req, NULL, ADBREQ_SYNC, 1, ADB_FLUSH(id));
 
@@ -1213,7 +1213,7 @@ init_microspeed(int id)
 {
 	struct adb_request req;
 
-	pr_cont(" (Microspeed/MacPoint or compatible)");
+        printk(" (Microspeed/MacPoint or compatible)");
 
 	adb_request(&req, NULL, ADBREQ_SYNC, 1, ADB_FLUSH(id));
 
@@ -1253,7 +1253,7 @@ init_ms_a3(int id)
 {
 	struct adb_request req;
 
-	pr_cont(" (Mouse Systems A3 Mouse, or compatible)");
+	printk(" (Mouse Systems A3 Mouse, or compatible)");
 	adb_request(&req, NULL, ADBREQ_SYNC, 3,
 	ADB_WRITEREG(id, 0x2),
 	    0x00,

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #include <linux/threads.h>
 #include <asm/processor.h>
 #include <asm/page.h>

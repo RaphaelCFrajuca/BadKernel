@@ -298,7 +298,8 @@ static int r592_transfer_fifo_dma(struct r592_device *dev)
 	sg_count = dma_map_sg(&dev->pci_dev->dev, &dev->req->sg, 1, is_write ?
 		PCI_DMA_TODEVICE : PCI_DMA_FROMDEVICE);
 
-	if (sg_count != 1 || sg_dma_len(&dev->req->sg) < R592_LFIFO_SIZE) {
+	if (sg_count != 1 ||
+			(sg_dma_len(&dev->req->sg) < dev->req->sg.length)) {
 		message("problem in dma_map_sg");
 		return -EIO;
 	}
@@ -616,9 +617,9 @@ static void r592_update_card_detect(struct r592_device *dev)
 }
 
 /* Timer routine that fires 1 second after last card detection event, */
-static void r592_detect_timer(struct timer_list *t)
+static void r592_detect_timer(long unsigned int data)
 {
-	struct r592_device *dev = from_timer(dev, t, detect_timer);
+	struct r592_device *dev = (struct r592_device *)data;
 	r592_update_card_detect(dev);
 	memstick_detect_change(dev->host);
 }
@@ -770,7 +771,8 @@ static int r592_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	spin_lock_init(&dev->io_thread_lock);
 	init_completion(&dev->dma_done);
 	INIT_KFIFO(dev->pio_fifo);
-	timer_setup(&dev->detect_timer, r592_detect_timer, 0);
+	setup_timer(&dev->detect_timer,
+		r592_detect_timer, (long unsigned int)dev);
 
 	/* Host initialization */
 	host->caps = MEMSTICK_CAP_PAR4;

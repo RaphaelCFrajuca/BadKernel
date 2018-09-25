@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 #
 # Makefile for device trees
 #
@@ -17,3 +16,5 @@ $(obj)/builtin.dtb: $(obj)/$(DTB).dtb
 	$(call if_changed,cp)
 
 $(obj)/linked_dtb.o: $(obj)/builtin.dtb
+
+clean-files := *.dtb

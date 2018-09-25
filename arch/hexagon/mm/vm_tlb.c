@@ -24,7 +24,6 @@
  * be instantiated for it, differently from a native build.
  */
 #include <linux/mm.h>
-#include <linux/sched.h>
 #include <asm/page.h>
 #include <asm/hexagon_vm.h>
 

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * ARMv5 [xscale] Performance counter handling code.
  *
@@ -142,10 +141,11 @@ xscale1_pmnc_counter_has_overflowed(unsigned long pmnc,
 }
 
 static irqreturn_t
-xscale1pmu_handle_irq(struct arm_pmu *cpu_pmu)
+xscale1pmu_handle_irq(int irq_num, void *dev)
 {
 	unsigned long pmnc;
 	struct perf_sample_data data;
+	struct arm_pmu *cpu_pmu = (struct arm_pmu *)dev;
 	struct pmu_hw_events *cpuc = this_cpu_ptr(cpu_pmu->hw_events);
 	struct pt_regs *regs;
 	int idx;
@@ -488,10 +488,11 @@ xscale2_pmnc_counter_has_overflowed(unsigned long of_flags,
 }
 
 static irqreturn_t
-xscale2pmu_handle_irq(struct arm_pmu *cpu_pmu)
+xscale2pmu_handle_irq(int irq_num, void *dev)
 {
 	unsigned long pmnc, of_flags;
 	struct perf_sample_data data;
+	struct arm_pmu *cpu_pmu = (struct arm_pmu *)dev;
 	struct pmu_hw_events *cpuc = this_cpu_ptr(cpu_pmu->hw_events);
 	struct pt_regs *regs;
 	int idx;
@@ -766,5 +767,9 @@ static struct platform_driver xscale_pmu_driver = {
 	.probe		= xscale_pmu_device_probe,
 };
 
-builtin_platform_driver(xscale_pmu_driver);
+static int __init register_xscale_pmu_driver(void)
+{
+	return platform_driver_register(&xscale_pmu_driver);
+}
+device_initcall(register_xscale_pmu_driver);
 #endif	/* CONFIG_CPU_XSCALE */

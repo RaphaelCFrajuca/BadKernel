@@ -22,6 +22,8 @@
 			clock-latency = <300000>; /* From legacy driver */
 
 			/* cooling options */
+			cooling-min-level = <0>;
+			cooling-max-level = <2>;
 			#cooling-cells = <2>; /* min followed by max */
 		};
 	};
@@ -38,7 +40,7 @@
 	};
 
 	ocp {
-		bandgap: bandgap@4a002260 {
+		bandgap: bandgap {
 			reg = <0x4a002260 0x4
 			       0x4a00232C 0x4
 			       0x4a002378 0x18>;
@@ -86,10 +88,6 @@
 		};
 	};
 
-};
-
-&cpu_thermal {
-	coefficients = <348 (-9301)>;
 };
 
 /include/ "omap446x-clocks.dtsi"

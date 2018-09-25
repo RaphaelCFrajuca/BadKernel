@@ -1,6 +1,13 @@
-// SPDX-License-Identifier: GPL-2.0+
-//
-// Copyright 2012 Freescale Semiconductor, Inc.
+/*
+ * Copyright 2012 Freescale Semiconductor, Inc.
+ *
+ * The code contained herein is licensed under the GNU General Public
+ * License. You may obtain a copy of the GNU General Public License
+ * Version 2 or later at the following locations:
+ *
+ * http://www.opensource.org/licenses/gpl-license.html
+ * http://www.gnu.org/copyleft/gpl.html
+ */
 
 /dts-v1/;
 #include "imx28.dtsi"
@@ -9,7 +16,7 @@
 	model = "Freescale i.MX28 Evaluation Kit";
 	compatible = "fsl,imx28-evk", "fsl,imx28";
 
-	memory@40000000 {
+	memory {
 		reg = <0x40000000 0x08000000>;
 	};
 
@@ -187,17 +194,16 @@
 				pinctrl-0 = <&i2c0_pins_a>;
 				status = "okay";
 
-				sgtl5000: codec@a {
+				sgtl5000: codec@0a {
 					compatible = "fsl,sgtl5000";
 					reg = <0x0a>;
-					#sound-dai-cells = <0>;
 					VDDA-supply = <&reg_3p3v>;
 					VDDIO-supply = <&reg_3p3v>;
 					clocks = <&saif0>;
 				};
 
 				at24@51 {
-					compatible = "atmel,24c32";
+					compatible = "at24,24c32";
 					pagesize = <32>;
 					reg = <0x51>;
 				};
@@ -218,7 +224,7 @@
 			auart0: serial@8006a000 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&auart0_pins_a>;
-				uart-has-rtscts;
+				fsl,uart-has-rtscts;
 				status = "okay";
 			};
 
@@ -256,7 +262,7 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&mac0_pins_a>;
 			phy-supply = <&reg_fec_3v3>;
-			phy-reset-gpios = <&gpio4 13 GPIO_ACTIVE_LOW>;
+			phy-reset-gpios = <&gpio4 13 0>;
 			phy-reset-duration = <100>;
 			status = "okay";
 		};

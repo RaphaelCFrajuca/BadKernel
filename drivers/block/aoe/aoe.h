@@ -112,7 +112,8 @@ enum frame_flags {
 struct frame {
 	struct list_head head;
 	u32 tag;
-	ktime_t sent;			/* high-res time packet was sent */
+	struct timeval sent;	/* high-res time packet was sent */
+	u32 sent_jiffs;		/* low-res jiffies-based sent time */
 	ulong waited;
 	ulong waited_total;
 	struct aoetgt *t;		/* parent target I belong to */

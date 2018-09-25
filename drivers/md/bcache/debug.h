@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _BCACHE_DEBUG_H
 #define _BCACHE_DEBUG_H
 

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 #
 # S/390 network devices
 #

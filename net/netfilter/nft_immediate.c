@@ -17,6 +17,12 @@
 #include <net/netfilter/nf_tables_core.h>
 #include <net/netfilter/nf_tables.h>
 
+struct nft_immediate_expr {
+	struct nft_data		data;
+	enum nft_registers	dreg:8;
+	u8			dlen;
+};
+
 static void nft_immediate_eval(const struct nft_expr *expr,
 			       struct nft_regs *regs,
 			       const struct nft_pktinfo *pkt)
@@ -47,7 +53,6 @@ static int nft_immediate_init(const struct nft_ctx *ctx,
 			    tb[NFTA_IMMEDIATE_DATA]);
 	if (err < 0)
 		return err;
-
 	priv->dlen = desc.len;
 
 	priv->dreg = nft_parse_register(tb[NFTA_IMMEDIATE_DREG]);
@@ -59,24 +64,15 @@ static int nft_immediate_init(const struct nft_ctx *ctx,
 	return 0;
 
 err1:
-	nft_data_release(&priv->data, desc.type);
+	nft_data_uninit(&priv->data, desc.type);
 	return err;
 }
 
-static void nft_immediate_activate(const struct nft_ctx *ctx,
-				   const struct nft_expr *expr)
+static void nft_immediate_destroy(const struct nft_ctx *ctx,
+				  const struct nft_expr *expr)
 {
 	const struct nft_immediate_expr *priv = nft_expr_priv(expr);
-
-	return nft_data_hold(&priv->data, nft_dreg_to_type(priv->dreg));
-}
-
-static void nft_immediate_deactivate(const struct nft_ctx *ctx,
-				     const struct nft_expr *expr)
-{
-	const struct nft_immediate_expr *priv = nft_expr_priv(expr);
-
-	return nft_data_release(&priv->data, nft_dreg_to_type(priv->dreg));
+	return nft_data_uninit(&priv->data, nft_dreg_to_type(priv->dreg));
 }
 
 static int nft_immediate_dump(struct sk_buff *skb, const struct nft_expr *expr)
@@ -95,46 +91,41 @@ nla_put_failure:
 
 static int nft_immediate_validate(const struct nft_ctx *ctx,
 				  const struct nft_expr *expr,
-				  const struct nft_data **d)
+				  const struct nft_data **data)
 {
 	const struct nft_immediate_expr *priv = nft_expr_priv(expr);
-	const struct nft_data *data;
-	int err;
 
-	if (priv->dreg != NFT_REG_VERDICT)
-		return 0;
-
-	data = &priv->data;
-
-	switch (data->verdict.code) {
-	case NFT_JUMP:
-	case NFT_GOTO:
-		err = nft_chain_validate(ctx, data->verdict.chain);
-		if (err < 0)
-			return err;
-		break;
-	default:
-		break;
-	}
+	if (priv->dreg == NFT_REG_VERDICT)
+		*data = &priv->data;
 
 	return 0;
 }
 
+static struct nft_expr_type nft_imm_type;
 static const struct nft_expr_ops nft_imm_ops = {
 	.type		= &nft_imm_type,
 	.size		= NFT_EXPR_SIZE(sizeof(struct nft_immediate_expr)),
 	.eval		= nft_immediate_eval,
 	.init		= nft_immediate_init,
-	.activate	= nft_immediate_activate,
-	.deactivate	= nft_immediate_deactivate,
+	.destroy	= nft_immediate_destroy,
 	.dump		= nft_immediate_dump,
 	.validate	= nft_immediate_validate,
 };
 
-struct nft_expr_type nft_imm_type __read_mostly = {
+static struct nft_expr_type nft_imm_type __read_mostly = {
 	.name		= "immediate",
 	.ops		= &nft_imm_ops,
 	.policy		= nft_immediate_policy,
 	.maxattr	= NFTA_IMMEDIATE_MAX,
 	.owner		= THIS_MODULE,
 };
+
+int __init nft_immediate_module_init(void)
+{
+	return nft_register_expr(&nft_imm_type);
+}
+
+void nft_immediate_module_exit(void)
+{
+	nft_unregister_expr(&nft_imm_type);
+}

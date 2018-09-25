@@ -29,7 +29,6 @@
 #include <linux/timer.h>
 #include <linux/workqueue.h>
 #include <linux/kfifo.h>
-#include <linux/refcount.h>
 #include <scsi/iscsi_proto.h>
 #include <scsi/iscsi_if.h>
 #include <scsi/scsi_transport_iscsi.h>
@@ -140,7 +139,7 @@ struct iscsi_task {
 
 	/* state set/tested under session->lock */
 	int			state;
-	refcount_t		refcount;
+	atomic_t		refcount;
 	struct list_head	running;	/* running cmd list */
 	void			*dd_data;	/* driver/transport data */
 };
@@ -385,7 +384,6 @@ extern int iscsi_eh_recover_target(struct scsi_cmnd *sc);
 extern int iscsi_eh_session_reset(struct scsi_cmnd *sc);
 extern int iscsi_eh_device_reset(struct scsi_cmnd *sc);
 extern int iscsi_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *sc);
-extern enum blk_eh_timer_return iscsi_eh_cmd_timed_out(struct scsi_cmnd *sc);
 
 /*
  * iSCSI host helpers.

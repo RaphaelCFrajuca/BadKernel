@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2013  Davidlohr Bueso <davidlohr@hp.com>
  *
@@ -9,24 +8,18 @@
  * one or more tasks, and thus the waitqueue is never empty.
  */
 
-/* For the CLR_() macros */
-#include <string.h>
-#include <pthread.h>
-
-#include <signal.h>
+#include "../perf.h"
+#include "../util/util.h"
 #include "../util/stat.h"
-#include <subcmd/parse-options.h>
-#include <linux/compiler.h>
-#include <linux/kernel.h>
-#include <linux/time64.h>
-#include <errno.h>
+#include "../util/parse-options.h"
+#include "../util/header.h"
 #include "bench.h"
 #include "futex.h"
-#include "cpumap.h"
 
 #include <err.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <pthread.h>
 
 /* all threads will block on the same futex */
 static u_int32_t futex1 = 0;
@@ -85,24 +78,24 @@ static void print_summary(void)
 	printf("Wokeup %d of %d threads in %.4f ms (+-%.2f%%)\n",
 	       wakeup_avg,
 	       nthreads,
-	       waketime_avg / USEC_PER_MSEC,
+	       waketime_avg/1e3,
 	       rel_stddev_stats(waketime_stddev, waketime_avg));
 }
 
 static void block_threads(pthread_t *w,
-			  pthread_attr_t thread_attr, struct cpu_map *cpu)
+			  pthread_attr_t thread_attr)
 {
-	cpu_set_t cpuset;
+	cpu_set_t cpu;
 	unsigned int i;
 
 	threads_starting = nthreads;
 
 	/* create and block all threads */
 	for (i = 0; i < nthreads; i++) {
-		CPU_ZERO(&cpuset);
-		CPU_SET(cpu->map[i % cpu->nr], &cpuset);
+		CPU_ZERO(&cpu);
+		CPU_SET(i % ncpus, &cpu);
 
-		if (pthread_attr_setaffinity_np(&thread_attr, sizeof(cpu_set_t), &cpuset))
+		if (pthread_attr_setaffinity_np(&thread_attr, sizeof(cpu_set_t), &cpu))
 			err(EXIT_FAILURE, "pthread_attr_setaffinity_np");
 
 		if (pthread_create(&w[i], &thread_attr, workerfn, NULL))
@@ -117,13 +110,13 @@ static void toggle_done(int sig __maybe_unused,
 	done = true;
 }
 
-int bench_futex_wake(int argc, const char **argv)
+int bench_futex_wake(int argc, const char **argv,
+		     const char *prefix __maybe_unused)
 {
 	int ret = 0;
 	unsigned int i, j;
 	struct sigaction act;
 	pthread_attr_t thread_attr;
-	struct cpu_map *cpu;
 
 	argc = parse_options(argc, argv, options, bench_futex_wake_usage, 0);
 	if (argc) {
@@ -131,9 +124,7 @@ int bench_futex_wake(int argc, const char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	cpu = cpu_map__new(NULL);
-	if (!cpu)
-		err(EXIT_FAILURE, "calloc");
+	ncpus = sysconf(_SC_NPROCESSORS_ONLN);
 
 	sigfillset(&act.sa_mask);
 	act.sa_sigaction = toggle_done;
@@ -165,7 +156,7 @@ int bench_futex_wake(int argc, const char **argv)
 		struct timeval start, end, runtime;
 
 		/* create, launch & block all threads */
-		block_threads(worker, thread_attr, cpu);
+		block_threads(worker, thread_attr);
 
 		/* make sure all threads are already blocked */
 		pthread_mutex_lock(&thread_lock);
@@ -188,7 +179,7 @@ int bench_futex_wake(int argc, const char **argv)
 
 		if (!silent) {
 			printf("[Run %d]: Wokeup %d of %d threads in %.4f ms\n",
-			       j + 1, nwoken, nthreads, runtime.tv_usec / (double)USEC_PER_MSEC);
+			       j + 1, nwoken, nthreads, runtime.tv_usec/1e3);
 		}
 
 		for (i = 0; i < nthreads; i++) {

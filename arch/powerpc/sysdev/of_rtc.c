@@ -38,21 +38,21 @@ void __init of_instantiate_rtc(void)
 			res = kmalloc(sizeof(*res), GFP_KERNEL);
 			if (!res) {
 				printk(KERN_ERR "OF RTC: Out of memory "
-				       "allocating resource structure for %pOF\n",
-				       node);
+				       "allocating resource structure for %s\n",
+				       node->full_name);
 				continue;
 			}
 
 			err = of_address_to_resource(node, 0, res);
 			if (err) {
 				printk(KERN_ERR "OF RTC: Error "
-				       "translating resources for %pOF\n",
-				       node);
+				       "translating resources for %s\n",
+				       node->full_name);
 				continue;
 			}
 
-			printk(KERN_INFO "OF_RTC: %pOF is a %s @ 0x%llx-0x%llx\n",
-			       node, plat_name,
+			printk(KERN_INFO "OF_RTC: %s is a %s @ 0x%llx-0x%llx\n",
+			       node->full_name, plat_name,
 			       (unsigned long long)res->start,
 			       (unsigned long long)res->end);
 			platform_device_register_simple(plat_name, -1, res, 1);

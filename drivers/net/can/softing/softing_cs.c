@@ -310,7 +310,7 @@ pcmcia_bad:
 pcmcia_failed:
 	pcmcia_disable_device(pcmcia);
 	pcmcia->priv = NULL;
-	return ret;
+	return ret ?: -ENODEV;
 }
 
 static const struct pcmcia_device_id softingcs_ids[] = {

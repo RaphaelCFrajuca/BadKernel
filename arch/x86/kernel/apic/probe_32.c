@@ -8,7 +8,7 @@
  */
 #include <linux/threads.h>
 #include <linux/cpumask.h>
-#include <linux/export.h>
+#include <linux/module.h>
 #include <linux/string.h>
 #include <linux/kernel.h>
 #include <linux/ctype.h>
@@ -25,7 +25,7 @@
 
 #include <linux/interrupt.h>
 #include <asm/acpi.h>
-#include <asm/e820/api.h>
+#include <asm/e820.h>
 
 #ifdef CONFIG_HOTPLUG_CPU
 #define DEFAULT_SEND_IPI	(1)
@@ -66,38 +66,13 @@ static void setup_apic_flat_routing(void)
 #endif
 }
 
-static int default_apic_id_registered(void)
-{
-	return physid_isset(read_apic_id(), phys_cpu_present_map);
-}
-
-/*
- * Set up the logical destination ID.  Intel recommends to set DFR, LDR and
- * TPR before enabling an APIC.  See e.g. "AP-388 82489DX User's Manual"
- * (Intel document number 292116).
- */
-static void default_init_apic_ldr(void)
-{
-	unsigned long val;
-
-	apic_write(APIC_DFR, APIC_DFR_VALUE);
-	val = apic_read(APIC_LDR) & ~APIC_LDR_MASK;
-	val |= SET_APIC_LOGICAL_ID(1UL << smp_processor_id());
-	apic_write(APIC_LDR, val);
-}
-
-static int default_phys_pkg_id(int cpuid_apic, int index_msb)
-{
-	return cpuid_apic >> index_msb;
-}
-
 /* should be called last. */
 static int probe_default(void)
 {
 	return 1;
 }
 
-static struct apic apic_default __ro_after_init = {
+static struct apic apic_default = {
 
 	.name				= "default",
 	.probe				= probe_default,
@@ -105,14 +80,16 @@ static struct apic apic_default __ro_after_init = {
 	.apic_id_valid			= default_apic_id_valid,
 	.apic_id_registered		= default_apic_id_registered,
 
-	.irq_delivery_mode		= dest_Fixed,
+	.irq_delivery_mode		= dest_LowestPrio,
 	/* logical delivery broadcast to all CPUs: */
 	.irq_dest_mode			= 1,
 
+	.target_cpus			= default_target_cpus,
 	.disable_esr			= 0,
 	.dest_logical			= APIC_DEST_LOGICAL,
 	.check_apicid_used		= default_check_apicid_used,
 
+	.vector_allocation_domain	= flat_vector_allocation_domain,
 	.init_apic_ldr			= default_init_apic_ldr,
 
 	.ioapic_phys_id_map		= default_ioapic_phys_id_map,
@@ -124,10 +101,10 @@ static struct apic apic_default __ro_after_init = {
 
 	.get_apic_id			= default_get_apic_id,
 	.set_apic_id			= NULL,
+	.apic_id_mask			= 0x0F << 24,
 
-	.calc_dest_apicid		= apic_flat_calc_apicid,
+	.cpu_mask_to_apicid_and		= flat_cpu_mask_to_apicid_and,
 
-	.send_IPI			= default_send_IPI_single,
 	.send_IPI_mask			= default_send_IPI_mask_logical,
 	.send_IPI_mask_allbutself	= default_send_IPI_mask_allbutself_logical,
 	.send_IPI_allbutself		= default_send_IPI_allbutself,
@@ -149,7 +126,7 @@ static struct apic apic_default __ro_after_init = {
 
 apic_driver(apic_default);
 
-struct apic *apic __ro_after_init = &apic_default;
+struct apic *apic = &apic_default;
 EXPORT_SYMBOL_GPL(apic);
 
 static int cmdline_apic __initdata;
@@ -175,7 +152,7 @@ early_param("apic", parse_apic);
 
 void __init default_setup_apic_routing(void)
 {
-	int version = boot_cpu_apic_version;
+	int version = apic_version[boot_cpu_physical_apicid];
 
 	if (num_possible_cpus() > 8) {
 		switch (boot_cpu_data.x86_vendor) {

@@ -25,7 +25,6 @@
 #include "agp.h"
 #include "intel-agp.h"
 #include <drm/intel-gtt.h>
-#include <asm/set_memory.h>
 
 /*
  * If we have Intel graphics, we're not going to have anything other than
@@ -80,7 +79,7 @@ static struct _intel_private {
 	unsigned int needs_dmar : 1;
 	phys_addr_t gma_bus_addr;
 	/*  Size of memory reserved for graphics by the BIOS */
-	resource_size_t stolen_size;
+	unsigned int stolen_size;
 	/* Total number of gtt entries. */
 	unsigned int gtt_total_entries;
 	/* Part of the gtt that is mappable by the cpu, for those chips where
@@ -333,13 +332,21 @@ static void i810_write_entry(dma_addr_t addr, unsigned int entry,
 	writel_relaxed(addr | pte_flags, intel_private.gtt + entry);
 }
 
-static resource_size_t intel_gtt_stolen_size(void)
+static const struct aper_size_info_fixed intel_fake_agp_sizes[] = {
+	{32, 8192, 3},
+	{64, 16384, 4},
+	{128, 32768, 5},
+	{256, 65536, 6},
+	{512, 131072, 7},
+};
+
+static unsigned int intel_gtt_stolen_size(void)
 {
 	u16 gmch_ctrl;
 	u8 rdct;
 	int local = 0;
 	static const int ddt[4] = { 0, 16, 32, 64 };
-	resource_size_t stolen_size = 0;
+	unsigned int stolen_size = 0;
 
 	if (INTEL_GTT_GEN == 1)
 		return 0; /* no stolen mem on i81x */
@@ -417,8 +424,8 @@ static resource_size_t intel_gtt_stolen_size(void)
 	}
 
 	if (stolen_size > 0) {
-		dev_info(&intel_private.bridge_dev->dev, "detected %lluK %s memory\n",
-		       (u64)stolen_size / KB(1), local ? "local" : "stolen");
+		dev_info(&intel_private.bridge_dev->dev, "detected %dK %s memory\n",
+		       stolen_size / KB(1), local ? "local" : "stolen");
 	} else {
 		dev_info(&intel_private.bridge_dev->dev,
 		       "no pre-allocated video memory detected\n");
@@ -548,10 +555,8 @@ static unsigned int intel_gtt_mappable_entries(void)
 static void intel_gtt_teardown_scratch_page(void)
 {
 	set_pages_wb(intel_private.scratch_page, 1);
-	if (intel_private.needs_dmar)
-		pci_unmap_page(intel_private.pcidev,
-			       intel_private.scratch_page_dma,
-			       PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
+	pci_unmap_page(intel_private.pcidev, intel_private.scratch_page_dma,
+		       PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
 	__free_page(intel_private.scratch_page);
 }
 
@@ -663,14 +668,6 @@ static int intel_gtt_init(void)
 }
 
 #if IS_ENABLED(CONFIG_AGP_INTEL)
-static const struct aper_size_info_fixed intel_fake_agp_sizes[] = {
-	{32, 8192, 3},
-	{64, 16384, 4},
-	{128, 32768, 5},
-	{256, 65536, 6},
-	{512, 131072, 7},
-};
-
 static int intel_fake_agp_fetch_size(void)
 {
 	int num_sizes = ARRAY_SIZE(intel_fake_agp_sizes);
@@ -840,16 +837,6 @@ static bool i830_check_flags(unsigned int flags)
 
 	return false;
 }
-
-void intel_gtt_insert_page(dma_addr_t addr,
-			   unsigned int pg,
-			   unsigned int flags)
-{
-	intel_private.driver->write_entry(addr, pg, flags);
-	if (intel_private.driver->chipset_flush)
-		intel_private.driver->chipset_flush();
-}
-EXPORT_SYMBOL(intel_gtt_insert_page);
 
 void intel_gtt_insert_sg_entries(struct sg_table *st,
 				 unsigned int pg_start,
@@ -1361,6 +1348,16 @@ int intel_gmch_probe(struct pci_dev *bridge_pdev, struct pci_dev *gpu_pdev,
 {
 	int i, mask;
 
+	/*
+	 * Can be called from the fake agp driver but also directly from
+	 * drm/i915.ko. Hence we need to check whether everything is set up
+	 * already.
+	 */
+	if (intel_private.driver) {
+		intel_private.refcount++;
+		return 1;
+	}
+
 	for (i = 0; intel_gtt_chipsets[i].name != NULL; i++) {
 		if (gpu_pdev) {
 			if (gpu_pdev->device ==
@@ -1381,25 +1378,15 @@ int intel_gmch_probe(struct pci_dev *bridge_pdev, struct pci_dev *gpu_pdev,
 	if (!intel_private.driver)
 		return 0;
 
+	intel_private.refcount++;
+
 #if IS_ENABLED(CONFIG_AGP_INTEL)
 	if (bridge) {
-		if (INTEL_GTT_GEN > 1)
-			return 0;
-
 		bridge->driver = &intel_fake_agp_driver;
 		bridge->dev_private_data = &intel_private;
 		bridge->dev = bridge_pdev;
 	}
 #endif
-
-
-	/*
-	 * Can be called from the fake agp driver but also directly from
-	 * drm/i915.ko. Hence we need to check whether everything is set up
-	 * already.
-	 */
-	if (intel_private.refcount++)
-		return 1;
 
 	intel_private.bridge_dev = pci_dev_get(bridge_pdev);
 
@@ -1423,11 +1410,11 @@ int intel_gmch_probe(struct pci_dev *bridge_pdev, struct pci_dev *gpu_pdev,
 }
 EXPORT_SYMBOL(intel_gmch_probe);
 
-void intel_gtt_get(u64 *gtt_total,
-		   phys_addr_t *mappable_base,
-		   resource_size_t *mappable_end)
+void intel_gtt_get(u64 *gtt_total, size_t *stolen_size,
+		   phys_addr_t *mappable_base, u64 *mappable_end)
 {
 	*gtt_total = intel_private.gtt_total_entries << PAGE_SHIFT;
+	*stolen_size = intel_private.stolen_size;
 	*mappable_base = intel_private.gma_bus_addr;
 	*mappable_end = intel_private.gtt_mappable_entries << PAGE_SHIFT;
 }
@@ -1445,8 +1432,6 @@ void intel_gmch_remove(void)
 	if (--intel_private.refcount)
 		return;
 
-	if (intel_private.scratch_page)
-		intel_gtt_teardown_scratch_page();
 	if (intel_private.pcidev)
 		pci_dev_put(intel_private.pcidev);
 	if (intel_private.bridge_dev)

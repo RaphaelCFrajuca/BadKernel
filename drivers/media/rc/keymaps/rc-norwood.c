@@ -1,9 +1,14 @@
-// SPDX-License-Identifier: GPL-2.0+
-// norwood.h - Keytable for norwood Remote Controller
-//
-// keymap imported from ir-keymaps.c
-//
-// Copyright (c) 2010 by Mauro Carvalho Chehab
+/* norwood.h - Keytable for norwood Remote Controller
+ *
+ * keymap imported from ir-keymaps.c
+ *
+ * Copyright (c) 2010 by Mauro Carvalho Chehab
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ */
 
 #include <media/rc-map.h>
 #include <linux/module.h>
@@ -57,10 +62,10 @@ static struct rc_map_table norwood[] = {
 
 static struct rc_map_list norwood_map = {
 	.map = {
-		.scan     = norwood,
-		.size     = ARRAY_SIZE(norwood),
-		.rc_proto = RC_PROTO_UNKNOWN,	/* Legacy IR type */
-		.name     = RC_MAP_NORWOOD,
+		.scan    = norwood,
+		.size    = ARRAY_SIZE(norwood),
+		.rc_type = RC_TYPE_UNKNOWN,	/* Legacy IR type */
+		.name    = RC_MAP_NORWOOD,
 	}
 };
 

@@ -15,13 +15,13 @@
  *  GNU General Public License for more details.
  */
 
-#include "cx23885.h"
-
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/init.h>
 #include <linux/delay.h>
 #include <asm/io.h>
+
+#include "cx23885.h"
 
 #include <media/v4l2-common.h>
 
@@ -35,8 +35,7 @@ MODULE_PARM_DESC(i2c_scan, "scan i2c bus at insmod time");
 
 #define dprintk(level, fmt, arg...)\
 	do { if (i2c_debug >= level)\
-		printk(KERN_DEBUG pr_fmt("%s: i2c:" fmt), \
-			__func__, ##arg); \
+		printk(KERN_DEBUG "%s/0: " fmt, dev->name, ## arg);\
 	} while (0)
 
 #define I2C_WAIT_DELAY 32
@@ -120,9 +119,9 @@ static int i2c_sendbytes(struct i2c_adapter *i2c_adap,
 	if (!i2c_wait_done(i2c_adap))
 		goto eio;
 	if (i2c_debug) {
-		printk(KERN_DEBUG " <W %02x %02x", msg->addr << 1, msg->buf[0]);
+		printk(" <W %02x %02x", msg->addr << 1, msg->buf[0]);
 		if (!(ctrl & I2C_NOSTOP))
-			pr_cont(" >\n");
+			printk(" >\n");
 	}
 
 	for (cnt = 1; cnt < msg->len; cnt++) {
@@ -142,9 +141,9 @@ static int i2c_sendbytes(struct i2c_adapter *i2c_adap,
 		if (!i2c_wait_done(i2c_adap))
 			goto eio;
 		if (i2c_debug) {
-			pr_cont(" %02x", msg->buf[cnt]);
+			dprintk(1, " %02x", msg->buf[cnt]);
 			if (!(ctrl & I2C_NOSTOP))
-				pr_cont(" >\n");
+				dprintk(1, " >\n");
 		}
 	}
 	return msg->len;
@@ -152,7 +151,7 @@ static int i2c_sendbytes(struct i2c_adapter *i2c_adap,
  eio:
 	retval = -EIO;
 	if (i2c_debug)
-		pr_err(" ERR: %d\n", retval);
+		printk(KERN_ERR " ERR: %d\n", retval);
 	return retval;
 }
 
@@ -213,13 +212,15 @@ static int i2c_readbytes(struct i2c_adapter *i2c_adap,
  eio:
 	retval = -EIO;
 	if (i2c_debug)
-		pr_err(" ERR: %d\n", retval);
+		printk(KERN_ERR " ERR: %d\n", retval);
 	return retval;
 }
 
 static int i2c_xfer(struct i2c_adapter *i2c_adap,
 		    struct i2c_msg *msgs, int num)
 {
+	struct cx23885_i2c *bus = i2c_adap->algo_data;
+	struct cx23885_dev *dev = bus->dev;
 	int i, retval = 0;
 
 	dprintk(1, "%s(num = %d)\n", __func__, num);
@@ -257,20 +258,20 @@ static u32 cx23885_functionality(struct i2c_adapter *adap)
 	return I2C_FUNC_SMBUS_EMUL | I2C_FUNC_I2C;
 }
 
-static const struct i2c_algorithm cx23885_i2c_algo_template = {
+static struct i2c_algorithm cx23885_i2c_algo_template = {
 	.master_xfer	= i2c_xfer,
 	.functionality	= cx23885_functionality,
 };
 
 /* ----------------------------------------------------------------------- */
 
-static const struct i2c_adapter cx23885_i2c_adap_template = {
+static struct i2c_adapter cx23885_i2c_adap_template = {
 	.name              = "cx23885",
 	.owner             = THIS_MODULE,
 	.algo              = &cx23885_i2c_algo_template,
 };
 
-static const struct i2c_client cx23885_i2c_client_template = {
+static struct i2c_client cx23885_i2c_client_template = {
 	.name	= "cx23885 internal",
 };
 
@@ -278,8 +279,6 @@ static char *i2c_devs[128] = {
 	[0x10 >> 1] = "tda10048",
 	[0x12 >> 1] = "dib7000pc",
 	[0x1c >> 1] = "lgdt3303",
-	[0x80 >> 1] = "cs3308",
-	[0x82 >> 1] = "cs3308",
 	[0x86 >> 1] = "tda9887",
 	[0x32 >> 1] = "cx24227",
 	[0x88 >> 1] = "cx25837",
@@ -301,7 +300,7 @@ static void do_i2c_scan(char *name, struct i2c_client *c)
 		rc = i2c_master_recv(c, &buf, 0);
 		if (rc < 0)
 			continue;
-		pr_info("%s: i2c scan: found device @ 0x%04x  [%s]\n",
+		printk(KERN_INFO "%s: i2c scan: found device @ 0x%04x  [%s]\n",
 		       name, i, i2c_devs[i] ? i2c_devs[i] : "???");
 	}
 }
@@ -329,12 +328,12 @@ int cx23885_i2c_register(struct cx23885_i2c *bus)
 	if (0 == bus->i2c_rc) {
 		dprintk(1, "%s: i2c bus %d registered\n", dev->name, bus->nr);
 		if (i2c_scan) {
-			pr_info("%s: scan bus %d:\n",
+			printk(KERN_INFO "%s: scan bus %d:\n",
 					dev->name, bus->nr);
 			do_i2c_scan(dev->name, &bus->i2c_client);
 		}
 	} else
-		pr_warn("%s: i2c bus %d register FAILED\n",
+		printk(KERN_WARNING "%s: i2c bus %d register FAILED\n",
 			dev->name, bus->nr);
 
 	/* Instantiate the IR receiver device, if present */

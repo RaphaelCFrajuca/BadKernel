@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 obj-y					:= keystone.o smc.o
 
 plus_sec := $(call as-instr,.arch_extension sec,+sec)

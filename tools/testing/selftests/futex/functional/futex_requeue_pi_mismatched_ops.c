@@ -30,8 +30,6 @@
 #include "futextest.h"
 #include "logging.h"
 
-#define TEST_NAME "futex-requeue-pi-mismatched-ops"
-
 futex_t f1 = FUTEX_INITIALIZER;
 futex_t f2 = FUTEX_INITIALIZER;
 int child_ret = 0;
@@ -78,8 +76,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	ksft_print_header();
-	ksft_print_msg("%s: Detect mismatched requeue_pi operations\n",
+	printf("%s: Detect mismatched requeue_pi operations\n",
 	       basename(argv[0]));
 
 	if (pthread_create(&child, NULL, blocking_child, NULL)) {
@@ -133,6 +130,6 @@ int main(int argc, char *argv[])
 
  out:
 	/* If the kernel crashes, we shouldn't return at all. */
-	print_result(TEST_NAME, ret);
+	print_result(ret);
 	return ret;
 }

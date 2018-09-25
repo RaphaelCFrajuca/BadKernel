@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/ceph/ceph_debug.h>
 
 #include <linux/sort.h>
@@ -297,11 +296,12 @@ static int cmpu64_rev(const void *a, const void *b)
 }
 
 
+struct ceph_snap_context *ceph_empty_snapc;
+
 /*
  * build the snap context for a given realm.
  */
-static int build_snap_context(struct ceph_snap_realm *realm,
-			      struct list_head* dirty_realms)
+static int build_snap_context(struct ceph_snap_realm *realm)
 {
 	struct ceph_snap_realm *parent = realm->parent;
 	struct ceph_snap_context *snapc;
@@ -315,7 +315,7 @@ static int build_snap_context(struct ceph_snap_realm *realm,
 	 */
 	if (parent) {
 		if (!parent->cached_context) {
-			err = build_snap_context(parent, dirty_realms);
+			err = build_snap_context(parent);
 			if (err)
 				goto fail;
 		}
@@ -334,7 +334,7 @@ static int build_snap_context(struct ceph_snap_realm *realm,
 		     " (unchanged)\n",
 		     realm->ino, realm, realm->cached_context,
 		     realm->cached_context->seq,
-		     (unsigned int)realm->cached_context->num_snaps);
+		     (unsigned int) realm->cached_context->num_snaps);
 		return 0;
 	}
 
@@ -377,8 +377,6 @@ static int build_snap_context(struct ceph_snap_realm *realm,
 
 	ceph_put_snap_context(realm->cached_context);
 	realm->cached_context = snapc;
-	/* queue realm for cap_snap creation */
-	list_add_tail(&realm->dirty_item, dirty_realms);
 	return 0;
 
 fail:
@@ -398,16 +396,15 @@ fail:
 /*
  * rebuild snap context for the given realm and all of its children.
  */
-static void rebuild_snap_realms(struct ceph_snap_realm *realm,
-				struct list_head *dirty_realms)
+static void rebuild_snap_realms(struct ceph_snap_realm *realm)
 {
 	struct ceph_snap_realm *child;
 
 	dout("rebuild_snap_realms %llx %p\n", realm->ino, realm);
-	build_snap_context(realm, dirty_realms);
+	build_snap_context(realm);
 
 	list_for_each_entry(child, &realm->children, child_item)
-		rebuild_snap_realms(child, dirty_realms);
+		rebuild_snap_realms(child);
 }
 
 
@@ -524,8 +521,10 @@ void ceph_queue_cap_snap(struct ceph_inode_info *ci)
 	     capsnap->need_flush ? "" : "no_flush");
 	ihold(inode);
 
-	refcount_set(&capsnap->nref, 1);
+	atomic_set(&capsnap->nref, 1);
+	capsnap->ci = ci;
 	INIT_LIST_HEAD(&capsnap->ci_item);
+	INIT_LIST_HEAD(&capsnap->flushing_item);
 
 	capsnap->follows = old_snapc->seq;
 	capsnap->issued = __ceph_caps_issued(ci, NULL);
@@ -554,6 +553,7 @@ void ceph_queue_cap_snap(struct ceph_inode_info *ci)
 	ci->i_wrbuffer_ref_head = 0;
 	capsnap->context = old_snapc;
 	list_add_tail(&capsnap->ci_item, &ci->i_cap_snaps);
+	old_snapc = NULL;
 
 	if (used & CEPH_CAP_FILE_WR) {
 		dout("queue_cap_snap %p cap_snap %p snapc %p"
@@ -565,7 +565,6 @@ void ceph_queue_cap_snap(struct ceph_inode_info *ci)
 		__ceph_finish_cap_snap(ci, capsnap);
 	}
 	capsnap = NULL;
-	old_snapc = NULL;
 
 update_snapc:
 	if (ci->i_head_snapc) {
@@ -594,12 +593,10 @@ int __ceph_finish_cap_snap(struct ceph_inode_info *ci,
 
 	BUG_ON(capsnap->writing);
 	capsnap->size = inode->i_size;
-	capsnap->mtime = timespec64_to_timespec(inode->i_mtime);
-	capsnap->atime = timespec64_to_timespec(inode->i_atime);
-	capsnap->ctime = timespec64_to_timespec(inode->i_ctime);
+	capsnap->mtime = inode->i_mtime;
+	capsnap->atime = inode->i_atime;
+	capsnap->ctime = inode->i_ctime;
 	capsnap->time_warp_seq = ci->i_time_warp_seq;
-	capsnap->truncate_size = ci->i_truncate_size;
-	capsnap->truncate_seq = ci->i_truncate_seq;
 	if (capsnap->dirty_pages) {
 		dout("finish_cap_snap %p cap_snap %p snapc %p %llu %s s=%llu "
 		     "still has %d dirty pages\n", inode, capsnap,
@@ -608,8 +605,6 @@ int __ceph_finish_cap_snap(struct ceph_inode_info *ci,
 		     capsnap->dirty_pages);
 		return 0;
 	}
-
-	ci->i_ceph_flags |= CEPH_I_FLUSH_SNAPS;
 	dout("finish_cap_snap %p cap_snap %p snapc %p %llu %s s=%llu\n",
 	     inode, capsnap, capsnap->context,
 	     capsnap->context->seq, ceph_cap_string(capsnap->dirty),
@@ -629,11 +624,13 @@ static void queue_realm_cap_snaps(struct ceph_snap_realm *realm)
 {
 	struct ceph_inode_info *ci;
 	struct inode *lastinode = NULL;
+	struct ceph_snap_realm *child;
 
 	dout("queue_realm_cap_snaps %p %llx inodes\n", realm, realm->ino);
 
 	spin_lock(&realm->inodes_with_caps_lock);
-	list_for_each_entry(ci, &realm->inodes_with_caps, i_snap_realm_item) {
+	list_for_each_entry(ci, &realm->inodes_with_caps,
+			    i_snap_realm_item) {
 		struct inode *inode = igrab(&ci->vfs_inode);
 		if (!inode)
 			continue;
@@ -646,6 +643,14 @@ static void queue_realm_cap_snaps(struct ceph_snap_realm *realm)
 	spin_unlock(&realm->inodes_with_caps_lock);
 	iput(lastinode);
 
+	list_for_each_entry(child, &realm->children, child_item) {
+		dout("queue_realm_cap_snaps %p %llx queue child %p %llx\n",
+		     realm, realm->ino, child, child->ino);
+		list_del_init(&child->dirty_item);
+		list_add(&child->dirty_item, &realm->dirty_item);
+	}
+
+	list_del_init(&realm->dirty_item);
 	dout("queue_realm_cap_snaps %p %llx done\n", realm, realm->ino);
 }
 
@@ -716,6 +721,8 @@ more:
 		if (err < 0)
 			goto fail;
 
+		/* queue realm for cap_snap creation */
+		list_add(&realm->dirty_item, &dirty_realms);
 		if (realm->seq > mdsc->last_snap_seq)
 			mdsc->last_snap_seq = realm->seq;
 
@@ -734,7 +741,7 @@ more:
 
 	/* invalidate when we reach the _end_ (root) of the trace */
 	if (invalidate && p >= e)
-		rebuild_snap_realms(realm, &dirty_realms);
+		rebuild_snap_realms(realm);
 
 	if (!first_realm)
 		first_realm = realm;
@@ -751,7 +758,6 @@ more:
 	while (!list_empty(&dirty_realms)) {
 		realm = list_first_entry(&dirty_realms, struct ceph_snap_realm,
 					 dirty_item);
-		list_del_init(&realm->dirty_item);
 		queue_realm_cap_snaps(realm);
 	}
 
@@ -795,7 +801,9 @@ static void flush_snaps(struct ceph_mds_client *mdsc)
 		inode = &ci->vfs_inode;
 		ihold(inode);
 		spin_unlock(&mdsc->snap_flush_lock);
-		ceph_flush_snaps(ci, &session);
+		spin_lock(&ci->i_ceph_lock);
+		__ceph_flush_snaps(ci, &session, 0);
+		spin_unlock(&ci->i_ceph_lock);
 		iput(inode);
 		spin_lock(&mdsc->snap_flush_lock);
 	}
@@ -922,19 +930,13 @@ void ceph_handle_snap(struct ceph_mds_client *mdsc,
 			/*
 			 * Move the inode to the new realm
 			 */
-			oldrealm = ci->i_snap_realm;
-			spin_lock(&oldrealm->inodes_with_caps_lock);
-			list_del_init(&ci->i_snap_realm_item);
-			spin_unlock(&oldrealm->inodes_with_caps_lock);
-
 			spin_lock(&realm->inodes_with_caps_lock);
+			list_del_init(&ci->i_snap_realm_item);
 			list_add(&ci->i_snap_realm_item,
 				 &realm->inodes_with_caps);
+			oldrealm = ci->i_snap_realm;
 			ci->i_snap_realm = realm;
-			if (realm->ino == ci->i_vino.ino)
-                                realm->inode = inode;
 			spin_unlock(&realm->inodes_with_caps_lock);
-
 			spin_unlock(&ci->i_ceph_lock);
 
 			ceph_get_snap_realm(mdsc, realm);
@@ -984,4 +986,18 @@ out:
 	if (locked_rwsem)
 		up_write(&mdsc->snap_rwsem);
 	return;
+}
+
+int __init ceph_snap_init(void)
+{
+	ceph_empty_snapc = ceph_create_snap_context(0, GFP_NOFS);
+	if (!ceph_empty_snapc)
+		return -ENOMEM;
+	ceph_empty_snapc->seq = 1;
+	return 0;
+}
+
+void ceph_snap_exit(void)
+{
+	ceph_put_snap_context(ceph_empty_snapc);
 }

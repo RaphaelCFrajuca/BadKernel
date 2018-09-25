@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _XTENSA_UNISTD_H
 #define _XTENSA_UNISTD_H
 

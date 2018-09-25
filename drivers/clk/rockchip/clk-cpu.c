@@ -116,7 +116,7 @@ static void rockchip_cpuclk_set_dividers(struct rockchip_cpuclk *cpuclk,
 
 		pr_debug("%s: setting reg 0x%x to 0x%x\n",
 			 __func__, clksel->reg, clksel->val);
-		writel(clksel->val, cpuclk->reg_base + clksel->reg);
+		writel(clksel->val , cpuclk->reg_base + clksel->reg);
 	}
 }
 
@@ -124,17 +124,8 @@ static int rockchip_cpuclk_pre_rate_change(struct rockchip_cpuclk *cpuclk,
 					   struct clk_notifier_data *ndata)
 {
 	const struct rockchip_cpuclk_reg_data *reg_data = cpuclk->reg_data;
-	const struct rockchip_cpuclk_rate_table *rate;
 	unsigned long alt_prate, alt_div;
 	unsigned long flags;
-
-	/* check validity of the new rate */
-	rate = rockchip_get_cpuclk_settings(cpuclk, ndata->new_rate);
-	if (!rate) {
-		pr_err("%s: Invalid rate : %lu for cpuclk\n",
-		       __func__, ndata->new_rate);
-		return -EINVAL;
-	}
 
 	alt_prate = clk_get_rate(cpuclk->alt_parent);
 
@@ -167,16 +158,12 @@ static int rockchip_cpuclk_pre_rate_change(struct rockchip_cpuclk *cpuclk,
 
 		writel(HIWORD_UPDATE(alt_div, reg_data->div_core_mask,
 					      reg_data->div_core_shift) |
-		       HIWORD_UPDATE(reg_data->mux_core_alt,
-				     reg_data->mux_core_mask,
-				     reg_data->mux_core_shift),
+		       HIWORD_UPDATE(1, 1, reg_data->mux_core_shift),
 		       cpuclk->reg_base + reg_data->core_reg);
 	} else {
 		/* select alternate parent */
-		writel(HIWORD_UPDATE(reg_data->mux_core_alt,
-				     reg_data->mux_core_mask,
-				     reg_data->mux_core_shift),
-		       cpuclk->reg_base + reg_data->core_reg);
+		writel(HIWORD_UPDATE(1, 1, reg_data->mux_core_shift),
+			cpuclk->reg_base + reg_data->core_reg);
 	}
 
 	spin_unlock_irqrestore(cpuclk->lock, flags);
@@ -211,9 +198,7 @@ static int rockchip_cpuclk_post_rate_change(struct rockchip_cpuclk *cpuclk,
 
 	writel(HIWORD_UPDATE(0, reg_data->div_core_mask,
 				reg_data->div_core_shift) |
-	       HIWORD_UPDATE(reg_data->mux_core_main,
-				reg_data->mux_core_mask,
-				reg_data->mux_core_shift),
+	       HIWORD_UPDATE(0, 1, reg_data->mux_core_shift),
 	       cpuclk->reg_base + reg_data->core_reg);
 
 	if (ndata->old_rate > ndata->new_rate)
@@ -257,8 +242,8 @@ struct clk *rockchip_clk_register_cpuclk(const char *name,
 	struct clk *clk, *cclk;
 	int ret;
 
-	if (num_parents < 2) {
-		pr_err("%s: needs at least two parent clocks\n", __func__);
+	if (num_parents != 2) {
+		pr_err("%s: needs two parent clocks\n", __func__);
 		return ERR_PTR(-EINVAL);
 	}
 
@@ -267,7 +252,7 @@ struct clk *rockchip_clk_register_cpuclk(const char *name,
 		return ERR_PTR(-ENOMEM);
 
 	init.name = name;
-	init.parent_names = &parent_names[reg_data->mux_core_main];
+	init.parent_names = &parent_names[0];
 	init.num_parents = 1;
 	init.ops = &rockchip_cpuclk_ops;
 
@@ -285,10 +270,10 @@ struct clk *rockchip_clk_register_cpuclk(const char *name,
 	cpuclk->clk_nb.notifier_call = rockchip_cpuclk_notifier_cb;
 	cpuclk->hw.init = &init;
 
-	cpuclk->alt_parent = __clk_lookup(parent_names[reg_data->mux_core_alt]);
+	cpuclk->alt_parent = __clk_lookup(parent_names[1]);
 	if (!cpuclk->alt_parent) {
-		pr_err("%s: could not lookup alternate parent: (%d)\n",
-		       __func__, reg_data->mux_core_alt);
+		pr_err("%s: could not lookup alternate parent\n",
+		       __func__);
 		ret = -EINVAL;
 		goto free_cpuclk;
 	}
@@ -300,20 +285,19 @@ struct clk *rockchip_clk_register_cpuclk(const char *name,
 		goto free_cpuclk;
 	}
 
-	clk = __clk_lookup(parent_names[reg_data->mux_core_main]);
+	clk = __clk_lookup(parent_names[0]);
 	if (!clk) {
-		pr_err("%s: could not lookup parent clock: (%d) %s\n",
-		       __func__, reg_data->mux_core_main,
-		       parent_names[reg_data->mux_core_main]);
+		pr_err("%s: could not lookup parent clock %s\n",
+		       __func__, parent_names[0]);
 		ret = -EINVAL;
-		goto free_alt_parent;
+		goto free_cpuclk;
 	}
 
 	ret = clk_notifier_register(clk, &cpuclk->clk_nb);
 	if (ret) {
 		pr_err("%s: failed to register clock notifier for %s\n",
 				__func__, name);
-		goto free_alt_parent;
+		goto free_cpuclk;
 	}
 
 	if (nrates > 0) {
@@ -322,15 +306,17 @@ struct clk *rockchip_clk_register_cpuclk(const char *name,
 					     sizeof(*rates) * nrates,
 					     GFP_KERNEL);
 		if (!cpuclk->rate_table) {
+			pr_err("%s: could not allocate memory for cpuclk rates\n",
+			       __func__);
 			ret = -ENOMEM;
 			goto unregister_notifier;
 		}
 	}
 
 	cclk = clk_register(NULL, &cpuclk->hw);
-	if (IS_ERR(cclk)) {
+	if (IS_ERR(clk)) {
 		pr_err("%s: could not register cpuclk %s\n", __func__,	name);
-		ret = PTR_ERR(cclk);
+		ret = PTR_ERR(clk);
 		goto free_rate_table;
 	}
 
@@ -340,8 +326,6 @@ free_rate_table:
 	kfree(cpuclk->rate_table);
 unregister_notifier:
 	clk_notifier_unregister(clk, &cpuclk->clk_nb);
-free_alt_parent:
-	clk_disable_unprepare(cpuclk->alt_parent);
 free_cpuclk:
 	kfree(cpuclk);
 	return ERR_PTR(ret);

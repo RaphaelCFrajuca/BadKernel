@@ -51,8 +51,7 @@
 #define AS3711_ASIC_ID_1		0x90
 #define AS3711_ASIC_ID_2		0x91
 
-#define AS3711_MAX_REG		AS3711_ASIC_ID_2
-#define AS3711_NUM_REGS		(AS3711_MAX_REG + 1)
+#define AS3711_MAX_REGS			0x92
 
 /* Regulators */
 enum {
@@ -108,9 +107,9 @@ struct as3711_regulator_pdata {
 };
 
 struct as3711_bl_pdata {
-	bool su1_fb;
+	const char *su1_fb;
 	int su1_max_uA;
-	bool su2_fb;
+	const char *su2_fb;
 	int su2_max_uA;
 	enum as3711_su2_feedback su2_feedback;
 	enum as3711_su2_fbprot su2_fbprot;

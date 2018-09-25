@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  *  linux/fs/ufs/util.h
  *
@@ -284,7 +283,7 @@ extern struct page *ufs_get_locked_page(struct address_space *mapping,
 static inline void ufs_put_locked_page(struct page *page)
 {
        unlock_page(page);
-       put_page(page);
+       page_cache_release(page);
 }
 
 
@@ -351,11 +350,16 @@ static inline void *ubh_get_data_ptr(struct ufs_sb_private_info *uspi,
 #define ubh_blkmap(ubh,begin,bit) \
 	((*ubh_get_addr(ubh, (begin) + ((bit) >> 3)) >> ((bit) & 7)) & (0xff >> (UFS_MAXFRAG - uspi->s_fpb)))
 
+/*
+ * Determine the number of available frags given a
+ * percentage to hold in reserve.
+ */
 static inline u64
-ufs_freefrags(struct ufs_sb_private_info *uspi)
+ufs_freespace(struct ufs_sb_private_info *uspi, int percentreserved)
 {
 	return ufs_blkstofrags(uspi->cs_total.cs_nbfree) +
-		uspi->cs_total.cs_nffree;
+		uspi->cs_total.cs_nffree -
+		(uspi->s_dsize * (percentreserved) / 100);
 }
 
 /*

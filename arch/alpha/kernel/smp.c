@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *	linux/arch/alpha/kernel/smp.c
  *
@@ -15,7 +14,7 @@
 #include <linux/kernel.h>
 #include <linux/kernel_stat.h>
 #include <linux/module.h>
-#include <linux/sched/mm.h>
+#include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/err.h>
 #include <linux/threads.h>
@@ -116,7 +115,7 @@ wait_boot_cpu_to_stop(int cpuid)
 /*
  * Where secondaries begin a life of C.
  */
-void __init
+void
 smp_callin(void)
 {
 	int cpuid = hard_smp_processor_id();
@@ -145,7 +144,7 @@ smp_callin(void)
 		alpha_mv.smp_callin();
 
 	/* All kernel threads share the same mm context.  */
-	mmgrab(&init_mm);
+	atomic_inc(&init_mm.mm_count);
 	current->active_mm = &init_mm;
 
 	/* inform the notifiers about the new cpu */
@@ -169,7 +168,7 @@ smp_callin(void)
 	      cpuid, current, current->active_mm));
 
 	preempt_disable();
-	cpu_startup_entry(CPUHP_AP_ONLINE_IDLE);
+	cpu_startup_entry(CPUHP_ONLINE);
 }
 
 /* Wait until hwrpb->txrdy is clear for cpu.  Return -1 on timeout.  */

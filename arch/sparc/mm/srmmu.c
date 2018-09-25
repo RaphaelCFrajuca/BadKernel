@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * srmmu.c:  SRMMU specific routines for memory management.
  *
@@ -55,7 +54,6 @@
 enum mbus_module srmmu_modtype;
 static unsigned int hwbug_bitmask;
 int vac_cache_size;
-EXPORT_SYMBOL(vac_cache_size);
 int vac_line_size;
 
 extern struct resource sparc_iomap;
@@ -109,22 +107,17 @@ static inline int srmmu_pmd_none(pmd_t pmd)
 
 /* XXX should we hyper_flush_whole_icache here - Anton */
 static inline void srmmu_ctxd_set(ctxd_t *ctxp, pgd_t *pgdp)
-{
-	pte_t pte;
-
-	pte = __pte((SRMMU_ET_PTD | (__nocache_pa(pgdp) >> 4)));
-	set_pte((pte_t *)ctxp, pte);
-}
+{ set_pte((pte_t *)ctxp, (SRMMU_ET_PTD | (__nocache_pa((unsigned long) pgdp) >> 4))); }
 
 void pmd_set(pmd_t *pmdp, pte_t *ptep)
 {
 	unsigned long ptp;	/* Physical address, shifted right by 4 */
 	int i;
 
-	ptp = __nocache_pa(ptep) >> 4;
+	ptp = __nocache_pa((unsigned long) ptep) >> 4;
 	for (i = 0; i < PTRS_PER_PTE/SRMMU_REAL_PTRS_PER_PTE; i++) {
-		set_pte((pte_t *)&pmdp->pmdv[i], __pte(SRMMU_ET_PTD | ptp));
-		ptp += (SRMMU_REAL_PTRS_PER_PTE * sizeof(pte_t) >> 4);
+		set_pte((pte_t *)&pmdp->pmdv[i], SRMMU_ET_PTD | ptp);
+		ptp += (SRMMU_REAL_PTRS_PER_PTE*sizeof(pte_t) >> 4);
 	}
 }
 
@@ -135,8 +128,8 @@ void pmd_populate(struct mm_struct *mm, pmd_t *pmdp, struct page *ptep)
 
 	ptp = page_to_pfn(ptep) << (PAGE_SHIFT-4);	/* watch for overflow */
 	for (i = 0; i < PTRS_PER_PTE/SRMMU_REAL_PTRS_PER_PTE; i++) {
-		set_pte((pte_t *)&pmdp->pmdv[i], __pte(SRMMU_ET_PTD | ptp));
-		ptp += (SRMMU_REAL_PTRS_PER_PTE * sizeof(pte_t) >> 4);
+		set_pte((pte_t *)&pmdp->pmdv[i], SRMMU_ET_PTD | ptp);
+		ptp += (SRMMU_REAL_PTRS_PER_PTE*sizeof(pte_t) >> 4);
 	}
 }
 
@@ -918,7 +911,7 @@ void __init srmmu_paging_init(void)
 
 	/* ctx table has to be physically aligned to its size */
 	srmmu_context_table = __srmmu_get_nocache(num_contexts * sizeof(ctxd_t), num_contexts * sizeof(ctxd_t));
-	srmmu_ctx_table_phys = (ctxd_t *)__nocache_pa(srmmu_context_table);
+	srmmu_ctx_table_phys = (ctxd_t *)__nocache_pa((unsigned long)srmmu_context_table);
 
 	for (i = 0; i < num_contexts; i++)
 		srmmu_ctxd_set((ctxd_t *)__nocache_fix(&srmmu_context_table[i]), srmmu_swapper_pg_dir);
@@ -1446,7 +1439,7 @@ static void poke_viking(void)
 	srmmu_set_mmureg(mreg);
 }
 
-static struct sparc32_cachetlb_ops viking_ops __ro_after_init = {
+static struct sparc32_cachetlb_ops viking_ops = {
 	.cache_all	= viking_flush_cache_all,
 	.cache_mm	= viking_flush_cache_mm,
 	.cache_page	= viking_flush_cache_page,
@@ -1477,7 +1470,7 @@ static struct sparc32_cachetlb_ops viking_ops __ro_after_init = {
  * flushes going at once will require SMP locking anyways so there's
  * no real value in trying any harder than this.
  */
-static struct sparc32_cachetlb_ops viking_sun4d_smp_ops __ro_after_init = {
+static struct sparc32_cachetlb_ops viking_sun4d_smp_ops = {
 	.cache_all	= viking_flush_cache_all,
 	.cache_mm	= viking_flush_cache_mm,
 	.cache_page	= viking_flush_cache_page,
@@ -1761,7 +1754,7 @@ static void smp_flush_sig_insns(struct mm_struct *mm, unsigned long insn_addr)
 	local_ops->sig_insns(mm, insn_addr);
 }
 
-static struct sparc32_cachetlb_ops smp_cachetlb_ops __ro_after_init = {
+static struct sparc32_cachetlb_ops smp_cachetlb_ops = {
 	.cache_all	= smp_flush_cache_all,
 	.cache_mm	= smp_flush_cache_mm,
 	.cache_page	= smp_flush_cache_page,

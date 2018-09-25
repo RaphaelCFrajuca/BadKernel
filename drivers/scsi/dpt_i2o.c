@@ -37,7 +37,7 @@ MODULE_DESCRIPTION("Adaptec I2O RAID Driver");
 ////////////////////////////////////////////////////////////////
 
 #include <linux/ioctl.h>	/* For SCSI-Passthrough */
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
 #include <linux/stat.h>
 #include <linux/slab.h>		/* for kmalloc() */
@@ -302,14 +302,16 @@ rebuild_sys_tab:
 }
 
 
-static void adpt_release(adpt_hba *pHba)
+/*
+ * scsi_unregister will be called AFTER we return.
+ */
+static int adpt_release(struct Scsi_Host *host)
 {
-	struct Scsi_Host *shost = pHba->host;
-
-	scsi_remove_host(shost);
+	adpt_hba* pHba = (adpt_hba*) host->hostdata[0];
 //	adpt_i2o_quiesce_hba(pHba);
 	adpt_i2o_delete_hba(pHba);
-	scsi_host_put(shost);
+	scsi_unregister(host);
+	return 0;
 }
 
 
@@ -649,6 +651,7 @@ static u32 adpt_ioctl_to_context(adpt_hba * pHba, void *reply)
 	}
 	spin_unlock_irqrestore(pHba->host->host_lock, flags);
 	if (i >= nr) {
+		kfree (reply);
 		printk(KERN_WARNING"%s: Too many outstanding "
 				"ioctl commands\n", pHba->name);
 		return (u32)-1;
@@ -799,17 +802,14 @@ static int __adpt_reset(struct scsi_cmnd* cmd)
 {
 	adpt_hba* pHba;
 	int rcode;
-	char name[32];
-
 	pHba = (adpt_hba*)cmd->device->host->hostdata[0];
-	strncpy(name, pHba->name, sizeof(name));
-	printk(KERN_WARNING"%s: Hba Reset: scsi id %d: tid: %d\n", name, cmd->device->channel, pHba->channel[cmd->device->channel].tid);
+	printk(KERN_WARNING"%s: Hba Reset: scsi id %d: tid: %d\n",pHba->name,cmd->device->channel,pHba->channel[cmd->device->channel].tid );
 	rcode =  adpt_hba_reset(pHba);
 	if(rcode == 0){
-		printk(KERN_WARNING"%s: HBA reset complete\n", name);
+		printk(KERN_WARNING"%s: HBA reset complete\n",pHba->name);
 		return SUCCESS;
 	} else {
-		printk(KERN_WARNING"%s: HBA reset failed (%x)\n", name, rcode);
+		printk(KERN_WARNING"%s: HBA reset failed (%x)\n",pHba->name, rcode);
 		return FAILED;
 	}
 }
@@ -1088,6 +1088,8 @@ static void adpt_i2o_delete_hba(adpt_hba* pHba)
 
 
 	mutex_lock(&adpt_configuration_lock);
+	// scsi_unregister calls our adpt_release which
+	// does a quiese
 	if(pHba->host){
 		free_irq(pHba->host->irq, pHba);
 	}
@@ -1168,6 +1170,11 @@ static struct adpt_device* adpt_find_device(adpt_hba* pHba, u32 chan, u32 id, u6
 	if(chan < 0 || chan >= MAX_CHANNEL)
 		return NULL;
 	
+	if( pHba->channel[chan].device == NULL){
+		printk(KERN_DEBUG"Adaptec I2O RAID: Trying to find device before they are allocated\n");
+		return NULL;
+	}
+
 	d = pHba->channel[chan].device[id];
 	if(!d || d->tid == 0) {
 		return NULL;
@@ -1706,7 +1713,7 @@ static int adpt_i2o_passthru(adpt_hba* pHba, u32 __user *arg)
 	u32 reply_size = 0;
 	u32 __user *user_msg = arg;
 	u32 __user * user_reply = NULL;
-	void **sg_list = NULL;
+	void *sg_list[pHba->sg_tablesize];
 	u32 sg_offset = 0;
 	u32 sg_count = 0;
 	int sg_index = 0;
@@ -1747,24 +1754,18 @@ static int adpt_i2o_passthru(adpt_hba* pHba, u32 __user *arg)
 	sg_offset = (msg[0]>>4)&0xf;
 	msg[2] = 0x40000000; // IOCTL context
 	msg[3] = adpt_ioctl_to_context(pHba, reply);
-	if (msg[3] == (u32)-1) {
-		rcode = -EBUSY;
-		goto free;
-	}
+	if (msg[3] == (u32)-1)
+		return -EBUSY;
 
-	sg_list = kcalloc(pHba->sg_tablesize, sizeof(*sg_list), GFP_KERNEL);
-	if (!sg_list) {
-		rcode = -ENOMEM;
-		goto free;
-	}
+	memset(sg_list,0, sizeof(sg_list[0])*pHba->sg_tablesize);
 	if(sg_offset) {
 		// TODO add 64 bit API
 		struct sg_simple_element *sg =  (struct sg_simple_element*) (msg+sg_offset);
 		sg_count = (size - sg_offset*4) / sizeof(struct sg_simple_element);
 		if (sg_count > pHba->sg_tablesize){
 			printk(KERN_DEBUG"%s:IOCTL SG List too large (%u)\n", pHba->name,sg_count);
-			rcode = -EINVAL;
-			goto free;
+			kfree (reply);
+			return -EINVAL;
 		}
 
 		for(i = 0; i < sg_count; i++) {
@@ -1883,6 +1884,7 @@ cleanup:
 	if (rcode != -ETIME && rcode != -EINTR) {
 		struct sg_simple_element *sg =
 				(struct sg_simple_element*) (msg +sg_offset);
+		kfree (reply);
 		while(sg_index) {
 			if(sg_list[--sg_index]) {
 				dma_free_coherent(&pHba->pDev->dev,
@@ -1892,10 +1894,6 @@ cleanup:
 			}
 		}
 	}
-
-free:
-	kfree(sg_list);
-	kfree(reply);
 	return rcode;
 }
 
@@ -2058,16 +2056,13 @@ static int adpt_ioctl(struct inode *inode, struct file *file, uint cmd, ulong ar
 		}
 		break;
 		}
-	case I2ORESETCMD: {
-		struct Scsi_Host *shost = pHba->host;
-
-		if (shost)
-			spin_lock_irqsave(shost->host_lock, flags);
+	case I2ORESETCMD:
+		if(pHba->host)
+			spin_lock_irqsave(pHba->host->host_lock, flags);
 		adpt_hba_reset(pHba);
-		if (shost)
-			spin_unlock_irqrestore(shost->host_lock, flags);
+		if(pHba->host)
+			spin_unlock_irqrestore(pHba->host->host_lock, flags);
 		break;
-	}
 	case I2ORESCANCMD:
 		adpt_rescan(pHba);
 		break;
@@ -2772,12 +2767,16 @@ static int adpt_i2o_activate_hba(adpt_hba* pHba)
  
 static int adpt_i2o_online_hba(adpt_hba* pHba)
 {
-	if (adpt_i2o_systab_send(pHba) < 0)
+	if (adpt_i2o_systab_send(pHba) < 0) {
+		adpt_i2o_delete_hba(pHba);
 		return -1;
+	}
 	/* In READY state */
 
-	if (adpt_i2o_enable_hba(pHba) < 0)
+	if (adpt_i2o_enable_hba(pHba) < 0) {
+		adpt_i2o_delete_hba(pHba);
 		return -1;
+	}
 
 	/* In OPERATIONAL state  */
 	return 0;
@@ -3351,7 +3350,7 @@ static int adpt_i2o_query_scalar(adpt_hba* pHba, int tid,
 	if (opblk_va == NULL) {
 		dma_free_coherent(&pHba->pDev->dev, sizeof(u8) * (8+buflen),
 			resblk_va, resblk_pa);
-		printk(KERN_CRIT "%s: query operation failed; Out of memory.\n",
+		printk(KERN_CRIT "%s: query operatio failed; Out of memory.\n",
 			pHba->name);
 		return -ENOMEM;
 	}
@@ -3533,7 +3532,7 @@ static int adpt_i2o_systab_send(adpt_hba* pHba)
 #endif
 
 	return ret;	
-}
+ }
 
 
 /*============================================================================
@@ -3604,9 +3603,11 @@ static void __exit adpt_exit(void)
 {
 	adpt_hba	*pHba, *next;
 
+	for (pHba = hba_chain; pHba; pHba = pHba->next)
+		scsi_remove_host(pHba->host);
 	for (pHba = hba_chain; pHba; pHba = next) {
 		next = pHba->next;
-		adpt_release(pHba);
+		adpt_release(pHba->host);
 	}
 }
 

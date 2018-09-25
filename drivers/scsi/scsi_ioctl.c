@@ -12,7 +12,7 @@
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/string.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
 #include <scsi/scsi.h>
 #include <scsi/scsi_cmnd.h>
@@ -117,15 +117,13 @@ static int ioctl_internal_command(struct scsi_device *sdev, char *cmd,
 		case NOT_READY:	/* This happens if there is no disc in drive */
 			if (sdev->removable)
 				break;
-			/* FALLTHROUGH */
 		case UNIT_ATTENTION:
 			if (sdev->removable) {
 				sdev->changed = 1;
 				result = 0;	/* This is no longer considered an error */
 				break;
 			}
-			/* FALLTHROUGH -- for non-removable media */
-		default:
+		default:	/* Fall through for non-removable media */
 			sdev_printk(KERN_INFO, sdev,
 				    "ioctl_internal_command return code = %x\n",
 				    result);
@@ -398,7 +396,6 @@ int srpmb_scsi_ioctl(struct scsi_device *sdev, Rpmb_Req *req)
 int scsi_ioctl(struct scsi_device *sdev, int cmd, void __user *arg)
 {
 	char scsi_cmd[MAX_COMMAND_SIZE];
-	struct scsi_sense_hdr sense_hdr;
 
 	memset(scsi_cmd, 0x0, MAX_COMMAND_SIZE);
 
@@ -445,7 +442,7 @@ int scsi_ioctl(struct scsi_device *sdev, int cmd, void __user *arg)
 		return scsi_set_medium_removal(sdev, SCSI_REMOVAL_ALLOW);
 	case SCSI_IOCTL_TEST_UNIT_READY:
 		return scsi_test_unit_ready(sdev, IOCTL_NORMAL_TIMEOUT,
-					    NORMAL_RETRIES, &sense_hdr);
+					    NORMAL_RETRIES, NULL);
 	case SCSI_IOCTL_START_UNIT:
 		scsi_cmd[0] = START_STOP;
 		scsi_cmd[1] = 0;

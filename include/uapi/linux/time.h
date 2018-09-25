@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 #ifndef _UAPI_LINUX_TIME_H
 #define _UAPI_LINUX_TIME_H
 
@@ -42,25 +41,6 @@ struct itimerval {
 	struct timeval it_value;	/* current value */
 };
 
-#ifndef __kernel_timespec
-struct __kernel_timespec {
-	__kernel_time64_t       tv_sec;                 /* seconds */
-	long long               tv_nsec;                /* nanoseconds */
-};
-#endif
-
-/*
- * legacy timeval structure, only embedded in structures that
- * traditionally used 'timeval' to pass time intervals (not absolute
- * times). Do not add new users. If user space fails to compile
- * here, this is probably because it is not y2038 safe and needs to
- * be changed to use another interface.
- */
-struct __kernel_old_timeval {
-	__kernel_long_t tv_sec;
-	__kernel_long_t tv_usec;
-};
-
 /*
  * The IDs of the various system clocks (for POSIX.1b interval timers):
  */
@@ -74,11 +54,7 @@ struct __kernel_old_timeval {
 #define CLOCK_BOOTTIME			7
 #define CLOCK_REALTIME_ALARM		8
 #define CLOCK_BOOTTIME_ALARM		9
-/*
- * The driver implementing this got removed. The clock ID is kept as a
- * place holder. Do not reuse!
- */
-#define CLOCK_SGI_CYCLE			10
+#define CLOCK_SGI_CYCLE			10	/* Hardware specific */
 #define CLOCK_TAI			11
 
 #define MAX_CLOCKS			16

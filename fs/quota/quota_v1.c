@@ -56,9 +56,8 @@ static int v1_read_dqblk(struct dquot *dquot)
 {
 	int type = dquot->dq_id.type;
 	struct v1_disk_dqblk dqblk;
-	struct quota_info *dqopt = sb_dqopt(dquot->dq_sb);
 
-	if (!dqopt->files[type])
+	if (!sb_dqopt(dquot->dq_sb)->files[type])
 		return -EINVAL;
 
 	/* Set structure to 0s in case read fails/is after end of file */
@@ -161,7 +160,6 @@ static int v1_read_file_info(struct super_block *sb, int type)
 	struct v1_disk_dqblk dqblk;
 	int ret;
 
-	down_read(&dqopt->dqio_sem);
 	ret = sb->s_op->quota_read(sb, type, (char *)&dqblk,
 				sizeof(struct v1_disk_dqblk), v1_dqoff(0));
 	if (ret != sizeof(struct v1_disk_dqblk)) {
@@ -178,7 +176,6 @@ static int v1_read_file_info(struct super_block *sb, int type)
 	dqopt->info[type].dqi_bgrace =
 			dqblk.dqb_btime ? dqblk.dqb_btime : MAX_DQ_TIME;
 out:
-	up_read(&dqopt->dqio_sem);
 	return ret;
 }
 
@@ -188,7 +185,7 @@ static int v1_write_file_info(struct super_block *sb, int type)
 	struct v1_disk_dqblk dqblk;
 	int ret;
 
-	down_write(&dqopt->dqio_sem);
+	dqopt->info[type].dqi_flags &= ~DQF_INFO_DIRTY;
 	ret = sb->s_op->quota_read(sb, type, (char *)&dqblk,
 				sizeof(struct v1_disk_dqblk), v1_dqoff(0));
 	if (ret != sizeof(struct v1_disk_dqblk)) {
@@ -196,11 +193,8 @@ static int v1_write_file_info(struct super_block *sb, int type)
 			ret = -EIO;
 		goto out;
 	}
-	spin_lock(&dq_data_lock);
-	dqopt->info[type].dqi_flags &= ~DQF_INFO_DIRTY;
 	dqblk.dqb_itime = dqopt->info[type].dqi_igrace;
 	dqblk.dqb_btime = dqopt->info[type].dqi_bgrace;
-	spin_unlock(&dq_data_lock);
 	ret = sb->s_op->quota_write(sb, type, (char *)&dqblk,
 	      sizeof(struct v1_disk_dqblk), v1_dqoff(0));
 	if (ret == sizeof(struct v1_disk_dqblk))
@@ -208,7 +202,6 @@ static int v1_write_file_info(struct super_block *sb, int type)
 	else if (ret > 0)
 		ret = -EIO;
 out:
-	up_write(&dqopt->dqio_sem);
 	return ret;
 }
 

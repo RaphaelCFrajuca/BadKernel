@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Quicklist support.
  *
@@ -9,7 +8,7 @@
  * improved on it.
  *
  * Copyright (C) 2007 SGI,
- * 	Christoph Lameter <cl@linux.com>
+ * 	Christoph Lameter <clameter@sgi.com>
  * 		Generalized, added support for multiple lists and
  * 		constructors / destructors.
  */

@@ -56,6 +56,8 @@
 #include "yealink.h"
 
 #define DRIVER_VERSION "yld-20051230"
+#define DRIVER_AUTHOR "Henk Vergonet"
+#define DRIVER_DESC "Yealink phone driver"
 
 #define YEALINK_POLLING_FREQUENCY	10	/* in [Hz] */
 
@@ -796,7 +798,7 @@ static struct attribute *yld_attributes[] = {
 	NULL
 };
 
-static const struct attribute_group yld_attr_group = {
+static struct attribute_group yld_attr_group = {
 	.attrs = yld_attributes
 };
 
@@ -1004,6 +1006,6 @@ module_usb_driver(yealink_driver);
 
 MODULE_DEVICE_TABLE (usb, usb_table);
 
-MODULE_AUTHOR("Henk Vergonet");
-MODULE_DESCRIPTION("Yealink phone driver");
+MODULE_AUTHOR(DRIVER_AUTHOR);
+MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");

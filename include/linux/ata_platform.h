@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __LINUX_ATA_PLATFORM_H
 #define __LINUX_ATA_PLATFORM_H
 

@@ -188,7 +188,9 @@ static const struct file_operations ast_fops = {
 	.unlocked_ioctl = drm_ioctl,
 	.mmap = ast_mmap,
 	.poll = drm_poll,
+#ifdef CONFIG_COMPAT
 	.compat_ioctl = drm_compat_ioctl,
+#endif
 	.read = drm_read,
 };
 
@@ -197,6 +199,7 @@ static struct drm_driver driver = {
 
 	.load = ast_driver_load,
 	.unload = ast_driver_unload,
+	.set_busid = drm_pci_set_busid,
 
 	.fops = &ast_fops,
 	.name = DRIVER_NAME,
@@ -206,24 +209,27 @@ static struct drm_driver driver = {
 	.minor = DRIVER_MINOR,
 	.patchlevel = DRIVER_PATCHLEVEL,
 
-	.gem_free_object_unlocked = ast_gem_free_object,
+	.gem_free_object = ast_gem_free_object,
 	.dumb_create = ast_dumb_create,
 	.dumb_map_offset = ast_dumb_mmap_offset,
+	.dumb_destroy = drm_gem_dumb_destroy,
 
 };
 
 static int __init ast_init(void)
 {
+#ifdef CONFIG_VGA_CONSOLE
 	if (vgacon_text_force() && ast_modeset == -1)
 		return -EINVAL;
+#endif
 
 	if (ast_modeset == 0)
 		return -EINVAL;
-	return pci_register_driver(&ast_pci_driver);
+	return drm_pci_init(&driver, &ast_pci_driver);
 }
 static void __exit ast_exit(void)
 {
-	pci_unregister_driver(&ast_pci_driver);
+	drm_pci_exit(&driver, &ast_pci_driver);
 }
 
 module_init(ast_init);

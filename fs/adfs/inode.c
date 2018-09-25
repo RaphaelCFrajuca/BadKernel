@@ -199,7 +199,7 @@ adfs_adfs2unix_time(struct timespec *tv, struct inode *inode)
 	return;
 
  cur_time:
-	*tv = timespec64_to_timespec(current_time(inode));
+	*tv = CURRENT_TIME;
 	return;
 
  too_early:
@@ -242,7 +242,6 @@ adfs_unix2adfs_time(struct inode *inode, unsigned int secs)
 struct inode *
 adfs_iget(struct super_block *sb, struct object_info *obj)
 {
-	struct timespec ts;
 	struct inode *inode;
 
 	inode = new_inode(sb);
@@ -271,9 +270,7 @@ adfs_iget(struct super_block *sb, struct object_info *obj)
 	ADFS_I(inode)->stamped   = ((obj->loadaddr & 0xfff00000) == 0xfff00000);
 
 	inode->i_mode	 = adfs_atts2mode(sb, inode);
-	ts = timespec64_to_timespec(inode->i_mtime);
-	adfs_adfs2unix_time(&ts, inode);
-	inode->i_mtime = timespec_to_timespec64(ts);
+	adfs_adfs2unix_time(&inode->i_mtime, inode);
 	inode->i_atime = inode->i_mtime;
 	inode->i_ctime = inode->i_mtime;
 
@@ -306,7 +303,7 @@ adfs_notify_change(struct dentry *dentry, struct iattr *attr)
 	unsigned int ia_valid = attr->ia_valid;
 	int error;
 	
-	error = setattr_prepare(dentry, attr);
+	error = inode_change_ok(inode, attr);
 
 	/*
 	 * we can't change the UID or GID of any file -

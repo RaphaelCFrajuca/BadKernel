@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _PERF_UTIL_TRACE_EVENT_H
 #define _PERF_UTIL_TRACE_EVENT_H
 
@@ -24,8 +23,6 @@ int trace_event__register_resolver(struct machine *machine,
 struct event_format*
 trace_event__tp_format(const char *sys, const char *name);
 
-struct event_format *trace_event__tp_format_id(int id);
-
 int bigendian(void);
 
 void event_format__fprintf(struct event_format *event,
@@ -43,7 +40,6 @@ raw_field_value(struct event_format *event, const char *name, void *data);
 
 void parse_proc_kallsyms(struct pevent *pevent, char *file, unsigned int size);
 void parse_ftrace_printk(struct pevent *pevent, char *file, unsigned int size);
-void parse_saved_cmdline(struct pevent *pevent, char *file, unsigned int size);
 
 ssize_t trace_report(int fd, struct trace_event *tevent, bool repipe);
 
@@ -69,7 +65,6 @@ int tracing_data_put(struct tracing_data *tdata);
 struct addr_location;
 
 struct perf_session;
-struct perf_stat_config;
 
 struct scripting_ops {
 	const char *name;
@@ -80,9 +75,6 @@ struct scripting_ops {
 			       struct perf_sample *sample,
 			       struct perf_evsel *evsel,
 			       struct addr_location *al);
-	void (*process_stat)(struct perf_stat_config *config,
-			     struct perf_evsel *evsel, u64 tstamp);
-	void (*process_stat_interval)(u64 tstamp);
 	int (*generate_script) (struct pevent *pevent, const char *outfile);
 };
 

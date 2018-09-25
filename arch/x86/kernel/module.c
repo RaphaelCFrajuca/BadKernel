@@ -31,11 +31,9 @@
 #include <linux/jump_label.h>
 #include <linux/random.h>
 
-#include <asm/text-patching.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/setup.h>
-#include <asm/unwind.h>
 
 #if 0
 #define DEBUGP(fmt, ...)				\
@@ -86,7 +84,7 @@ void *module_alloc(unsigned long size)
 
 	p = __vmalloc_node_range(size, MODULE_ALIGN,
 				    MODULES_VADDR + get_module_load_offset(),
-				    MODULES_END, GFP_KERNEL,
+				    MODULES_END, GFP_KERNEL | __GFP_HIGHMEM,
 				    PAGE_KERNEL_EXEC, 0, NUMA_NO_NODE,
 				    __builtin_return_address(0));
 	if (p && (kasan_module_alloc(p, size) < 0)) {
@@ -228,7 +226,7 @@ int module_finalize(const Elf_Ehdr *hdr,
 		    struct module *me)
 {
 	const Elf_Shdr *s, *text = NULL, *alt = NULL, *locks = NULL,
-		*para = NULL, *orc = NULL, *orc_ip = NULL;
+		*para = NULL;
 	char *secstrings = (void *)hdr + sechdrs[hdr->e_shstrndx].sh_offset;
 
 	for (s = sechdrs; s < sechdrs + hdr->e_shnum; s++) {
@@ -240,10 +238,6 @@ int module_finalize(const Elf_Ehdr *hdr,
 			locks = s;
 		if (!strcmp(".parainstructions", secstrings + s->sh_name))
 			para = s;
-		if (!strcmp(".orc_unwind", secstrings + s->sh_name))
-			orc = s;
-		if (!strcmp(".orc_unwind_ip", secstrings + s->sh_name))
-			orc_ip = s;
 	}
 
 	if (alt) {
@@ -266,10 +260,6 @@ int module_finalize(const Elf_Ehdr *hdr,
 
 	/* make jump label nops */
 	jump_label_apply_nops(me);
-
-	if (orc && orc_ip)
-		unwind_module_init(me, (void *)orc_ip->sh_addr, orc_ip->sh_size,
-				   (void *)orc->sh_addr, orc->sh_size);
 
 	return 0;
 }

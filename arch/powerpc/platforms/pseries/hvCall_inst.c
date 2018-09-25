@@ -29,16 +29,6 @@
 #include <asm/trace.h>
 #include <asm/machdep.h>
 
-/* For hcall instrumentation. One structure per-hcall, per-CPU */
-struct hcall_stats {
-	unsigned long	num_calls;	/* number of calls (on this CPU) */
-	unsigned long	tb_total;	/* total wall time (mftb) of calls. */
-	unsigned long	purr_total;	/* total cpu time (PURR) of calls. */
-	unsigned long	tb_start;
-	unsigned long	purr_start;
-};
-#define HCALL_STAT_ARRAY_SIZE	((MAX_HCALL_OPCODE >> 2) + 1)
-
 DEFINE_PER_CPU(struct hcall_stats[HCALL_STAT_ARRAY_SIZE], hcall_stats);
 
 /*
@@ -125,7 +115,7 @@ static void probe_hcall_entry(void *ignored, unsigned long opcode, unsigned long
 	h->purr_start = mfspr(SPRN_PURR);
 }
 
-static void probe_hcall_exit(void *ignored, unsigned long opcode, long retval,
+static void probe_hcall_exit(void *ignored, unsigned long opcode, unsigned long retval,
 			     unsigned long *retbuf)
 {
 	struct hcall_stats *h;
@@ -163,7 +153,7 @@ static int __init hcall_inst_init(void)
 
 	for_each_possible_cpu(cpu) {
 		snprintf(cpu_name_buf, CPU_NAME_BUF_SIZE, "cpu%d", cpu);
-		hcall_file = debugfs_create_file(cpu_name_buf, 0444,
+		hcall_file = debugfs_create_file(cpu_name_buf, S_IRUGO,
 						 hcall_root,
 						 per_cpu(hcall_stats, cpu),
 						 &hcall_inst_seq_fops);

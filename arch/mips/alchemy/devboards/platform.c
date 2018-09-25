@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * devoard misc stuff.
  */
@@ -103,7 +102,7 @@ int __init db1x_register_pcmcia_socket(phys_addr_t pcmcia_attr_start,
 	if (stschg_irq)
 		cnt++;
 
-	sr = kcalloc(cnt, sizeof(struct resource), GFP_KERNEL);
+	sr = kzalloc(sizeof(struct resource) * cnt, GFP_KERNEL);
 	if (!sr)
 		return -ENOMEM;
 
@@ -178,7 +177,7 @@ int __init db1x_register_norflash(unsigned long size, int width,
 		return -EINVAL;
 
 	ret = -ENOMEM;
-	parts = kcalloc(5, sizeof(struct mtd_partition), GFP_KERNEL);
+	parts = kzalloc(sizeof(struct mtd_partition) * 5, GFP_KERNEL);
 	if (!parts)
 		goto out;
 

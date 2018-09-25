@@ -54,7 +54,7 @@
 #include <pcmcia/ciscode.h>
 #include <pcmcia/ds.h>
 
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/io.h>
 
 /*====================================================================*/
@@ -225,6 +225,7 @@ static const struct net_device_ops fjn_netdev_ops = {
 	.ndo_tx_timeout 	= fjn_tx_timeout,
 	.ndo_set_config 	= fjn_config,
 	.ndo_set_rx_mode	= set_rx_mode,
+	.ndo_change_mtu		= eth_change_mtu,
 	.ndo_set_mac_address 	= eth_mac_addr,
 	.ndo_validate_addr	= eth_validate_addr,
 };
@@ -468,8 +469,8 @@ static int fmvj18x_config(struct pcmcia_device *link)
 		    goto failed;
 	    }
 	    /* Read MACID from CIS */
-	    for (i = 0; i < 6; i++)
-		    dev->dev_addr[i] = buf[i + 5];
+	    for (i = 5; i < 11; i++)
+		    dev->dev_addr[i] = buf[i];
 	    kfree(buf);
 	} else {
 	    if (pcmcia_get_mac_from_cis(link, dev))
@@ -745,7 +746,7 @@ static irqreturn_t fjn_interrupt(int dummy, void *dev_id)
 	    lp->sent = lp->tx_queue ;
 	    lp->tx_queue = 0;
 	    lp->tx_queue_len = 0;
-	    netif_trans_update(dev);
+	    dev->trans_start = jiffies;
 	} else {
 	    lp->tx_started = 0;
 	}

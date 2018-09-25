@@ -7,8 +7,7 @@
  *  Free Software Foundation;  either version 2 of the	License, or (at your
  *  option) any later version.
  */
-#include <linux/export.h>
-#include <linux/init.h>
+#include <linux/module.h>
 
 #include <asm/wbflush.h>
 #include <asm/bootinfo.h>

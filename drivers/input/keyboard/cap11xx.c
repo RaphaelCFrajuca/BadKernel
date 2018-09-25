@@ -304,10 +304,8 @@ static int cap11xx_init_leds(struct device *dev,
 		led->cdev.brightness = LED_OFF;
 
 		error = of_property_read_u32(child, "reg", &reg);
-		if (error != 0 || reg >= num_leds) {
-			of_node_put(child);
+		if (error != 0 || reg >= num_leds)
 			return -EINVAL;
-		}
 
 		led->reg = reg;
 		led->priv = priv;
@@ -315,10 +313,8 @@ static int cap11xx_init_leds(struct device *dev,
 		INIT_WORK(&led->work, cap11xx_led_work);
 
 		error = devm_led_classdev_register(dev, &led->cdev);
-		if (error) {
-			of_node_put(child);
+		if (error)
 			return error;
-		}
 
 		priv->num_leds++;
 		led++;
@@ -357,7 +353,8 @@ static int cap11xx_i2c_probe(struct i2c_client *i2c_client,
 	}
 
 	priv = devm_kzalloc(dev,
-			    struct_size(priv, keycodes, cap->num_channels),
+			    sizeof(*priv) +
+				cap->num_channels * sizeof(priv->keycodes[0]),
 			    GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
@@ -391,6 +388,7 @@ static int cap11xx_i2c_probe(struct i2c_client *i2c_client,
 		return error;
 
 	dev_info(dev, "CAP11XX detected, revision 0x%02x\n", rev);
+	i2c_set_clientdata(i2c_client, priv);
 	node = dev->of_node;
 
 	if (!of_property_read_u32(node, "microchip,sensor-gain", &gain32)) {

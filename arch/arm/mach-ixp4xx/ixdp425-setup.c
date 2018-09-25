@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * arch/arm/mach-ixp4xx/ixdp425-setup.c
  *
@@ -15,10 +14,10 @@
 #include <linux/serial.h>
 #include <linux/tty.h>
 #include <linux/serial_8250.h>
-#include <linux/gpio/machine.h>
+#include <linux/i2c-gpio.h>
 #include <linux/io.h>
 #include <linux/mtd/mtd.h>
-#include <linux/mtd/rawnand.h>
+#include <linux/mtd/nand.h>
 #include <linux/mtd/partitions.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
@@ -77,8 +76,8 @@ static struct mtd_partition ixdp425_partitions[] = {
 static void
 ixdp425_flash_nand_cmd_ctrl(struct mtd_info *mtd, int cmd, unsigned int ctrl)
 {
-	struct nand_chip *this = mtd_to_nand(mtd);
-	int offset = (int)nand_get_controller_data(this);
+	struct nand_chip *this = mtd->priv;
+	int offset = (int)this->priv;
 
 	if (ctrl & NAND_CTRL_CHANGE) {
 		if (ctrl & NAND_NCE) {
@@ -89,7 +88,7 @@ ixdp425_flash_nand_cmd_ctrl(struct mtd_info *mtd, int cmd, unsigned int ctrl)
 
 		offset = (ctrl & NAND_CLE) ? IXDP425_NAND_CMD_BYTE : 0;
 		offset |= (ctrl & NAND_ALE) ? IXDP425_NAND_ADDR_BYTE : 0;
-		nand_set_controller_data(this, (void *)offset);
+		this->priv = (void *)offset;
 	}
 
 	if (cmd != NAND_CMD_NONE)
@@ -123,21 +122,16 @@ static struct platform_device ixdp425_flash_nand = {
 };
 #endif	/* CONFIG_MTD_NAND_PLATFORM */
 
-static struct gpiod_lookup_table ixdp425_i2c_gpiod_table = {
-	.dev_id		= "i2c-gpio.0",
-	.table		= {
-		GPIO_LOOKUP_IDX("IXP4XX_GPIO_CHIP", IXDP425_SDA_PIN,
-				NULL, 0, GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN),
-		GPIO_LOOKUP_IDX("IXP4XX_GPIO_CHIP", IXDP425_SCL_PIN,
-				NULL, 1, GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN),
-	},
+static struct i2c_gpio_platform_data ixdp425_i2c_gpio_data = {
+	.sda_pin	= IXDP425_SDA_PIN,
+	.scl_pin	= IXDP425_SCL_PIN,
 };
 
 static struct platform_device ixdp425_i2c_gpio = {
 	.name		= "i2c-gpio",
 	.id		= 0,
 	.dev	 = {
-		.platform_data	= NULL,
+		.platform_data	= &ixdp425_i2c_gpio_data,
 	},
 };
 
@@ -251,7 +245,6 @@ static void __init ixdp425_init(void)
 		ixdp425_uart_data[1].flags = 0;
 	}
 
-	gpiod_add_lookup_table(&ixdp425_i2c_gpiod_table);
 	platform_add_devices(ixdp425_devices, ARRAY_SIZE(ixdp425_devices));
 }
 

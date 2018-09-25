@@ -227,12 +227,12 @@ static int __init lasi_init_chip(struct parisc_device *dev)
 	return ret;
 }
 
-static struct parisc_device_id lasi_tbl[] __initdata = {
+static struct parisc_device_id lasi_tbl[] = {
 	{ HPHW_BA, HVERSION_REV_ANY_ID, HVERSION_ANY_ID, 0x00081 },
 	{ 0, }
 };
 
-struct parisc_driver lasi_driver __refdata = {
+struct parisc_driver lasi_driver = {
 	.name =		"lasi",
 	.id_table =	lasi_tbl,
 	.probe =	lasi_init_chip,

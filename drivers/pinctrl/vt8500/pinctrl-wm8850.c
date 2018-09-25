@@ -14,7 +14,7 @@
  */
 
 #include <linux/io.h>
-#include <linux/init.h>
+#include <linux/module.h>
 #include <linux/pinctrl/pinctrl.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
@@ -345,8 +345,10 @@ static int wm8850_pinctrl_probe(struct platform_device *pdev)
 	struct wmt_pinctrl_data *data;
 
 	data = devm_kzalloc(&pdev->dev, sizeof(*data), GFP_KERNEL);
-	if (!data)
+	if (!data) {
+		dev_err(&pdev->dev, "failed to allocate data\n");
 		return -ENOMEM;
+	}
 
 	data->banks = wm8850_banks;
 	data->nbanks = ARRAY_SIZE(wm8850_banks);
@@ -358,6 +360,11 @@ static int wm8850_pinctrl_probe(struct platform_device *pdev)
 	return wmt_pinctrl_probe(pdev, data);
 }
 
+static int wm8850_pinctrl_remove(struct platform_device *pdev)
+{
+	return wmt_pinctrl_remove(pdev);
+}
+
 static const struct of_device_id wmt_pinctrl_of_match[] = {
 	{ .compatible = "wm,wm8850-pinctrl" },
 	{ /* sentinel */ },
@@ -365,10 +372,16 @@ static const struct of_device_id wmt_pinctrl_of_match[] = {
 
 static struct platform_driver wmt_pinctrl_driver = {
 	.probe	= wm8850_pinctrl_probe,
+	.remove	= wm8850_pinctrl_remove,
 	.driver = {
 		.name	= "pinctrl-wm8850",
 		.of_match_table	= wmt_pinctrl_of_match,
-		.suppress_bind_attrs = true,
 	},
 };
-builtin_platform_driver(wmt_pinctrl_driver);
+
+module_platform_driver(wmt_pinctrl_driver);
+
+MODULE_AUTHOR("Tony Prisk <linux@prisktech.co.nz>");
+MODULE_DESCRIPTION("Wondermedia WM8850 Pincontrol driver");
+MODULE_LICENSE("GPL v2");
+MODULE_DEVICE_TABLE(of, wmt_pinctrl_of_match);

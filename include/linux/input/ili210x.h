@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ILI210X_H
 #define _ILI210X_H
 

@@ -16,6 +16,10 @@
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of
  *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  *   General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program; if not, write to the Free Software
+ *   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include <linux/slab.h>
@@ -24,7 +28,7 @@
 #include <linux/init.h>
 #include <asm/div64.h>
 
-#include <media/dvb_frontend.h>
+#include "dvb_frontend.h"
 #include "cx24123.h"
 
 #define XTAL 10111000
@@ -251,8 +255,8 @@ static int cx24123_i2c_writereg(struct cx24123_state *state,
 
 	err = i2c_transfer(state->i2c, &msg, 1);
 	if (err != 1) {
-		printk("%s: writereg error(err == %i, reg == 0x%02x, data == 0x%02x)\n",
-		       __func__, err, reg, data);
+		printk("%s: writereg error(err == %i, reg == 0x%02x,"
+			 " data == 0x%02x)\n", __func__, err, reg, data);
 		return err;
 	}
 
@@ -649,7 +653,7 @@ static int cx24123_pll_tune(struct dvb_frontend *fe)
 	dprintk("frequency=%i\n", p->frequency);
 
 	if (cx24123_pll_calculate(fe) != 0) {
-		err("%s: cx24123_pll_calculate failed\n", __func__);
+		err("%s: cx24123_pll_calcutate failed\n", __func__);
 		return -EINVAL;
 	}
 
@@ -941,9 +945,9 @@ static int cx24123_set_frontend(struct dvb_frontend *fe)
 	return 0;
 }
 
-static int cx24123_get_frontend(struct dvb_frontend *fe,
-				struct dtv_frontend_properties *p)
+static int cx24123_get_frontend(struct dvb_frontend *fe)
 {
+	struct dtv_frontend_properties *p = &fe->dtv_property_cache;
 	struct cx24123_state *state = fe->demodulator_priv;
 
 	dprintk("\n");
@@ -1005,7 +1009,7 @@ static int cx24123_tune(struct dvb_frontend *fe,
 	return retval;
 }
 
-static enum dvbfe_algo cx24123_get_algo(struct dvb_frontend *fe)
+static int cx24123_get_algo(struct dvb_frontend *fe)
 {
 	return DVBFE_ALGO_HW;
 }
@@ -1032,7 +1036,7 @@ static u32 cx24123_tuner_i2c_func(struct i2c_adapter *adapter)
 	return I2C_FUNC_I2C;
 }
 
-static const struct i2c_algorithm cx24123_tuner_i2c_algo = {
+static struct i2c_algorithm cx24123_tuner_i2c_algo = {
 	.master_xfer   = cx24123_tuner_i2c_tuner_xfer,
 	.functionality = cx24123_tuner_i2c_func,
 };
@@ -1045,7 +1049,7 @@ struct i2c_adapter *
 }
 EXPORT_SYMBOL(cx24123_get_tuner_i2c_adapter);
 
-static const struct dvb_frontend_ops cx24123_ops;
+static struct dvb_frontend_ops cx24123_ops;
 
 struct dvb_frontend *cx24123_attach(const struct cx24123_config *config,
 				    struct i2c_adapter *i2c)
@@ -1107,7 +1111,7 @@ error:
 }
 EXPORT_SYMBOL(cx24123_attach);
 
-static const struct dvb_frontend_ops cx24123_ops = {
+static struct dvb_frontend_ops cx24123_ops = {
 	.delsys = { SYS_DVBS },
 	.info = {
 		.name = "Conexant CX24123/CX24109",

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __KERN_LEVELS_H__
 #define __KERN_LEVELS_H__
 
@@ -33,7 +32,7 @@
  * line that had no enclosing \n). Only to be used by core/arch code
  * during early bootup (a continued line is not SMP-safe otherwise).
  */
-#define KERN_CONT	KERN_SOH "c"
+#define KERN_CONT	""
 
 /* integer equivalents of KERN_<LEVEL> */
 #define LOGLEVEL_SCHED		-2	/* Deferred messages from sched code

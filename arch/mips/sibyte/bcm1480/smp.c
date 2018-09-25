@@ -21,7 +21,6 @@
 #include <linux/smp.h>
 #include <linux/kernel_stat.h>
 #include <linux/sched.h>
-#include <linux/sched/task_stack.h>
 
 #include <asm/mmu_context.h>
 #include <asm/io.h>
@@ -117,7 +116,7 @@ static void bcm1480_smp_finish(void)
  * Setup the PC, SP, and GP of a secondary processor and start it
  * running!
  */
-static int bcm1480_boot_secondary(int cpu, struct task_struct *idle)
+static void bcm1480_boot_secondary(int cpu, struct task_struct *idle)
 {
 	int retval;
 
@@ -126,7 +125,6 @@ static int bcm1480_boot_secondary(int cpu, struct task_struct *idle)
 			       (unsigned long)task_thread_info(idle), 0);
 	if (retval != 0)
 		printk("cfe_start_cpu(%i) returned %i\n" , cpu, retval);
-	return retval;
 }
 
 /*
@@ -158,7 +156,7 @@ static void __init bcm1480_prepare_cpus(unsigned int max_cpus)
 {
 }
 
-const struct plat_smp_ops bcm1480_smp_ops = {
+struct plat_smp_ops bcm1480_smp_ops = {
 	.send_ipi_single	= bcm1480_send_ipi_single,
 	.send_ipi_mask		= bcm1480_send_ipi_mask,
 	.init_secondary		= bcm1480_init_secondary,

@@ -20,7 +20,6 @@
 #include <asm/firmware.h>
 
 #include "cacheinfo.h"
-#include "setup.h"
 
 #ifdef CONFIG_PPC64
 #include <asm/paca.h>
@@ -36,7 +35,7 @@ static DEFINE_PER_CPU(struct cpu, cpu_devices);
 #ifdef CONFIG_PPC64
 
 /* Time in microseconds we delay before sleeping in the idle loop */
-static DEFINE_PER_CPU(long, smt_snooze_delay) = { 100 };
+DEFINE_PER_CPU(long, smt_snooze_delay) = { 100 };
 
 static ssize_t store_smt_snooze_delay(struct device *dev,
 				      struct device_attribute *attr,
@@ -486,7 +485,6 @@ SYSFS_PMCSETUP(mmcra, SPRN_MMCRA);
 SYSFS_SPRSETUP(purr, SPRN_PURR);
 SYSFS_SPRSETUP(spurr, SPRN_SPURR);
 SYSFS_SPRSETUP(pir, SPRN_PIR);
-SYSFS_SPRSETUP(tscr, SPRN_TSCR);
 
 /*
   Lets only enable read for phyp resources and
@@ -497,7 +495,6 @@ static DEVICE_ATTR(mmcra, 0600, show_mmcra, store_mmcra);
 static DEVICE_ATTR(spurr, 0400, show_spurr, NULL);
 static DEVICE_ATTR(purr, 0400, show_purr, store_purr);
 static DEVICE_ATTR(pir, 0400, show_pir, NULL);
-static DEVICE_ATTR(tscr, 0600, show_tscr, store_tscr);
 
 /*
  * This is the system wide DSCR register default value. Any
@@ -589,18 +586,10 @@ static DEVICE_ATTR(dscr_default, 0600,
 
 static void sysfs_create_dscr_default(void)
 {
-	if (cpu_has_feature(CPU_FTR_DSCR)) {
-		int err = 0;
-		int cpu;
-
-		dscr_default = spr_default_dscr;
-		for_each_possible_cpu(cpu)
-			paca_ptrs[cpu]->dscr_default = dscr_default;
-
+	int err = 0;
+	if (cpu_has_feature(CPU_FTR_DSCR))
 		err = device_create_file(cpu_subsys.dev_root, &dev_attr_dscr_default);
-	}
 }
-
 #endif /* CONFIG_PPC64 */
 
 #ifdef HAS_PPC_PMC_PA6T
@@ -714,16 +703,12 @@ static struct device_attribute pa6t_attrs[] = {
 #endif /* HAS_PPC_PMC_PA6T */
 #endif /* HAS_PPC_PMC_CLASSIC */
 
-static int register_cpu_online(unsigned int cpu)
+static void register_cpu_online(unsigned int cpu)
 {
 	struct cpu *c = &per_cpu(cpu_devices, cpu);
 	struct device *s = &c->dev;
 	struct device_attribute *attrs, *pmc_attrs;
 	int i, nattrs;
-
-	/* For cpus present at boot a reference was already grabbed in register_cpu() */
-	if (!s->of_node)
-		s->of_node = of_get_cpu_node(cpu, NULL);
 
 #ifdef CONFIG_PPC64
 	if (cpu_has_feature(CPU_FTR_SMT))
@@ -785,10 +770,6 @@ static int register_cpu_online(unsigned int cpu)
 
 	if (cpu_has_feature(CPU_FTR_PPCAS_ARCH_V2))
 		device_create_file(s, &dev_attr_pir);
-
-	if (cpu_has_feature(CPU_FTR_ARCH_206) &&
-		!firmware_has_feature(FW_FEATURE_LPAR))
-		device_create_file(s, &dev_attr_tscr);
 #endif /* CONFIG_PPC64 */
 
 #ifdef CONFIG_PPC_FSL_BOOK3E
@@ -801,11 +782,10 @@ static int register_cpu_online(unsigned int cpu)
 	}
 #endif
 	cacheinfo_cpu_online(cpu);
-	return 0;
 }
 
 #ifdef CONFIG_HOTPLUG_CPU
-static int unregister_cpu_online(unsigned int cpu)
+static void unregister_cpu_online(unsigned int cpu)
 {
 	struct cpu *c = &per_cpu(cpu_devices, cpu);
 	struct device *s = &c->dev;
@@ -871,10 +851,6 @@ static int unregister_cpu_online(unsigned int cpu)
 
 	if (cpu_has_feature(CPU_FTR_PPCAS_ARCH_V2))
 		device_remove_file(s, &dev_attr_pir);
-
-	if (cpu_has_feature(CPU_FTR_ARCH_206) &&
-		!firmware_has_feature(FW_FEATURE_LPAR))
-		device_remove_file(s, &dev_attr_tscr);
 #endif /* CONFIG_PPC64 */
 
 #ifdef CONFIG_PPC_FSL_BOOK3E
@@ -887,13 +863,7 @@ static int unregister_cpu_online(unsigned int cpu)
 	}
 #endif
 	cacheinfo_cpu_offline(cpu);
-	of_node_put(s->of_node);
-	s->of_node = NULL;
-	return 0;
 }
-#else /* !CONFIG_HOTPLUG_CPU */
-#define unregister_cpu_online NULL
-#endif
 
 #ifdef CONFIG_ARCH_CPU_PROBE_RELEASE
 ssize_t arch_cpu_probe(const char *buf, size_t count)
@@ -912,6 +882,32 @@ ssize_t arch_cpu_release(const char *buf, size_t count)
 	return -EINVAL;
 }
 #endif /* CONFIG_ARCH_CPU_PROBE_RELEASE */
+
+#endif /* CONFIG_HOTPLUG_CPU */
+
+static int sysfs_cpu_notify(struct notifier_block *self,
+				      unsigned long action, void *hcpu)
+{
+	unsigned int cpu = (unsigned int)(long)hcpu;
+
+	switch (action) {
+	case CPU_ONLINE:
+	case CPU_ONLINE_FROZEN:
+		register_cpu_online(cpu);
+		break;
+#ifdef CONFIG_HOTPLUG_CPU
+	case CPU_DEAD:
+	case CPU_DEAD_FROZEN:
+		unregister_cpu_online(cpu);
+		break;
+#endif
+	}
+	return NOTIFY_OK;
+}
+
+static struct notifier_block sysfs_cpu_nb = {
+	.notifier_call	= sysfs_cpu_notify,
+};
 
 static DEFINE_MUTEX(cpu_mutex);
 
@@ -1027,9 +1023,11 @@ static DEVICE_ATTR(physical_id, 0444, show_physical_id, NULL);
 
 static int __init topology_init(void)
 {
-	int cpu, r;
+	int cpu;
 
 	register_nodes();
+
+	cpu_notifier_register_begin();
 
 	for_each_possible_cpu(cpu) {
 		struct cpu *c = &per_cpu(cpu_devices, cpu);
@@ -1049,10 +1047,15 @@ static int __init topology_init(void)
 
 			device_create_file(&c->dev, &dev_attr_physical_id);
 		}
+
+		if (cpu_online(cpu))
+			register_cpu_online(cpu);
 	}
-	r = cpuhp_setup_state(CPUHP_AP_ONLINE_DYN, "powerpc/topology:online",
-			      register_cpu_online, unregister_cpu_online);
-	WARN_ON(r < 0);
+
+	__register_cpu_notifier(&sysfs_cpu_nb);
+
+	cpu_notifier_register_done();
+
 #ifdef CONFIG_PPC64
 	sysfs_create_dscr_default();
 #endif /* CONFIG_PPC64 */

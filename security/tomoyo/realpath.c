@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * security/tomoyo/realpath.c
  *
@@ -174,7 +173,7 @@ static char *tomoyo_get_local_path(struct dentry *dentry, char * const buffer,
 		 * Use filesystem name if filesystem does not support rename()
 		 * operation.
 		 */
-		if (!inode->i_op->rename)
+		if (!inode->i_op->rename && !inode->i_op->rename2)
 			goto prepend_filesystem_name;
 	}
 	/* Prepend device name. */
@@ -284,7 +283,7 @@ char *tomoyo_realpath_from_path(const struct path *path)
 		 * or dentry without vfsmount.
 		 */
 		if (!path->mnt ||
-		    (!inode->i_op->rename))
+		    (!inode->i_op->rename && !inode->i_op->rename2))
 			pos = tomoyo_get_local_path(path->dentry, buf,
 						    buf_len - 1);
 		/* Get absolute name for the rest. */

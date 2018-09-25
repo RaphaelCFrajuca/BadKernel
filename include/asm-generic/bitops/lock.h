@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_GENERIC_BITOPS_LOCK_H_
 #define _ASM_GENERIC_BITOPS_LOCK_H_
 
@@ -7,8 +6,7 @@
  * @nr: Bit to set
  * @addr: Address to count from
  *
- * This operation is atomic and provides acquire barrier semantics if
- * the returned value is 0.
+ * This operation is atomic and provides acquire barrier semantics.
  * It can be used to implement bit locks.
  */
 #define test_and_set_bit_lock(nr, addr)	test_and_set_bit(nr, addr)

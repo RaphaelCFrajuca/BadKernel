@@ -182,14 +182,12 @@ static int ieee802154_sock_ioctl(struct socket *sock, unsigned int cmd,
 static HLIST_HEAD(raw_head);
 static DEFINE_RWLOCK(raw_lock);
 
-static int raw_hash(struct sock *sk)
+static void raw_hash(struct sock *sk)
 {
 	write_lock_bh(&raw_lock);
 	sk_add_node(sk, &raw_head);
 	sock_prot_inuse_add(sock_net(sk), sk->sk_prot, 1);
 	write_unlock_bh(&raw_lock);
-
-	return 0;
 }
 
 static void raw_unhash(struct sock *sk)
@@ -279,7 +277,7 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
 	pr_debug("name = %s, mtu = %u\n", dev->name, mtu);
 
 	if (size > mtu) {
-		pr_debug("size = %zu, mtu = %u\n", size, mtu);
+		pr_debug("size = %Zu, mtu = %u\n", size, mtu);
 		err = -EMSGSIZE;
 		goto out_dev;
 	}
@@ -301,6 +299,7 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
 		goto out_skb;
 
 	skb->dev = dev;
+	skb->sk  = sk;
 	skb->protocol = htons(ETH_P_IEEE802154);
 
 	err = dev_queue_xmit(skb);
@@ -423,7 +422,7 @@ static const struct proto_ops ieee802154_raw_ops = {
 	.socketpair	   = sock_no_socketpair,
 	.accept		   = sock_no_accept,
 	.getname	   = sock_no_getname,
-	.poll_mask	   = datagram_poll_mask,
+	.poll		   = datagram_poll,
 	.ioctl		   = ieee802154_sock_ioctl,
 	.listen		   = sock_no_listen,
 	.shutdown	   = sock_no_shutdown,
@@ -463,14 +462,12 @@ static inline struct dgram_sock *dgram_sk(const struct sock *sk)
 	return container_of(sk, struct dgram_sock, sk);
 }
 
-static int dgram_hash(struct sock *sk)
+static void dgram_hash(struct sock *sk)
 {
 	write_lock_bh(&dgram_lock);
 	sk_add_node(sk, &dgram_head);
 	sock_prot_inuse_add(sock_net(sk), sk->sk_prot, 1);
 	write_unlock_bh(&dgram_lock);
-
-	return 0;
 }
 
 static void dgram_unhash(struct sock *sk)
@@ -644,7 +641,7 @@ static int dgram_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
 	pr_debug("name = %s, mtu = %u\n", dev->name, mtu);
 
 	if (size > mtu) {
-		pr_debug("size = %zu, mtu = %u\n", size, mtu);
+		pr_debug("size = %Zu, mtu = %u\n", size, mtu);
 		err = -EMSGSIZE;
 		goto out_dev;
 	}
@@ -689,6 +686,7 @@ static int dgram_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
 		goto out_skb;
 
 	skb->dev = dev;
+	skb->sk  = sk;
 	skb->protocol = htons(ETH_P_IEEE802154);
 
 	err = dev_queue_xmit(skb);
@@ -969,7 +967,7 @@ static const struct proto_ops ieee802154_dgram_ops = {
 	.socketpair	   = sock_no_socketpair,
 	.accept		   = sock_no_accept,
 	.getname	   = sock_no_getname,
-	.poll_mask	   = datagram_poll_mask,
+	.poll		   = datagram_poll,
 	.ioctl		   = ieee802154_sock_ioctl,
 	.listen		   = sock_no_listen,
 	.shutdown	   = sock_no_shutdown,
@@ -1028,13 +1026,8 @@ static int ieee802154_create(struct net *net, struct socket *sock,
 	/* Checksums on by default */
 	sock_set_flag(sk, SOCK_ZAPPED);
 
-	if (sk->sk_prot->hash) {
-		rc = sk->sk_prot->hash(sk);
-		if (rc) {
-			sk_common_release(sk);
-			goto out;
-		}
-	}
+	if (sk->sk_prot->hash)
+		sk->sk_prot->hash(sk);
 
 	if (sk->sk_prot->init) {
 		rc = sk->sk_prot->init(sk);

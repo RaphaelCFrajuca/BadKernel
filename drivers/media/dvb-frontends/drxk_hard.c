@@ -13,8 +13,12 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * To obtain the license, point your browser to
- * http://www.gnu.org/copyleft/gpl.html
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA
+ * Or, point your browser to http://www.gnu.org/copyleft/gpl.html
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -29,10 +33,10 @@
 #include <linux/hardirq.h>
 #include <asm/div64.h>
 
-#include <media/dvb_frontend.h>
+#include "dvb_frontend.h"
 #include "drxk.h"
 #include "drxk_hard.h"
-#include <media/dvb_math.h>
+#include "dvb_math.h"
 
 static int power_down_dvbt(struct drxk_state *state, bool set_power_mode);
 static int power_down_qam(struct drxk_state *state);
@@ -207,9 +211,9 @@ static inline u32 log10times100(u32 value)
 	return (100L * intlog10(value)) >> 24;
 }
 
-/***************************************************************************/
+/****************************************************************************/
 /* I2C **********************************************************************/
-/***************************************************************************/
+/****************************************************************************/
 
 static int drxk_i2c_lock(struct drxk_state *state)
 {
@@ -1626,7 +1630,7 @@ static int ctrl_power_mode(struct drxk_state *state, enum drx_power_mode *mode)
 	}
 
 	if (*mode == DRX_POWER_UP) {
-		/* Restore analog & pin configuration */
+		/* Restore analog & pin configuartion */
 	} else {
 		/* Power down to requested mode */
 		/* Backup some register settings */
@@ -1904,9 +1908,7 @@ static int get_lock_status(struct drxk_state *state, u32 *p_lock_status)
 		status = get_dvbt_lock_status(state, p_lock_status);
 		break;
 	default:
-		pr_debug("Unsupported operation mode %d in %s\n",
-			state->m_operation_mode, __func__);
-		return 0;
+		break;
 	}
 error:
 	if (status < 0)
@@ -3271,12 +3273,10 @@ static int dvbt_sc_command(struct drxk_state *state,
 	case OFDM_SC_RA_RAM_CMD_PROGRAM_PARAM:
 		status |= write16(state, OFDM_SC_RA_RAM_PARAM1__A, param1);
 		/* All commands using 1 parameters */
-		/* fall through */
 	case OFDM_SC_RA_RAM_CMD_SET_ECHO_TIMING:
 	case OFDM_SC_RA_RAM_CMD_USER_IO:
 		status |= write16(state, OFDM_SC_RA_RAM_PARAM0__A, param0);
 		/* All commands using 0 parameters */
-		/* fall through */
 	case OFDM_SC_RA_RAM_CMD_GET_OP_PARAM:
 	case OFDM_SC_RA_RAM_CMD_NULL:
 		/* Write command */
@@ -3444,7 +3444,7 @@ error:
 
 /*============================================================================*/
 
-/*
+/**
 * \brief Activate DVBT specific presets
 * \param demod instance of demodulator.
 * \return DRXStatus_t.
@@ -3484,7 +3484,7 @@ error:
 
 /*============================================================================*/
 
-/*
+/**
 * \brief Initialize channelswitch-independent settings for DVBT.
 * \param demod instance of demodulator.
 * \return DRXStatus_t.
@@ -3696,7 +3696,7 @@ error:
 }
 
 /*============================================================================*/
-/*
+/**
 * \brief start dvbt demodulating for channel.
 * \param demod instance of demodulator.
 * \return DRXStatus_t.
@@ -3732,7 +3732,7 @@ error:
 
 /*============================================================================*/
 
-/*
+/**
 * \brief Set up dvbt demodulator for channel.
 * \param demod instance of demodulator.
 * \return DRXStatus_t.
@@ -3784,8 +3784,7 @@ static int set_dvbt(struct drxk_state *state, u16 intermediate_freqk_hz,
 	case TRANSMISSION_MODE_AUTO:
 	default:
 		operation_mode |= OFDM_SC_RA_RAM_OP_AUTO_MODE__M;
-		/* try first guess DRX_FFTMODE_8K */
-		/* fall through */
+		/* fall through , try first guess DRX_FFTMODE_8K */
 	case TRANSMISSION_MODE_8K:
 		transmission_params |= OFDM_SC_RA_RAM_OP_PARAM_MODE_8K;
 		break;
@@ -3799,8 +3798,7 @@ static int set_dvbt(struct drxk_state *state, u16 intermediate_freqk_hz,
 	default:
 	case GUARD_INTERVAL_AUTO:
 		operation_mode |= OFDM_SC_RA_RAM_OP_AUTO_GUARD__M;
-		/* try first guess DRX_GUARD_1DIV4 */
-		/* fall through */
+		/* fall through , try first guess DRX_GUARD_1DIV4 */
 	case GUARD_INTERVAL_1_4:
 		transmission_params |= OFDM_SC_RA_RAM_OP_PARAM_GUARD_4;
 		break;
@@ -3821,9 +3819,9 @@ static int set_dvbt(struct drxk_state *state, u16 intermediate_freqk_hz,
 	case HIERARCHY_NONE:
 	default:
 		operation_mode |= OFDM_SC_RA_RAM_OP_AUTO_HIER__M;
-		/* try first guess SC_RA_RAM_OP_PARAM_HIER_NO */
+		/* fall through , try first guess SC_RA_RAM_OP_PARAM_HIER_NO */
 		/* transmission_params |= OFDM_SC_RA_RAM_OP_PARAM_HIER_NO; */
-		/* fall through */
+		/* break; */
 	case HIERARCHY_1:
 		transmission_params |= OFDM_SC_RA_RAM_OP_PARAM_HIER_A1;
 		break;
@@ -3841,8 +3839,7 @@ static int set_dvbt(struct drxk_state *state, u16 intermediate_freqk_hz,
 	case QAM_AUTO:
 	default:
 		operation_mode |= OFDM_SC_RA_RAM_OP_AUTO_CONST__M;
-		/* try first guess DRX_CONSTELLATION_QAM64 */
-		/* fall through */
+		/* fall through , try first guess DRX_CONSTELLATION_QAM64 */
 	case QAM_64:
 		transmission_params |= OFDM_SC_RA_RAM_OP_PARAM_CONST_QAM64;
 		break;
@@ -3885,8 +3882,7 @@ static int set_dvbt(struct drxk_state *state, u16 intermediate_freqk_hz,
 	case FEC_AUTO:
 	default:
 		operation_mode |= OFDM_SC_RA_RAM_OP_AUTO_RATE__M;
-		/* try first guess DRX_CODERATE_2DIV3 */
-		/* fall through */
+		/* fall through , try first guess DRX_CODERATE_2DIV3 */
 	case FEC_2_3:
 		transmission_params |= OFDM_SC_RA_RAM_OP_PARAM_RATE_2_3;
 		break;
@@ -3920,7 +3916,7 @@ static int set_dvbt(struct drxk_state *state, u16 intermediate_freqk_hz,
 	switch (state->props.bandwidth_hz) {
 	case 0:
 		state->props.bandwidth_hz = 8000000;
-		/* fall through */
+		/* fall though */
 	case 8000000:
 		bandwidth = DRXK_BANDWIDTH_8MHZ_IN_HZ;
 		status = write16(state, OFDM_SC_RA_RAM_SRMM_FIX_FACT_8K__A,
@@ -4086,7 +4082,7 @@ error:
 
 /*============================================================================*/
 
-/*
+/**
 * \brief Retrieve lock status .
 * \param demod    Pointer to demodulator instance.
 * \param lockStat Pointer to lock status structure.
@@ -4148,7 +4144,7 @@ static int power_up_qam(struct drxk_state *state)
 }
 
 
-/* Power Down QAM */
+/** Power Down QAM */
 static int power_down_qam(struct drxk_state *state)
 {
 	u16 data = 0;
@@ -4186,7 +4182,7 @@ error:
 
 /*============================================================================*/
 
-/*
+/**
 * \brief Setup of the QAM Measurement intervals for signal quality
 * \param demod instance of demod.
 * \param modulation current modulation.
@@ -4461,7 +4457,7 @@ error:
 
 /*============================================================================*/
 
-/*
+/**
 * \brief QAM32 specific setup
 * \param demod instance of demod.
 * \return DRXStatus_t.
@@ -4657,7 +4653,7 @@ error:
 
 /*============================================================================*/
 
-/*
+/**
 * \brief QAM64 specific setup
 * \param demod instance of demod.
 * \return DRXStatus_t.
@@ -4852,7 +4848,7 @@ error:
 
 /*============================================================================*/
 
-/*
+/**
 * \brief QAM128 specific setup
 * \param demod: instance of demod.
 * \return DRXStatus_t.
@@ -5049,7 +5045,7 @@ error:
 
 /*============================================================================*/
 
-/*
+/**
 * \brief QAM256 specific setup
 * \param demod: instance of demod.
 * \return DRXStatus_t.
@@ -5244,7 +5240,7 @@ error:
 
 
 /*============================================================================*/
-/*
+/**
 * \brief Reset QAM block.
 * \param demod:   instance of demod.
 * \param channel: pointer to channel data.
@@ -5272,7 +5268,7 @@ error:
 
 /*============================================================================*/
 
-/*
+/**
 * \brief Set QAM symbolrate.
 * \param demod:   instance of demod.
 * \param channel: pointer to channel data.
@@ -5291,6 +5287,7 @@ static int qam_set_symbolrate(struct drxk_state *state)
 	/* Select & calculate correct IQM rate */
 	adc_frequency = (state->m_sys_clock_freq * 1000) / 3;
 	ratesel = 0;
+	/* printk(KERN_DEBUG "drxk: SR %d\n", state->props.symbol_rate); */
 	if (state->props.symbol_rate <= 1188750)
 		ratesel = 3;
 	else if (state->props.symbol_rate <= 2377500)
@@ -5341,7 +5338,7 @@ error:
 
 /*============================================================================*/
 
-/*
+/**
 * \brief Get QAM lock status.
 * \param demod:   instance of demod.
 * \param channel: pointer to channel data.
@@ -6062,7 +6059,7 @@ static int init_drxk(struct drxk_state *state)
 	u16 driver_version;
 
 	dprintk(1, "\n");
-	if (state->m_drxk_state == DRXK_UNINITIALIZED) {
+	if ((state->m_drxk_state == DRXK_UNINITIALIZED)) {
 		drxk_i2c_lock(state);
 		status = power_up_device(state);
 		if (status < 0)
@@ -6451,7 +6448,7 @@ static int get_strength(struct drxk_state *state, u64 *strength)
 			return status;
 
 		/* SCU c.o.c. */
-		status = read16(state, SCU_RAM_AGC_RF_IACCU_HI_CO__A, &scu_coc);
+		read16(state, SCU_RAM_AGC_RF_IACCU_HI_CO__A, &scu_coc);
 		if (status < 0)
 			return status;
 
@@ -6740,7 +6737,7 @@ static int drxk_get_tune_settings(struct dvb_frontend *fe,
 	}
 }
 
-static const struct dvb_frontend_ops drxk_ops = {
+static struct dvb_frontend_ops drxk_ops = {
 	/* .delsys will be filled dynamically */
 	.info = {
 		.name = "DRXK",

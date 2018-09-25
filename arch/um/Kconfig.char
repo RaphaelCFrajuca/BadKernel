@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 menu "UML Character Devices"
 
 config STDERR_CONSOLE

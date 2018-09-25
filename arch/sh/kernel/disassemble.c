@@ -12,8 +12,6 @@
 #include <linux/string.h>
 #include <linux/uaccess.h>
 
-#include <asm/ptrace.h>
-
 /*
  * Format of an instruction in memory.
  */

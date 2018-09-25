@@ -13,6 +13,10 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *
  *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include "au0828.h"
@@ -153,7 +157,7 @@ static void hauppauge_eeprom(struct au0828_dev *dev, u8 *eeprom_data)
 {
 	struct tveeprom tv;
 
-	tveeprom_hauppauge_analog(&tv, eeprom_data);
+	tveeprom_hauppauge_analog(&dev->i2c_client, &tv, eeprom_data);
 	dev->board.tuner_type = tv.tuner_type;
 
 	/* Make sure we support the board model */

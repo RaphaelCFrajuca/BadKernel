@@ -36,10 +36,6 @@
 #include <asm/irqflags-compact.h>
 #include <asm/thread_info.h>	/* For THREAD_SIZE */
 
-#ifdef CONFIG_ARC_PLAT_EZNPS
-#include <plat/ctop.h>
-#endif
-
 /*--------------------------------------------------------------
  * Switch to Kernel Mode stack if SP points to User Mode stack
  *
@@ -76,8 +72,8 @@
 	 * We need to be a bit more cautious here. What if a kernel bug in
 	 * L1 ISR, caused SP to go whaco (some small value which looks like
 	 * USER stk) and then we take L2 ISR.
-	 * Above brlo alone would treat it as a valid L1-L2 scenario
-	 * instead of shouting around
+	 * Above brlo alone would treat it as a valid L1-L2 sceanrio
+	 * instead of shouting alound
 	 * The only feasible way is to make sure this L2 happened in
 	 * L1 prelogue ONLY i.e. ilink2 is less than a pre-set marker in
 	 * L1 ISR before it switches stack
@@ -192,12 +188,6 @@
 	PUSHAX	lp_start
 	PUSHAX	erbta
 
-#ifdef CONFIG_ARC_PLAT_EZNPS
-	.word CTOP_INST_SCHD_RW
-	PUSHAX  CTOP_AUX_GPA1
-	PUSHAX  CTOP_AUX_EFLAGS
-#endif
-
 	lr	r9, [ecr]
 	st      r9, [sp, PT_event]    /* EV_Trap expects r9 to have ECR */
 .endm
@@ -214,12 +204,6 @@
  * by hardware and that is not good.
  *-------------------------------------------------------------*/
 .macro EXCEPTION_EPILOGUE
-#ifdef CONFIG_ARC_PLAT_EZNPS
-	.word CTOP_INST_SCHD_RW
-	POPAX   CTOP_AUX_EFLAGS
-	POPAX   CTOP_AUX_GPA1
-#endif
-
 	POPAX	erbta
 	POPAX	lp_start
 	POPAX	lp_end
@@ -247,7 +231,7 @@
 	/* free up r9 as scratchpad */
 	PROLOG_FREEUP_REG r9, @int\LVL\()_saved_reg
 
-	/* Which mode (user/kernel) was the system in when intr occurred */
+	/* Which mode (user/kernel) was the system in when intr occured */
 	lr  r9, [status32_l\LVL\()]
 
 	SWITCH_TO_KERNEL_STK
@@ -277,12 +261,6 @@
 	PUSHAX	lp_end
 	PUSHAX	lp_start
 	PUSHAX	bta_l\LVL\()
-
-#ifdef CONFIG_ARC_PLAT_EZNPS
-	.word CTOP_INST_SCHD_RW
-	PUSHAX  CTOP_AUX_GPA1
-	PUSHAX  CTOP_AUX_EFLAGS
-#endif
 .endm
 
 /*--------------------------------------------------------------
@@ -295,12 +273,6 @@
  * by hardware and that is not good.
  *-------------------------------------------------------------*/
 .macro INTERRUPT_EPILOGUE  LVL
-#ifdef CONFIG_ARC_PLAT_EZNPS
-	.word CTOP_INST_SCHD_RW
-	POPAX   CTOP_AUX_EFLAGS
-	POPAX   CTOP_AUX_GPA1
-#endif
-
 	POPAX	bta_l\LVL\()
 	POPAX	lp_start
 	POPAX	lp_end
@@ -324,13 +296,11 @@
 	bic \reg, sp, (THREAD_SIZE - 1)
 .endm
 
-#ifndef CONFIG_ARC_PLAT_EZNPS
 /* Get CPU-ID of this core */
 .macro  GET_CPU_ID  reg
 	lr  \reg, [identity]
 	lsr \reg, \reg, 8
 	bmsk \reg, \reg, 7
 .endm
-#endif
 
 #endif  /* __ASM_ARC_ENTRY_COMPACT_H */

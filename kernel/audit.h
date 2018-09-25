@@ -23,7 +23,6 @@
 #include <linux/audit.h>
 #include <linux/skbuff.h>
 #include <uapi/linux/mqueue.h>
-#include <linux/tty.h>
 
 /* AUDIT_NAMES is the number of slots we reserve in the audit_context
  * for saving names from getname().  If we get more names we will allocate
@@ -68,7 +67,6 @@ struct audit_cap_data {
 		unsigned int	fE;		/* effective bit of file cap */
 		kernel_cap_t	effective;	/* effective set of process */
 	};
-	kernel_cap_t		ambient;
 };
 
 /* When fs/namei.c:getname() is called, we store the pointer in name and bump
@@ -113,7 +111,7 @@ struct audit_context {
 	enum audit_state    state, current_state;
 	unsigned int	    serial;     /* serial number for record */
 	int		    major;      /* syscall number */
-	struct timespec64   ctime;      /* time of syscall entry */
+	struct timespec	    ctime;      /* time of syscall entry */
 	unsigned long	    argv[4];    /* syscall arguments */
 	long		    return_code;/* syscall return code */
 	u64		    prio;
@@ -182,7 +180,7 @@ struct audit_context {
 			mqd_t			mqdes;
 			size_t			msg_len;
 			unsigned int		msg_prio;
-			struct timespec64	abs_timeout;
+			struct timespec		abs_timeout;
 		} mq_sendrecv;
 		struct {
 			int			oflag;
@@ -200,26 +198,23 @@ struct audit_context {
 		struct {
 			int			argc;
 		} execve;
-		struct {
-			char			*name;
-		} module;
 	};
 	int fds[2];
 	struct audit_proctitle proctitle;
 };
 
-extern bool audit_ever_enabled;
+extern u32 audit_ever_enabled;
 
 extern void audit_copy_inode(struct audit_names *name,
 			     const struct dentry *dentry,
-			     struct inode *inode);
+			     const struct inode *inode);
 extern void audit_log_cap(struct audit_buffer *ab, char *prefix,
 			  kernel_cap_t *cap);
 extern void audit_log_name(struct audit_context *context,
-			   struct audit_names *n, const struct path *path,
+			   struct audit_names *n, struct path *path,
 			   int record_num, int *call_panic);
 
-extern int auditd_test_task(struct task_struct *task);
+extern int audit_pid;
 
 #define AUDIT_INODE_BUCKETS	32
 extern struct list_head audit_inode_hash[AUDIT_INODE_BUCKETS];
@@ -238,7 +233,8 @@ extern int audit_uid_comparator(kuid_t left, u32 op, kuid_t right);
 extern int audit_gid_comparator(kgid_t left, u32 op, kgid_t right);
 extern int parent_len(const char *path);
 extern int audit_compare_dname_path(const char *dname, const char *path, int plen);
-extern struct sk_buff *audit_make_reply(int seq, int type, int done, int multi,
+extern struct sk_buff *audit_make_reply(__u32 portid, int seq, int type,
+					int done, int multi,
 					const void *payload, int size);
 extern void		    audit_panic(const char *message);
 
@@ -248,22 +244,23 @@ struct audit_netlink_list {
 	struct sk_buff_head q;
 };
 
-int audit_send_list(void *_dest);
+int audit_send_list(void *);
+
+struct audit_net {
+	struct sock *nlsk;
+};
 
 extern int selinux_audit_rule_update(void);
 
 extern struct mutex audit_filter_mutex;
-extern int audit_del_rule(struct audit_entry *entry);
-extern void audit_free_rule_rcu(struct rcu_head *head);
+extern int audit_del_rule(struct audit_entry *);
+extern void audit_free_rule_rcu(struct rcu_head *);
 extern struct list_head audit_filter_list[];
 
 extern struct audit_entry *audit_dupe_rule(struct audit_krule *old);
 
 extern void audit_log_d_path_exe(struct audit_buffer *ab,
 				 struct mm_struct *mm);
-
-extern struct tty_struct *audit_get_tty(struct task_struct *tsk);
-extern void audit_put_tty(struct tty_struct *tty);
 
 /* audit watch functions */
 #ifdef CONFIG_AUDIT_WATCH
@@ -302,17 +299,17 @@ extern int audit_exe_compare(struct task_struct *tsk, struct audit_fsnotify_mark
 #endif /* CONFIG_AUDIT_WATCH */
 
 #ifdef CONFIG_AUDIT_TREE
-extern struct audit_chunk *audit_tree_lookup(const struct inode *inode);
-extern void audit_put_chunk(struct audit_chunk *chunk);
-extern bool audit_tree_match(struct audit_chunk *chunk, struct audit_tree *tree);
-extern int audit_make_tree(struct audit_krule *rule, char *pathname, u32 op);
-extern int audit_add_tree_rule(struct audit_krule *rule);
-extern int audit_remove_tree_rule(struct audit_krule *rule);
+extern struct audit_chunk *audit_tree_lookup(const struct inode *);
+extern void audit_put_chunk(struct audit_chunk *);
+extern bool audit_tree_match(struct audit_chunk *, struct audit_tree *);
+extern int audit_make_tree(struct audit_krule *, char *, u32);
+extern int audit_add_tree_rule(struct audit_krule *);
+extern int audit_remove_tree_rule(struct audit_krule *);
 extern void audit_trim_trees(void);
 extern int audit_tag_tree(char *old, char *new);
-extern const char *audit_tree_path(struct audit_tree *tree);
-extern void audit_put_tree(struct audit_tree *tree);
-extern void audit_kill_trees(struct list_head *list);
+extern const char *audit_tree_path(struct audit_tree *);
+extern void audit_put_tree(struct audit_tree *);
+extern void audit_kill_trees(struct list_head *);
 #else
 #define audit_remove_tree_rule(rule) BUG()
 #define audit_add_tree_rule(rule) -EINVAL
@@ -324,22 +321,26 @@ extern void audit_kill_trees(struct list_head *list);
 #define audit_kill_trees(list) BUG()
 #endif
 
-extern char *audit_unpack_string(void **bufp, size_t *remain, size_t len);
+extern char *audit_unpack_string(void **, size_t *, size_t);
 
 extern pid_t audit_sig_pid;
 extern kuid_t audit_sig_uid;
 extern u32 audit_sig_sid;
 
-extern int audit_filter(int msgtype, unsigned int listtype);
-
 #ifdef CONFIG_AUDITSYSCALL
-extern int audit_signal_info(int sig, struct task_struct *t);
-extern void audit_filter_inodes(struct task_struct *tsk, struct audit_context *ctx);
+extern int __audit_signal_info(int sig, struct task_struct *t);
+static inline int audit_signal_info(int sig, struct task_struct *t)
+{
+	if (unlikely((audit_pid && t->tgid == audit_pid) ||
+		     (audit_signals && !audit_dummy_context())))
+		return __audit_signal_info(sig, t);
+	return 0;
+}
+extern void audit_filter_inodes(struct task_struct *, struct audit_context *);
 extern struct list_head *audit_killed_trees(void);
 #else
 #define audit_signal_info(s,t) AUDIT_DISABLED
 #define audit_filter_inodes(t,c) AUDIT_DISABLED
 #endif
 
-extern void audit_ctl_lock(void);
-extern void audit_ctl_unlock(void);
+extern struct mutex audit_cmd_mutex;

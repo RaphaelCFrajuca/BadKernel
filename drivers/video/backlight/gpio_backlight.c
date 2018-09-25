@@ -9,8 +9,7 @@
 #include <linux/backlight.h>
 #include <linux/err.h>
 #include <linux/fb.h>
-#include <linux/gpio.h> /* Only for legacy support */
-#include <linux/gpio/consumer.h>
+#include <linux/gpio.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -24,7 +23,8 @@ struct gpio_backlight {
 	struct device *dev;
 	struct device *fbdev;
 
-	struct gpio_desc *gpiod;
+	int gpio;
+	int active;
 	int def_value;
 };
 
@@ -38,7 +38,8 @@ static int gpio_backlight_update_status(struct backlight_device *bl)
 	    bl->props.state & (BL_CORE_SUSPENDED | BL_CORE_FBBLANK))
 		brightness = 0;
 
-	gpiod_set_value_cansleep(gbl->gpiod, brightness);
+	gpio_set_value_cansleep(gbl->gpio,
+				brightness ? gbl->active : !gbl->active);
 
 	return 0;
 }
@@ -60,24 +61,22 @@ static const struct backlight_ops gpio_backlight_ops = {
 static int gpio_backlight_probe_dt(struct platform_device *pdev,
 				   struct gpio_backlight *gbl)
 {
-	struct device *dev = &pdev->dev;
-	struct device_node *np = dev->of_node;
-	enum gpiod_flags flags;
-	int ret;
+	struct device_node *np = pdev->dev.of_node;
+	enum of_gpio_flags gpio_flags;
 
-	gbl->def_value = of_property_read_bool(np, "default-on");
-	flags = gbl->def_value ? GPIOD_OUT_HIGH : GPIOD_OUT_LOW;
+	gbl->gpio = of_get_gpio_flags(np, 0, &gpio_flags);
 
-	gbl->gpiod = devm_gpiod_get(dev, NULL, flags);
-	if (IS_ERR(gbl->gpiod)) {
-		ret = PTR_ERR(gbl->gpiod);
-
-		if (ret != -EPROBE_DEFER) {
-			dev_err(dev,
+	if (!gpio_is_valid(gbl->gpio)) {
+		if (gbl->gpio != -EPROBE_DEFER) {
+			dev_err(&pdev->dev,
 				"Error: The gpios parameter is missing or invalid.\n");
 		}
-		return ret;
+		return gbl->gpio;
 	}
+
+	gbl->active = (gpio_flags & OF_GPIO_ACTIVE_LOW) ? 0 : 1;
+
+	gbl->def_value = of_property_read_bool(np, "default-on");
 
 	return 0;
 }
@@ -109,26 +108,19 @@ static int gpio_backlight_probe(struct platform_device *pdev)
 		if (ret)
 			return ret;
 	} else {
-		/*
-		 * Legacy platform data GPIO retrieveal. Do not expand
-		 * the use of this code path, currently only used by one
-		 * SH board.
-		 */
-		unsigned long flags = GPIOF_DIR_OUT;
-
 		gbl->fbdev = pdata->fbdev;
+		gbl->gpio = pdata->gpio;
+		gbl->active = pdata->active_low ? 0 : 1;
 		gbl->def_value = pdata->def_value;
-		flags |= gbl->def_value ? GPIOF_INIT_HIGH : GPIOF_INIT_LOW;
+	}
 
-		ret = devm_gpio_request_one(gbl->dev, pdata->gpio, flags,
-					    pdata ? pdata->name : "backlight");
-		if (ret < 0) {
-			dev_err(&pdev->dev, "unable to request GPIO\n");
-			return ret;
-		}
-		gbl->gpiod = gpio_to_desc(pdata->gpio);
-		if (!gbl->gpiod)
-			return -EINVAL;
+	ret = devm_gpio_request_one(gbl->dev, gbl->gpio, GPIOF_DIR_OUT |
+				    (gbl->active ? GPIOF_INIT_LOW
+						 : GPIOF_INIT_HIGH),
+				    pdata ? pdata->name : "backlight");
+	if (ret < 0) {
+		dev_err(&pdev->dev, "unable to request GPIO\n");
+		return ret;
 	}
 
 	memset(&props, 0, sizeof(props));

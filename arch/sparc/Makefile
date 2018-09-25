@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 #
 # sparc/Makefile
 #
@@ -25,13 +24,7 @@ LDFLAGS        := -m elf32_sparc
 export BITS    := 32
 UTS_MACHINE    := sparc
 
-# We are adding -Wa,-Av8 to KBUILD_CFLAGS to deal with a specs bug in some
-# versions of gcc.  Some gcc versions won't pass -Av8 to binutils when you
-# give -mcpu=v8.  This silently worked with older bintutils versions but
-# does not any more.
 KBUILD_CFLAGS  += -m32 -mcpu=v8 -pipe -mno-fpu -fcall-used-g5 -fcall-used-g7
-KBUILD_CFLAGS  += -Wa,-Av8
-
 KBUILD_AFLAGS  += -m32 -Wa,-Av8
 
 else
@@ -39,7 +32,7 @@ else
 # sparc64
 #
 
-CHECKFLAGS    += -D__sparc__ -D__sparc_v9__ -D__arch64__
+CHECKFLAGS    += -D__sparc__ -D__sparc_v9__ -D__arch64__ -m64
 LDFLAGS       := -m elf64_sparc
 export BITS   := 64
 UTS_MACHINE   := sparc64
@@ -80,10 +73,6 @@ install:
 
 archclean:
 	$(Q)$(MAKE) $(clean)=$(boot)
-
-PHONY += vdso_install
-vdso_install:
-	$(Q)$(MAKE) $(build)=arch/sparc/vdso $@
 
 # This is the image used for packaging
 KBUILD_IMAGE := $(boot)/zImage

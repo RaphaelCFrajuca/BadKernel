@@ -1482,11 +1482,14 @@ static dma_cookie_t ppc440spe_adma_run_tx_complete_actions(
 		cookie = desc->async_tx.cookie;
 		desc->async_tx.cookie = 0;
 
-		dma_descriptor_unmap(&desc->async_tx);
 		/* call the callback (must not sleep or submit new
 		 * operations to this channel)
 		 */
-		dmaengine_desc_get_callback_invoke(&desc->async_tx, NULL);
+		if (desc->async_tx.callback)
+			desc->async_tx.callback(
+				desc->async_tx.callback_param);
+
+		dma_descriptor_unmap(&desc->async_tx);
 	}
 
 	/* run dependent operations */
@@ -3888,7 +3891,7 @@ static int ppc440spe_adma_setup_irqs(struct ppc440spe_adma_device *adev,
 	np = ofdev->dev.of_node;
 	if (adev->id != PPC440SPE_XOR_ID) {
 		adev->err_irq = irq_of_parse_and_map(np, 1);
-		if (!adev->err_irq) {
+		if (adev->err_irq == NO_IRQ) {
 			dev_warn(adev->dev, "no err irq resource?\n");
 			*initcode = PPC_ADMA_INIT_IRQ2;
 			adev->err_irq = -ENXIO;
@@ -3899,7 +3902,7 @@ static int ppc440spe_adma_setup_irqs(struct ppc440spe_adma_device *adev,
 	}
 
 	adev->irq = irq_of_parse_and_map(np, 0);
-	if (!adev->irq) {
+	if (adev->irq == NO_IRQ) {
 		dev_err(adev->dev, "no irq resource\n");
 		*initcode = PPC_ADMA_INIT_IRQ1;
 		ret = -ENXIO;
@@ -4040,9 +4043,9 @@ static int ppc440spe_adma_probe(struct platform_device *ofdev)
 		/* it is DMA0 or DMA1 */
 		idx = of_get_property(np, "cell-index", &len);
 		if (!idx || (len != sizeof(u32))) {
-			dev_err(&ofdev->dev, "Device node %pOF has missing "
+			dev_err(&ofdev->dev, "Device node %s has missing "
 				"or invalid cell-index property\n",
-				np);
+				np->full_name);
 			return -EINVAL;
 		}
 		id = *idx;
@@ -4081,6 +4084,7 @@ static int ppc440spe_adma_probe(struct platform_device *ofdev)
 	/* create a device */
 	adev = kzalloc(sizeof(*adev), GFP_KERNEL);
 	if (!adev) {
+		dev_err(&ofdev->dev, "failed to allocate device\n");
 		initcode = PPC_ADMA_INIT_ALLOC;
 		ret = -ENOMEM;
 		goto err_adev_alloc;
@@ -4141,6 +4145,7 @@ static int ppc440spe_adma_probe(struct platform_device *ofdev)
 	/* create a channel */
 	chan = kzalloc(sizeof(*chan), GFP_KERNEL);
 	if (!chan) {
+		dev_err(&ofdev->dev, "can't allocate channel structure\n");
 		initcode = PPC_ADMA_INIT_CHANNEL;
 		ret = -ENOMEM;
 		goto err_chan_alloc;
@@ -4307,7 +4312,7 @@ static int ppc440spe_adma_remove(struct platform_device *ofdev)
  * "poly" allows setting/checking used polynomial (for PPC440SPe only).
  */
 
-static ssize_t devices_show(struct device_driver *dev, char *buf)
+static ssize_t show_ppc440spe_devices(struct device_driver *dev, char *buf)
 {
 	ssize_t size = 0;
 	int i;
@@ -4321,17 +4326,16 @@ static ssize_t devices_show(struct device_driver *dev, char *buf)
 	}
 	return size;
 }
-static DRIVER_ATTR_RO(devices);
 
-static ssize_t enable_show(struct device_driver *dev, char *buf)
+static ssize_t show_ppc440spe_r6enable(struct device_driver *dev, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE,
 			"PPC440SP(e) RAID-6 capabilities are %sABLED.\n",
 			ppc440spe_r6_enabled ? "EN" : "DIS");
 }
 
-static ssize_t enable_store(struct device_driver *dev, const char *buf,
-			    size_t count)
+static ssize_t store_ppc440spe_r6enable(struct device_driver *dev,
+					const char *buf, size_t count)
 {
 	unsigned long val;
 
@@ -4358,9 +4362,8 @@ static ssize_t enable_store(struct device_driver *dev, const char *buf,
 	}
 	return count;
 }
-static DRIVER_ATTR_RW(enable);
 
-static ssize_t poly_store(struct device_driver *dev, char *buf)
+static ssize_t show_ppc440spe_r6poly(struct device_driver *dev, char *buf)
 {
 	ssize_t size = 0;
 	u32 reg;
@@ -4379,8 +4382,8 @@ static ssize_t poly_store(struct device_driver *dev, char *buf)
 	return size;
 }
 
-static ssize_t poly_store(struct device_driver *dev, const char *buf,
-			  size_t count)
+static ssize_t store_ppc440spe_r6poly(struct device_driver *dev,
+				      const char *buf, size_t count)
 {
 	unsigned long reg, val;
 
@@ -4406,7 +4409,12 @@ static ssize_t poly_store(struct device_driver *dev, const char *buf,
 
 	return count;
 }
-static DRIVER_ATTR_RW(poly);
+
+static DRIVER_ATTR(devices, S_IRUGO, show_ppc440spe_devices, NULL);
+static DRIVER_ATTR(enable, S_IRUGO | S_IWUSR, show_ppc440spe_r6enable,
+		   store_ppc440spe_r6enable);
+static DRIVER_ATTR(poly, S_IRUGO | S_IWUSR, show_ppc440spe_r6poly,
+		   store_ppc440spe_r6poly);
 
 /*
  * Common initialisation for RAID engines; allocate memory for
@@ -4445,7 +4453,8 @@ static int ppc440spe_configure_raid_devices(void)
 	dcr_base = dcr_resource_start(np, 0);
 	dcr_len = dcr_resource_len(np, 0);
 	if (!dcr_base && !dcr_len) {
-		pr_err("%pOF: can't get DCR registers base/len!\n", np);
+		pr_err("%s: can't get DCR registers base/len!\n",
+			np->full_name);
 		of_node_put(np);
 		iounmap(i2o_reg);
 		return -ENODEV;
@@ -4453,7 +4462,7 @@ static int ppc440spe_configure_raid_devices(void)
 
 	i2o_dcr_host = dcr_map(np, dcr_base, dcr_len);
 	if (!DCR_MAP_OK(i2o_dcr_host)) {
-		pr_err("%pOF: failed to map DCRs!\n", np);
+		pr_err("%s: failed to map DCRs!\n", np->full_name);
 		of_node_put(np);
 		iounmap(i2o_reg);
 		return -ENODEV;
@@ -4514,14 +4523,15 @@ static int ppc440spe_configure_raid_devices(void)
 	dcr_base = dcr_resource_start(np, 0);
 	dcr_len = dcr_resource_len(np, 0);
 	if (!dcr_base && !dcr_len) {
-		pr_err("%pOF: can't get DCR registers base/len!\n", np);
+		pr_err("%s: can't get DCR registers base/len!\n",
+			np->full_name);
 		ret = -ENODEV;
 		goto out_mq;
 	}
 
 	ppc440spe_mq_dcr_host = dcr_map(np, dcr_base, dcr_len);
 	if (!DCR_MAP_OK(ppc440spe_mq_dcr_host)) {
-		pr_err("%pOF: failed to map DCRs!\n", np);
+		pr_err("%s: failed to map DCRs!\n", np->full_name);
 		ret = -ENODEV;
 		goto out_mq;
 	}

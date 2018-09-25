@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef PCM1796_H_INCLUDED
 #define PCM1796_H_INCLUDED
 

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * ISA bus.
  */
@@ -181,4 +180,4 @@ static int __init isa_bus_init(void)
 	return error;
 }
 
-postcore_initcall(isa_bus_init);
+device_initcall(isa_bus_init);

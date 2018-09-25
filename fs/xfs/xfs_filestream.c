@@ -1,8 +1,20 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2006-2007 Silicon Graphics, Inc.
  * Copyright (c) 2014 Christoph Hellwig.
  * All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it would be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write the Free Software Foundation,
+ * Inc.,  51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 #include "xfs.h"
 #include "xfs_format.h"
@@ -10,7 +22,6 @@
 #include "xfs_trans_resv.h"
 #include "xfs_sb.h"
 #include "xfs_mount.h"
-#include "xfs_defer.h"
 #include "xfs_inode.h"
 #include "xfs_bmap.h"
 #include "xfs_bmap_util.h"
@@ -18,10 +29,10 @@
 #include "xfs_mru_cache.h"
 #include "xfs_filestream.h"
 #include "xfs_trace.h"
-#include "xfs_ag_resv.h"
 
 struct xfs_fstrm_item {
 	struct xfs_mru_cache_elem	mru;
+	struct xfs_inode		*ip;
 	xfs_agnumber_t			ag; /* AG in use for this directory */
 };
 
@@ -109,15 +120,14 @@ xfs_filestream_put_ag(
 
 static void
 xfs_fstrm_free_func(
-	void			*data,
 	struct xfs_mru_cache_elem *mru)
 {
-	struct xfs_mount	*mp = data;
 	struct xfs_fstrm_item	*item =
 		container_of(mru, struct xfs_fstrm_item, mru);
 
-	xfs_filestream_put_ag(mp, item->ag);
-	trace_xfs_filestream_free(mp, mru->key, item->ag);
+	xfs_filestream_put_ag(item->ip->i_mount, item->ag);
+
+	trace_xfs_filestream_free(item->ip, item->ag);
 
 	kmem_free(item);
 }
@@ -141,7 +151,7 @@ xfs_filestream_pick_ag(
 	xfs_agnumber_t		ag, max_ag = NULLAGNUMBER;
 	int			err, trylock, nscan;
 
-	ASSERT(S_ISDIR(VFS_I(ip)->i_mode));
+	ASSERT(S_ISDIR(ip->i_d.di_mode));
 
 	/* 2% of an AG's blocks must be free for it to be chosen. */
 	minfree = mp->m_sb.sb_agblocks / 50;
@@ -153,7 +163,7 @@ xfs_filestream_pick_ag(
 	trylock = XFS_ALLOC_FLAG_TRYLOCK;
 
 	for (nscan = 0; 1; nscan++) {
-		trace_xfs_filestream_scan(mp, ip->i_ino, ag);
+		trace_xfs_filestream_scan(ip, ag);
 
 		pag = xfs_perag_get(mp, ag);
 
@@ -186,9 +196,8 @@ xfs_filestream_pick_ag(
 			goto next_ag;
 		}
 
-		longest = xfs_alloc_longest_free_extent(pag,
-				xfs_alloc_min_freelist(mp, pag),
-				xfs_ag_resv_needed(pag, XFS_AG_RESV_NONE));
+		longest = xfs_alloc_longest_free_extent(mp, pag,
+					xfs_alloc_min_freelist(mp, pag));
 		if (((minlen && longest >= minlen) ||
 		     (!minlen && pag->pagf_freeblks >= minfree)) &&
 		    (!pag->pagf_metadata || !(flags & XFS_PICK_USERDATA) ||
@@ -253,6 +262,7 @@ next_ag:
 		goto out_put_ag;
 
 	item->ag = *agp;
+	item->ip = ip;
 
 	err = xfs_mru_cache_insert(mp->m_filestream, ip->i_ino, &item->mru);
 	if (err) {
@@ -309,7 +319,7 @@ xfs_filestream_lookup_ag(
 	xfs_agnumber_t		startag, ag = NULLAGNUMBER;
 	struct xfs_mru_cache_elem *mru;
 
-	ASSERT(S_ISREG(VFS_I(ip)->i_mode));
+	ASSERT(S_ISREG(ip->i_d.di_mode));
 
 	pip = xfs_filestream_get_parent(ip);
 	if (!pip)
@@ -320,7 +330,7 @@ xfs_filestream_lookup_ag(
 		ag = container_of(mru, struct xfs_fstrm_item, mru)->ag;
 		xfs_mru_cache_done(mp->m_filestream);
 
-		trace_xfs_filestream_lookup(mp, ip->i_ino, ag);
+		trace_xfs_filestream_lookup(ip, ag);
 		goto out;
 	}
 
@@ -358,8 +368,7 @@ xfs_filestream_new_ag(
 	struct xfs_mount	*mp = ip->i_mount;
 	xfs_extlen_t		minlen = ap->length;
 	xfs_agnumber_t		startag = 0;
-	int			flags = 0;
-	int			err = 0;
+	int			flags, err = 0;
 	struct xfs_mru_cache_elem *mru;
 
 	*agp = NULLAGNUMBER;
@@ -375,10 +384,8 @@ xfs_filestream_new_ag(
 		startag = (item->ag + 1) % mp->m_sb.sb_agcount;
 	}
 
-	if (xfs_alloc_is_userdata(ap->datatype))
-		flags |= XFS_PICK_USERDATA;
-	if (ap->dfops->dop_low)
-		flags |= XFS_PICK_LOWSPACE;
+	flags = (ap->userdata ? XFS_PICK_USERDATA : 0) |
+	        (ap->flist->xbf_low ? XFS_PICK_LOWSPACE : 0);
 
 	err = xfs_filestream_pick_ag(pip, startag, agp, flags, minlen);
 
@@ -386,7 +393,7 @@ xfs_filestream_new_ag(
 	 * Only free the item here so we skip over the old AG earlier.
 	 */
 	if (mru)
-		xfs_fstrm_free_func(mp, mru);
+		xfs_fstrm_free_func(mru);
 
 	IRELE(pip);
 exit:
@@ -413,8 +420,8 @@ xfs_filestream_mount(
 	 * timer tunable to within about 10 percent.  This requires at least 10
 	 * groups.
 	 */
-	return xfs_mru_cache_create(&mp->m_filestream, mp,
-			xfs_fstrm_centisecs * 10, 10, xfs_fstrm_free_func);
+	return xfs_mru_cache_create(&mp->m_filestream, xfs_fstrm_centisecs * 10,
+				    10, xfs_fstrm_free_func);
 }
 
 void

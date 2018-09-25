@@ -18,11 +18,15 @@
  */
 
 #include <linux/io.h>
+#include <linux/platform_data/gpio-omap.h>
 #include <linux/platform_data/hsmmc-omap.h>
 #include <linux/power/smartreflex.h>
-#include <linux/platform_data/i2c-omap.h>
+#include <linux/i2c-omap.h>
 
 #include <linux/omap-dma.h>
+#include <linux/platform_data/spi-omap2-mcspi.h>
+#include <linux/platform_data/asoc-ti-mcbsp.h>
+#include <plat/dmtimer.h>
 
 #include "omap_hwmod.h"
 #include "omap_hwmod_common_data.h"
@@ -271,10 +275,20 @@ static struct omap_dma_dev_attr dma_dev_attr = {
 };
 
 /* dma_system */
+static struct omap_hwmod_irq_info omap54xx_dma_system_irqs[] = {
+	{ .name = "0", .irq = 12 + OMAP54XX_IRQ_GIC_START },
+	{ .name = "1", .irq = 13 + OMAP54XX_IRQ_GIC_START },
+	{ .name = "2", .irq = 14 + OMAP54XX_IRQ_GIC_START },
+	{ .name = "3", .irq = 15 + OMAP54XX_IRQ_GIC_START },
+	{ .irq = -1 }
+};
+
 static struct omap_hwmod omap54xx_dma_system_hwmod = {
 	.name		= "dma_system",
 	.class		= &omap54xx_dma_hwmod_class,
 	.clkdm_name	= "dma_clkdm",
+	.mpu_irqs	= omap54xx_dma_system_irqs,
+	.xlate_irq	= omap4_xlate_irq,
 	.main_clk	= "l3_iclk_div",
 	.prcm = {
 		.omap4 = {
@@ -623,6 +637,12 @@ static struct omap_hwmod_class omap54xx_gpio_hwmod_class = {
 	.rev	= 2,
 };
 
+/* gpio dev_attr */
+static struct omap_gpio_dev_attr gpio_dev_attr = {
+	.bank_width	= 32,
+	.dbck_flag	= true,
+};
+
 /* gpio1 */
 static struct omap_hwmod_opt_clk gpio1_opt_clks[] = {
 	{ .role = "dbclk", .clk = "gpio1_dbclk" },
@@ -642,6 +662,7 @@ static struct omap_hwmod omap54xx_gpio1_hwmod = {
 	},
 	.opt_clks	= gpio1_opt_clks,
 	.opt_clks_cnt	= ARRAY_SIZE(gpio1_opt_clks),
+	.dev_attr	= &gpio_dev_attr,
 };
 
 /* gpio2 */
@@ -664,6 +685,7 @@ static struct omap_hwmod omap54xx_gpio2_hwmod = {
 	},
 	.opt_clks	= gpio2_opt_clks,
 	.opt_clks_cnt	= ARRAY_SIZE(gpio2_opt_clks),
+	.dev_attr	= &gpio_dev_attr,
 };
 
 /* gpio3 */
@@ -686,6 +708,7 @@ static struct omap_hwmod omap54xx_gpio3_hwmod = {
 	},
 	.opt_clks	= gpio3_opt_clks,
 	.opt_clks_cnt	= ARRAY_SIZE(gpio3_opt_clks),
+	.dev_attr	= &gpio_dev_attr,
 };
 
 /* gpio4 */
@@ -708,6 +731,7 @@ static struct omap_hwmod omap54xx_gpio4_hwmod = {
 	},
 	.opt_clks	= gpio4_opt_clks,
 	.opt_clks_cnt	= ARRAY_SIZE(gpio4_opt_clks),
+	.dev_attr	= &gpio_dev_attr,
 };
 
 /* gpio5 */
@@ -730,6 +754,7 @@ static struct omap_hwmod omap54xx_gpio5_hwmod = {
 	},
 	.opt_clks	= gpio5_opt_clks,
 	.opt_clks_cnt	= ARRAY_SIZE(gpio5_opt_clks),
+	.dev_attr	= &gpio_dev_attr,
 };
 
 /* gpio6 */
@@ -752,6 +777,7 @@ static struct omap_hwmod omap54xx_gpio6_hwmod = {
 	},
 	.opt_clks	= gpio6_opt_clks,
 	.opt_clks_cnt	= ARRAY_SIZE(gpio6_opt_clks),
+	.dev_attr	= &gpio_dev_attr,
 };
 
 /* gpio7 */
@@ -774,6 +800,7 @@ static struct omap_hwmod omap54xx_gpio7_hwmod = {
 	},
 	.opt_clks	= gpio7_opt_clks,
 	.opt_clks_cnt	= ARRAY_SIZE(gpio7_opt_clks),
+	.dev_attr	= &gpio_dev_attr,
 };
 
 /* gpio8 */
@@ -796,6 +823,7 @@ static struct omap_hwmod omap54xx_gpio8_hwmod = {
 	},
 	.opt_clks	= gpio8_opt_clks,
 	.opt_clks_cnt	= ARRAY_SIZE(gpio8_opt_clks),
+	.dev_attr	= &gpio_dev_attr,
 };
 
 /*
@@ -804,7 +832,6 @@ static struct omap_hwmod omap54xx_gpio8_hwmod = {
  */
 
 static struct omap_hwmod_class_sysconfig omap54xx_i2c_sysc = {
-	.rev_offs	= 0,
 	.sysc_offs	= 0x0010,
 	.syss_offs	= 0x0090,
 	.sysc_flags	= (SYSC_HAS_AUTOIDLE | SYSC_HAS_CLOCKACTIVITY |
@@ -812,6 +839,7 @@ static struct omap_hwmod_class_sysconfig omap54xx_i2c_sysc = {
 			   SYSC_HAS_SOFTRESET | SYSS_HAS_RESET_STATUS),
 	.idlemodes	= (SIDLE_FORCE | SIDLE_NO | SIDLE_SMART |
 			   SIDLE_SMART_WKUP),
+	.clockact	= CLOCKACT_TEST_ICLK,
 	.sysc_fields	= &omap_hwmod_sysc_type1,
 };
 
@@ -820,6 +848,11 @@ static struct omap_hwmod_class omap54xx_i2c_hwmod_class = {
 	.sysc	= &omap54xx_i2c_sysc,
 	.reset	= &omap_i2c_reset,
 	.rev	= OMAP_I2C_IP_VERSION_2,
+};
+
+/* i2c dev_attr */
+static struct omap_i2c_dev_attr i2c_dev_attr = {
+	.flags	= OMAP_I2C_FLAG_BUS_SHIFT_NONE,
 };
 
 /* i2c1 */
@@ -836,6 +869,7 @@ static struct omap_hwmod omap54xx_i2c1_hwmod = {
 			.modulemode   = MODULEMODE_SWCTRL,
 		},
 	},
+	.dev_attr	= &i2c_dev_attr,
 };
 
 /* i2c2 */
@@ -852,6 +886,7 @@ static struct omap_hwmod omap54xx_i2c2_hwmod = {
 			.modulemode   = MODULEMODE_SWCTRL,
 		},
 	},
+	.dev_attr	= &i2c_dev_attr,
 };
 
 /* i2c3 */
@@ -868,6 +903,7 @@ static struct omap_hwmod omap54xx_i2c3_hwmod = {
 			.modulemode   = MODULEMODE_SWCTRL,
 		},
 	},
+	.dev_attr	= &i2c_dev_attr,
 };
 
 /* i2c4 */
@@ -884,6 +920,7 @@ static struct omap_hwmod omap54xx_i2c4_hwmod = {
 			.modulemode   = MODULEMODE_SWCTRL,
 		},
 	},
+	.dev_attr	= &i2c_dev_attr,
 };
 
 /* i2c5 */
@@ -900,6 +937,7 @@ static struct omap_hwmod omap54xx_i2c5_hwmod = {
 			.modulemode   = MODULEMODE_SWCTRL,
 		},
 	},
+	.dev_attr	= &i2c_dev_attr,
 };
 
 /*
@@ -975,7 +1013,6 @@ static struct omap_hwmod omap54xx_mailbox_hwmod = {
  */
 
 static struct omap_hwmod_class_sysconfig omap54xx_mcbsp_sysc = {
-	.rev_offs	= -ENODEV,
 	.sysc_offs	= 0x008c,
 	.sysc_flags	= (SYSC_HAS_CLOCKACTIVITY | SYSC_HAS_ENAWAKEUP |
 			   SYSC_HAS_SIDLEMODE | SYSC_HAS_SOFTRESET),
@@ -986,6 +1023,7 @@ static struct omap_hwmod_class_sysconfig omap54xx_mcbsp_sysc = {
 static struct omap_hwmod_class omap54xx_mcbsp_hwmod_class = {
 	.name	= "mcbsp",
 	.sysc	= &omap54xx_mcbsp_sysc,
+	.rev	= MCBSP_CONFIG_TYPE4,
 };
 
 /* mcbsp1 */
@@ -1122,9 +1160,15 @@ static struct omap_hwmod_class_sysconfig omap54xx_mcspi_sysc = {
 static struct omap_hwmod_class omap54xx_mcspi_hwmod_class = {
 	.name	= "mcspi",
 	.sysc	= &omap54xx_mcspi_sysc,
+	.rev	= OMAP4_MCSPI_REV,
 };
 
 /* mcspi1 */
+/* mcspi1 dev_attr */
+static struct omap2_mcspi_dev_attr mcspi1_dev_attr = {
+	.num_chipselect	= 4,
+};
+
 static struct omap_hwmod omap54xx_mcspi1_hwmod = {
 	.name		= "mcspi1",
 	.class		= &omap54xx_mcspi_hwmod_class,
@@ -1137,9 +1181,15 @@ static struct omap_hwmod omap54xx_mcspi1_hwmod = {
 			.modulemode   = MODULEMODE_SWCTRL,
 		},
 	},
+	.dev_attr	= &mcspi1_dev_attr,
 };
 
 /* mcspi2 */
+/* mcspi2 dev_attr */
+static struct omap2_mcspi_dev_attr mcspi2_dev_attr = {
+	.num_chipselect	= 2,
+};
+
 static struct omap_hwmod omap54xx_mcspi2_hwmod = {
 	.name		= "mcspi2",
 	.class		= &omap54xx_mcspi_hwmod_class,
@@ -1152,9 +1202,15 @@ static struct omap_hwmod omap54xx_mcspi2_hwmod = {
 			.modulemode   = MODULEMODE_SWCTRL,
 		},
 	},
+	.dev_attr	= &mcspi2_dev_attr,
 };
 
 /* mcspi3 */
+/* mcspi3 dev_attr */
+static struct omap2_mcspi_dev_attr mcspi3_dev_attr = {
+	.num_chipselect	= 2,
+};
+
 static struct omap_hwmod omap54xx_mcspi3_hwmod = {
 	.name		= "mcspi3",
 	.class		= &omap54xx_mcspi_hwmod_class,
@@ -1167,9 +1223,15 @@ static struct omap_hwmod omap54xx_mcspi3_hwmod = {
 			.modulemode   = MODULEMODE_SWCTRL,
 		},
 	},
+	.dev_attr	= &mcspi3_dev_attr,
 };
 
 /* mcspi4 */
+/* mcspi4 dev_attr */
+static struct omap2_mcspi_dev_attr mcspi4_dev_attr = {
+	.num_chipselect	= 1,
+};
+
 static struct omap_hwmod omap54xx_mcspi4_hwmod = {
 	.name		= "mcspi4",
 	.class		= &omap54xx_mcspi_hwmod_class,
@@ -1182,6 +1244,7 @@ static struct omap_hwmod omap54xx_mcspi4_hwmod = {
 			.modulemode   = MODULEMODE_SWCTRL,
 		},
 	},
+	.dev_attr	= &mcspi4_dev_attr,
 };
 
 /*
@@ -1467,6 +1530,7 @@ static struct omap_hwmod_class_sysconfig omap54xx_timer_1ms_sysc = {
 	.idlemodes	= (SIDLE_FORCE | SIDLE_NO | SIDLE_SMART |
 			   SIDLE_SMART_WKUP),
 	.sysc_fields	= &omap_hwmod_sysc_type2,
+	.clockact	= CLOCKACT_TEST_ICLK,
 };
 
 static struct omap_hwmod_class omap54xx_timer_1ms_hwmod_class = {
@@ -1684,7 +1748,6 @@ static struct omap_hwmod omap54xx_uart1_hwmod = {
 	.name		= "uart1",
 	.class		= &omap54xx_uart_hwmod_class,
 	.clkdm_name	= "l4per_clkdm",
-	.flags		= HWMOD_SWSUP_SIDLE_ACT,
 	.main_clk	= "func_48m_fclk",
 	.prcm = {
 		.omap4 = {
@@ -1700,7 +1763,6 @@ static struct omap_hwmod omap54xx_uart2_hwmod = {
 	.name		= "uart2",
 	.class		= &omap54xx_uart_hwmod_class,
 	.clkdm_name	= "l4per_clkdm",
-	.flags		= HWMOD_SWSUP_SIDLE_ACT,
 	.main_clk	= "func_48m_fclk",
 	.prcm = {
 		.omap4 = {
@@ -1716,7 +1778,7 @@ static struct omap_hwmod omap54xx_uart3_hwmod = {
 	.name		= "uart3",
 	.class		= &omap54xx_uart_hwmod_class,
 	.clkdm_name	= "l4per_clkdm",
-	.flags		= DEBUG_OMAP4UART3_FLAGS | HWMOD_SWSUP_SIDLE_ACT,
+	.flags		= DEBUG_OMAP4UART3_FLAGS,
 	.main_clk	= "func_48m_fclk",
 	.prcm = {
 		.omap4 = {
@@ -1732,7 +1794,7 @@ static struct omap_hwmod omap54xx_uart4_hwmod = {
 	.name		= "uart4",
 	.class		= &omap54xx_uart_hwmod_class,
 	.clkdm_name	= "l4per_clkdm",
-	.flags		= DEBUG_OMAP4UART4_FLAGS | HWMOD_SWSUP_SIDLE_ACT,
+	.flags		= DEBUG_OMAP4UART4_FLAGS,
 	.main_clk	= "func_48m_fclk",
 	.prcm = {
 		.omap4 = {
@@ -1748,7 +1810,6 @@ static struct omap_hwmod omap54xx_uart5_hwmod = {
 	.name		= "uart5",
 	.class		= &omap54xx_uart_hwmod_class,
 	.clkdm_name	= "l4per_clkdm",
-	.flags		= HWMOD_SWSUP_SIDLE_ACT,
 	.main_clk	= "func_48m_fclk",
 	.prcm = {
 		.omap4 = {
@@ -1764,7 +1825,6 @@ static struct omap_hwmod omap54xx_uart6_hwmod = {
 	.name		= "uart6",
 	.class		= &omap54xx_uart_hwmod_class,
 	.clkdm_name	= "l4per_clkdm",
-	.flags		= HWMOD_SWSUP_SIDLE_ACT,
 	.main_clk	= "func_48m_fclk",
 	.prcm = {
 		.omap4 = {
@@ -1999,7 +2059,6 @@ static struct omap_hwmod omap54xx_ocp2scp3_hwmod = {
  */
 
 static struct omap_hwmod_class_sysconfig omap54xx_sata_sysc = {
-	.rev_offs	= 0x00fc,
 	.sysc_offs	= 0x0000,
 	.sysc_flags	= (SYSC_HAS_MIDLEMODE | SYSC_HAS_SIDLEMODE),
 	.idlemodes	= (SIDLE_FORCE | SIDLE_NO | SIDLE_SMART |
@@ -2194,11 +2253,21 @@ static struct omap_hwmod_ocp_if omap54xx_l4_wkup__counter_32k = {
 	.user		= OCP_USER_MPU | OCP_USER_SDMA,
 };
 
+static struct omap_hwmod_addr_space omap54xx_dma_system_addrs[] = {
+	{
+		.pa_start	= 0x4a056000,
+		.pa_end		= 0x4a056fff,
+		.flags		= ADDR_TYPE_RT
+	},
+	{ }
+};
+
 /* l4_cfg -> dma_system */
 static struct omap_hwmod_ocp_if omap54xx_l4_cfg__dma_system = {
 	.master		= &omap54xx_l4_cfg_hwmod,
 	.slave		= &omap54xx_dma_system_hwmod,
 	.clk		= "l4_root_clk_div",
+	.addr		= omap54xx_dma_system_addrs,
 	.user		= OCP_USER_MPU | OCP_USER_SDMA,
 };
 

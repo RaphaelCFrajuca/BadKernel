@@ -20,6 +20,7 @@
 #include <linux/kernel.h>
 #include <linux/libfdt.h>
 #include <linux/of_fdt.h>
+#include <linux/of_platform.h>
 
 #include <asm/bootinfo.h>
 #include <asm/prom.h>
@@ -53,16 +54,6 @@ static void __init jz4740_detect_mem(void)
 	add_memory_region(0, size, BOOT_MEM_RAM);
 }
 
-static unsigned long __init get_board_mach_type(const void *fdt)
-{
-	if (!fdt_node_check_compatible(fdt, 0, "ingenic,jz4780"))
-		return MACH_INGENIC_JZ4780;
-	if (!fdt_node_check_compatible(fdt, 0, "ingenic,jz4770"))
-		return MACH_INGENIC_JZ4770;
-
-	return MACH_INGENIC_JZ4740;
-}
-
 void __init plat_mem_setup(void)
 {
 	int offset;
@@ -73,8 +64,6 @@ void __init plat_mem_setup(void)
 	offset = fdt_path_offset(__dtb_start, "/memory");
 	if (offset < 0)
 		jz4740_detect_mem();
-
-	mips_machtype = get_board_mach_type(__dtb_start);
 }
 
 void __init device_tree_init(void)
@@ -85,16 +74,19 @@ void __init device_tree_init(void)
 	unflatten_and_copy_device_tree();
 }
 
+static int __init populate_machine(void)
+{
+	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
+	return 0;
+}
+arch_initcall(populate_machine);
+
 const char *get_system_type(void)
 {
-	switch (mips_machtype) {
-	case MACH_INGENIC_JZ4780:
+	if (config_enabled(CONFIG_MACH_JZ4780))
 		return "JZ4780";
-	case MACH_INGENIC_JZ4770:
-		return "JZ4770";
-	default:
-		return "JZ4740";
-	}
+
+	return "JZ4740";
 }
 
 void __init arch_init_irq(void)

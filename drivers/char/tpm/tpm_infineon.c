@@ -191,7 +191,7 @@ static int wait(struct tpm_chip *chip, int wait_for_bit)
 		/* check the status-register if wait_for_bit is set */
 		if (status & 1 << wait_for_bit)
 			break;
-		tpm_msleep(TPM_MSLEEP_TIME);
+		msleep(TPM_MSLEEP_TIME);
 	}
 	if (i == TPM_MAX_TRIES) {	/* timeout occurs */
 		if (wait_for_bit == STAT_XFE)
@@ -226,7 +226,7 @@ static void tpm_wtx(struct tpm_chip *chip)
 	wait_and_send(chip, TPM_CTRL_WTX);
 	wait_and_send(chip, 0x00);
 	wait_and_send(chip, 0x00);
-	tpm_msleep(TPM_WTX_MSLEEP_TIME);
+	msleep(TPM_WTX_MSLEEP_TIME);
 }
 
 static void tpm_wtx_abort(struct tpm_chip *chip)
@@ -237,7 +237,7 @@ static void tpm_wtx_abort(struct tpm_chip *chip)
 	wait_and_send(chip, 0x00);
 	wait_and_send(chip, 0x00);
 	number_of_wtx = 0;
-	tpm_msleep(TPM_WTX_MSLEEP_TIME);
+	msleep(TPM_WTX_MSLEEP_TIME);
 }
 
 static int tpm_inf_recv(struct tpm_chip *chip, u8 * buf, size_t count)
@@ -397,7 +397,7 @@ static int tpm_inf_pnp_probe(struct pnp_dev *dev,
 	int vendorid[2];
 	int version[2];
 	int productid[2];
-	const char *chipname;
+	char chipname[20];
 	struct tpm_chip *chip;
 
 	/* read IO-ports through PnP */
@@ -488,13 +488,13 @@ static int tpm_inf_pnp_probe(struct pnp_dev *dev,
 
 	switch ((productid[0] << 8) | productid[1]) {
 	case 6:
-		chipname = " (SLD 9630 TT 1.1)";
+		snprintf(chipname, sizeof(chipname), " (SLD 9630 TT 1.1)");
 		break;
 	case 11:
-		chipname = " (SLB 9635 TT 1.2)";
+		snprintf(chipname, sizeof(chipname), " (SLB 9635 TT 1.2)");
 		break;
 	default:
-		chipname = " (unknown chip)";
+		snprintf(chipname, sizeof(chipname), " (unknown chip)");
 		break;
 	}
 

@@ -27,8 +27,6 @@
 #include <linux/kernel.h>
 #include <linux/net.h>
 #include <linux/poll.h>
-#include <linux/sched/signal.h>
-
 #include <net/sock.h>
 #include <net/tcp_states.h>
 
@@ -142,15 +140,13 @@ void pn_deliver_sock_broadcast(struct net *net, struct sk_buff *skb)
 	rcu_read_unlock();
 }
 
-int pn_sock_hash(struct sock *sk)
+void pn_sock_hash(struct sock *sk)
 {
 	struct hlist_head *hlist = pn_hash_list(pn_sk(sk)->sobject);
 
 	mutex_lock(&pnsocks.lock);
 	sk_add_node_rcu(sk, hlist);
 	mutex_unlock(&pnsocks.lock);
-
-	return 0;
 }
 EXPORT_SYMBOL(pn_sock_hash);
 
@@ -204,7 +200,7 @@ static int pn_socket_bind(struct socket *sock, struct sockaddr *addr, int len)
 	pn->resource = spn->spn_resource;
 
 	/* Enable RX on the socket */
-	err = sk->sk_prot->hash(sk);
+	sk->sk_prot->hash(sk);
 out_port:
 	mutex_unlock(&port_mutex);
 out:
@@ -305,7 +301,7 @@ out:
 }
 
 static int pn_socket_accept(struct socket *sock, struct socket *newsock,
-			    int flags, bool kern)
+				int flags)
 {
 	struct sock *sk = sock->sk;
 	struct sock *newsk;
@@ -314,7 +310,7 @@ static int pn_socket_accept(struct socket *sock, struct socket *newsock,
 	if (unlikely(sk->sk_state != TCP_LISTEN))
 		return -EINVAL;
 
-	newsk = sk->sk_prot->accept(sk, flags, &err, kern);
+	newsk = sk->sk_prot->accept(sk, flags, &err);
 	if (!newsk)
 		return err;
 
@@ -326,7 +322,7 @@ static int pn_socket_accept(struct socket *sock, struct socket *newsock,
 }
 
 static int pn_socket_getname(struct socket *sock, struct sockaddr *addr,
-				int peer)
+				int *sockaddr_len, int peer)
 {
 	struct sock *sk = sock->sk;
 	struct pn_sock *pn = pn_sk(sk);
@@ -337,28 +333,32 @@ static int pn_socket_getname(struct socket *sock, struct sockaddr *addr,
 		pn_sockaddr_set_object((struct sockaddr_pn *)addr,
 					pn->sobject);
 
-	return sizeof(struct sockaddr_pn);
+	*sockaddr_len = sizeof(struct sockaddr_pn);
+	return 0;
 }
 
-static __poll_t pn_socket_poll_mask(struct socket *sock, __poll_t events)
+static unsigned int pn_socket_poll(struct file *file, struct socket *sock,
+					poll_table *wait)
 {
 	struct sock *sk = sock->sk;
 	struct pep_sock *pn = pep_sk(sk);
-	__poll_t mask = 0;
+	unsigned int mask = 0;
+
+	poll_wait(file, sk_sleep(sk), wait);
 
 	if (sk->sk_state == TCP_CLOSE)
-		return EPOLLERR;
+		return POLLERR;
 	if (!skb_queue_empty(&sk->sk_receive_queue))
-		mask |= EPOLLIN | EPOLLRDNORM;
+		mask |= POLLIN | POLLRDNORM;
 	if (!skb_queue_empty(&pn->ctrlreq_queue))
-		mask |= EPOLLPRI;
+		mask |= POLLPRI;
 	if (!mask && sk->sk_state == TCP_CLOSE_WAIT)
-		return EPOLLHUP;
+		return POLLHUP;
 
 	if (sk->sk_state == TCP_ESTABLISHED &&
-		refcount_read(&sk->sk_wmem_alloc) < sk->sk_sndbuf &&
+		atomic_read(&sk->sk_wmem_alloc) < sk->sk_sndbuf &&
 		atomic_read(&pn->tx_credits))
-		mask |= EPOLLOUT | EPOLLWRNORM | EPOLLWRBAND;
+		mask |= POLLOUT | POLLWRNORM | POLLWRBAND;
 
 	return mask;
 }
@@ -445,7 +445,7 @@ const struct proto_ops phonet_dgram_ops = {
 	.socketpair	= sock_no_socketpair,
 	.accept		= sock_no_accept,
 	.getname	= pn_socket_getname,
-	.poll_mask	= datagram_poll_mask,
+	.poll		= datagram_poll,
 	.ioctl		= pn_socket_ioctl,
 	.listen		= sock_no_listen,
 	.shutdown	= sock_no_shutdown,
@@ -470,7 +470,7 @@ const struct proto_ops phonet_stream_ops = {
 	.socketpair	= sock_no_socketpair,
 	.accept		= pn_socket_accept,
 	.getname	= pn_socket_getname,
-	.poll_mask	= pn_socket_poll_mask,
+	.poll		= pn_socket_poll,
 	.ioctl		= pn_socket_ioctl,
 	.listen		= pn_socket_listen,
 	.shutdown	= sock_no_shutdown,
@@ -610,18 +610,32 @@ static int pn_sock_seq_show(struct seq_file *seq, void *v)
 			sk_wmem_alloc_get(sk), sk_rmem_alloc_get(sk),
 			from_kuid_munged(seq_user_ns(seq), sock_i_uid(sk)),
 			sock_i_ino(sk),
-			refcount_read(&sk->sk_refcnt), sk,
+			atomic_read(&sk->sk_refcnt), sk,
 			atomic_read(&sk->sk_drops));
 	}
 	seq_pad(seq, '\n');
 	return 0;
 }
 
-const struct seq_operations pn_sock_seq_ops = {
+static const struct seq_operations pn_sock_seq_ops = {
 	.start = pn_sock_seq_start,
 	.next = pn_sock_seq_next,
 	.stop = pn_sock_seq_stop,
 	.show = pn_sock_seq_show,
+};
+
+static int pn_sock_open(struct inode *inode, struct file *file)
+{
+	return seq_open_net(inode, file, &pn_sock_seq_ops,
+				sizeof(struct seq_net_private));
+}
+
+const struct file_operations pn_sock_seq_fops = {
+	.owner = THIS_MODULE,
+	.open = pn_sock_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = seq_release_net,
 };
 #endif
 
@@ -786,10 +800,24 @@ static int pn_res_seq_show(struct seq_file *seq, void *v)
 	return 0;
 }
 
-const struct seq_operations pn_res_seq_ops = {
+static const struct seq_operations pn_res_seq_ops = {
 	.start = pn_res_seq_start,
 	.next = pn_res_seq_next,
 	.stop = pn_res_seq_stop,
 	.show = pn_res_seq_show,
+};
+
+static int pn_res_open(struct inode *inode, struct file *file)
+{
+	return seq_open_net(inode, file, &pn_res_seq_ops,
+				sizeof(struct seq_net_private));
+}
+
+const struct file_operations pn_res_seq_fops = {
+	.owner = THIS_MODULE,
+	.open = pn_res_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = seq_release_net,
 };
 #endif

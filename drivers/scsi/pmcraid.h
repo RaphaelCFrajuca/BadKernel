@@ -542,7 +542,8 @@ struct pmcraid_sglist {
 	u32 order;
 	u32 num_sg;
 	u32 num_dma_sg;
-	struct scatterlist *scatterlist;
+	u32 buffer_len;
+	struct scatterlist scatterlist[1];
 };
 
 /* page D0 inquiry data of focal point resource */
@@ -553,7 +554,7 @@ struct pmcraid_inquiry_data {
 	__u8	add_page_len;
 	__u8	length;
 	__u8	reserved2;
-	__be16	fw_version;
+	__le16	fw_version;
 	__u8	reserved3[16];
 };
 
@@ -627,6 +628,7 @@ struct pmcraid_interrupts {
 /* ISR parameters LLD allocates (one for each MSI-X if enabled) vectors */
 struct pmcraid_isr_param {
 	struct pmcraid_instance *drv_inst;
+	u16 vector;			/* allocated msi-x vector */
 	u8 hrrq_id;			/* hrrq entry index */
 };
 
@@ -696,13 +698,13 @@ struct pmcraid_instance {
 	dma_addr_t hrrq_start_bus_addr[PMCRAID_NUM_MSIX_VECTORS];
 
 	/* Pointer to 1st entry of HRRQ */
-	__le32 *hrrq_start[PMCRAID_NUM_MSIX_VECTORS];
+	__be32 *hrrq_start[PMCRAID_NUM_MSIX_VECTORS];
 
 	/* Pointer to last entry of HRRQ */
-	__le32 *hrrq_end[PMCRAID_NUM_MSIX_VECTORS];
+	__be32 *hrrq_end[PMCRAID_NUM_MSIX_VECTORS];
 
 	/* Pointer to current pointer of hrrq */
-	__le32 *hrrq_curr[PMCRAID_NUM_MSIX_VECTORS];
+	__be32 *hrrq_curr[PMCRAID_NUM_MSIX_VECTORS];
 
 	/* Lock for HRRQ access */
 	spinlock_t hrrq_lock[PMCRAID_NUM_MSIX_VECTORS];
@@ -754,7 +756,7 @@ struct pmcraid_instance {
 
 	/* structures related to command blocks */
 	struct kmem_cache *cmd_cachep;		/* cache for cmd blocks */
-	struct dma_pool *control_pool;		/* pool for control blocks */
+	struct pci_pool *control_pool;		/* pool for control blocks */
 	char   cmd_pool_name[64];		/* name of cmd cache */
 	char   ctl_pool_name[64];		/* name of control cache */
 

@@ -30,6 +30,7 @@
 
 #include <linux/init.h>
 #include <linux/mutex.h>
+#include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/clk.h>
@@ -44,7 +45,7 @@
 #include <linux/regulator/machine.h>
 
 #include <linux/i2c.h>
-#include <linux/mfd/twl.h>
+#include <linux/i2c/twl.h>
 
 /* Register descriptions for audio */
 #include <linux/mfd/twl4030-audio.h>
@@ -173,7 +174,7 @@ static struct twl_private *twl_priv;
 static struct twl_mapping twl4030_map[] = {
 	/*
 	 * NOTE:  don't change this table without updating the
-	 * <linux/mfd/twl.h> defines for TWL4030_MODULE_*
+	 * <linux/i2c/twl.h> defines for TWL4030_MODULE_*
 	 * so they continue to match the order in this table.
 	 */
 
@@ -344,7 +345,7 @@ static const struct regmap_config twl4030_regmap_config[4] = {
 static struct twl_mapping twl6030_map[] = {
 	/*
 	 * NOTE:  don't change this table without updating the
-	 * <linux/mfd/twl.h> defines for TWL4030_MODULE_*
+	 * <linux/i2c/twl.h> defines for TWL4030_MODULE_*
 	 * so they continue to match the order in this table.
 	 */
 
@@ -448,7 +449,7 @@ static struct regmap *twl_get_regmap(u8 mod_no)
  * @reg: register address (just offset will do)
  * @num_bytes: number of bytes to transfer
  *
- * Returns 0 on success or else a negative error code.
+ * Returns the result of operation - 0 is success
  */
 int twl_i2c_write(u8 mod_no, u8 *value, u8 reg, unsigned num_bytes)
 {
@@ -476,7 +477,7 @@ EXPORT_SYMBOL(twl_i2c_write);
  * @reg: register address (just offset will do)
  * @num_bytes: number of bytes to transfer
  *
- * Returns 0 on success or else a negative error code.
+ * Returns result of operation - num_bytes is success else failure.
  */
 int twl_i2c_read(u8 mod_no, u8 *value, u8 reg, unsigned num_bytes)
 {
@@ -621,8 +622,11 @@ add_numbered_child(unsigned mod_no, const char *name, int num,
 	twl = &twl_priv->twl_modules[sid];
 
 	pdev = platform_device_alloc(name, num);
-	if (!pdev)
-		return ERR_PTR(-ENOMEM);
+	if (!pdev) {
+		dev_dbg(&twl->client->dev, "can't alloc dev\n");
+		status = -ENOMEM;
+		goto err;
+	}
 
 	pdev->dev.parent = &twl->client->dev;
 
@@ -630,7 +634,7 @@ add_numbered_child(unsigned mod_no, const char *name, int num,
 		status = platform_device_add_data(pdev, pdata, pdata_len);
 		if (status < 0) {
 			dev_dbg(&pdev->dev, "can't add platform_data\n");
-			goto put_device;
+			goto err;
 		}
 	}
 
@@ -643,22 +647,21 @@ add_numbered_child(unsigned mod_no, const char *name, int num,
 		status = platform_device_add_resources(pdev, r, irq1 ? 2 : 1);
 		if (status < 0) {
 			dev_dbg(&pdev->dev, "can't add irqs\n");
-			goto put_device;
+			goto err;
 		}
 	}
 
 	status = platform_device_add(pdev);
-	if (status)
-		goto put_device;
+	if (status == 0)
+		device_init_wakeup(&pdev->dev, can_wakeup);
 
-	device_init_wakeup(&pdev->dev, can_wakeup);
-
+err:
+	if (status < 0) {
+		platform_device_put(pdev);
+		dev_err(&twl->client->dev, "can't add %s dev\n", name);
+		return ERR_PTR(status);
+	}
 	return &pdev->dev;
-
-put_device:
-	platform_device_put(pdev);
-	dev_err(&twl->client->dev, "failed to add device %s\n", name);
-	return ERR_PTR(status);
 }
 
 static inline struct device *add_child(unsigned mod_no, const char *name,
@@ -1139,9 +1142,8 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	}
 
 	num_slaves = twl_get_num_slaves();
-	twl_priv->twl_modules = devm_kcalloc(&client->dev,
-					 num_slaves,
-					 sizeof(struct twl_client),
+	twl_priv->twl_modules = devm_kzalloc(&client->dev,
+					 sizeof(struct twl_client) * num_slaves,
 					 GFP_KERNEL);
 	if (!twl_priv->twl_modules) {
 		status = -ENOMEM;
@@ -1178,7 +1180,7 @@ twl_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	twl_priv->ready = true;
 
 	/* setup clock framework */
-	clocks_init(&client->dev, pdata ? pdata->clock : NULL);
+	clocks_init(&pdev->dev, pdata ? pdata->clock : NULL);
 
 	/* read TWL IDCODE Register */
 	if (twl_class_is_4030()) {
@@ -1258,6 +1260,7 @@ static const struct i2c_device_id twl_ids[] = {
 	{ "twl6032", TWL6030_CLASS | TWL6032_SUBCLASS }, /* "Phoenix lite" */
 	{ /* end of list */ },
 };
+MODULE_DEVICE_TABLE(i2c, twl_ids);
 
 /* One Client Driver , 4 Clients */
 static struct i2c_driver twl_driver = {
@@ -1266,4 +1269,9 @@ static struct i2c_driver twl_driver = {
 	.probe		= twl_probe,
 	.remove		= twl_remove,
 };
-builtin_i2c_driver(twl_driver);
+
+module_i2c_driver(twl_driver);
+
+MODULE_AUTHOR("Texas Instruments, Inc.");
+MODULE_DESCRIPTION("I2C Core interface for TWL");
+MODULE_LICENSE("GPL");

@@ -1,7 +1,3 @@
-====================================
-SGI IOC4 PCI (multi function) device
-====================================
-
 The SGI IOC4 PCI device is a bit of a strange beast, so some notes on
 it are in order.
 

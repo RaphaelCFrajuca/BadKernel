@@ -33,7 +33,7 @@
 #include <linux/if_arp.h>
 #include <linux/slab.h>
 #include <net/route.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
 #include "ipddp.h"		/* Our stuff */
 
@@ -59,6 +59,7 @@ static int ipddp_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd);
 static const struct net_device_ops ipddp_netdev_ops = {
 	.ndo_start_xmit		= ipddp_xmit,
 	.ndo_do_ioctl   	= ipddp_ioctl,
+	.ndo_change_mtu		= eth_change_mtu,
 	.ndo_set_mac_address 	= eth_mac_addr,
 	.ndo_validate_addr	= eth_validate_addr,
 };
@@ -311,7 +312,9 @@ module_param(ipddp_mode, int, 0);
 static int __init ipddp_init_module(void)
 {
 	dev_ipddp = ipddp_init();
-	return PTR_ERR_OR_ZERO(dev_ipddp);
+        if (IS_ERR(dev_ipddp))
+                return PTR_ERR(dev_ipddp);
+	return 0;
 }
 
 static void __exit ipddp_cleanup_module(void)

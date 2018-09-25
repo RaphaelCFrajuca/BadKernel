@@ -20,12 +20,21 @@
 #include <asm/cacheflush.h>
 #include <asm/addrspace.h>
 
-const struct dma_map_ops *dma_ops;
+#define PREALLOC_DMA_DEBUG_ENTRIES	4096
+
+struct dma_map_ops *dma_ops;
 EXPORT_SYMBOL(dma_ops);
+
+static int __init dma_init(void)
+{
+	dma_debug_init(PREALLOC_DMA_DEBUG_ENTRIES);
+	return 0;
+}
+fs_initcall(dma_init);
 
 void *dma_generic_alloc_coherent(struct device *dev, size_t size,
 				 dma_addr_t *dma_handle, gfp_t gfp,
-				 unsigned long attrs)
+				 struct dma_attrs *attrs)
 {
 	void *ret, *ret_nocache;
 	int order = get_order(size);
@@ -40,7 +49,7 @@ void *dma_generic_alloc_coherent(struct device *dev, size_t size,
 	 * Pages from the page allocator may have data present in
 	 * cache. So flush the cache before using uncached memory.
 	 */
-	sh_sync_dma_for_device(ret, size, DMA_BIDIRECTIONAL);
+	dma_cache_sync(dev, ret, size, DMA_BIDIRECTIONAL);
 
 	ret_nocache = (void __force *)ioremap_nocache(virt_to_phys(ret), size);
 	if (!ret_nocache) {
@@ -51,22 +60,17 @@ void *dma_generic_alloc_coherent(struct device *dev, size_t size,
 	split_page(pfn_to_page(virt_to_phys(ret) >> PAGE_SHIFT), order);
 
 	*dma_handle = virt_to_phys(ret);
-	if (!WARN_ON(!dev))
-		*dma_handle -= PFN_PHYS(dev->dma_pfn_offset);
 
 	return ret_nocache;
 }
 
 void dma_generic_free_coherent(struct device *dev, size_t size,
 			       void *vaddr, dma_addr_t dma_handle,
-			       unsigned long attrs)
+			       struct dma_attrs *attrs)
 {
 	int order = get_order(size);
 	unsigned long pfn = dma_handle >> PAGE_SHIFT;
 	int k;
-
-	if (!WARN_ON(!dev))
-		pfn += dev->dma_pfn_offset;
 
 	for (k = 0; k < (1 << order); k++)
 		__free_pages(pfn_to_page(pfn + k), 0);
@@ -74,7 +78,7 @@ void dma_generic_free_coherent(struct device *dev, size_t size,
 	iounmap(vaddr);
 }
 
-void sh_sync_dma_for_device(void *vaddr, size_t size,
+void dma_cache_sync(struct device *dev, void *vaddr, size_t size,
 		    enum dma_data_direction direction)
 {
 	void *addr;
@@ -96,7 +100,7 @@ void sh_sync_dma_for_device(void *vaddr, size_t size,
 		BUG();
 	}
 }
-EXPORT_SYMBOL(sh_sync_dma_for_device);
+EXPORT_SYMBOL(dma_cache_sync);
 
 static int __init memchunk_setup(char *str)
 {
@@ -139,7 +143,7 @@ int __init platform_resource_setup_memory(struct platform_device *pdev,
 	if (!memsize)
 		return 0;
 
-	buf = dma_alloc_coherent(&pdev->dev, memsize, &dma_handle, GFP_KERNEL);
+	buf = dma_alloc_coherent(NULL, memsize, &dma_handle, GFP_KERNEL);
 	if (!buf) {
 		pr_warning("%s: unable to allocate memory\n", name);
 		return -ENOMEM;

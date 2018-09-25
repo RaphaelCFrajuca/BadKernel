@@ -6,8 +6,7 @@
  * Copyright (C) 2012 Jonas Gorski <jonas.gorski@gmail.com>
  */
 
-#include <linux/init.h>
-#include <linux/export.h>
+#include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/err.h>
 #include <linux/clk.h>

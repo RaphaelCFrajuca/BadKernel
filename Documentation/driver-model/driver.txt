@@ -196,13 +196,12 @@ struct driver_attribute {
 };
 
 Device drivers can export attributes via their sysfs directories. 
-Drivers can declare attributes using a DRIVER_ATTR_RW and DRIVER_ATTR_RO
-macro that works identically to the DEVICE_ATTR_RW and DEVICE_ATTR_RO
-macros.
+Drivers can declare attributes using a DRIVER_ATTR macro that works
+identically to the DEVICE_ATTR macro. 
 
 Example:
 
-DRIVER_ATTR_RW(debug);
+DRIVER_ATTR(debug,0644,show_debug,store_debug);
 
 This is equivalent to declaring:
 

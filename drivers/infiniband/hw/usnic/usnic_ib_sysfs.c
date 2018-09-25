@@ -43,8 +43,22 @@
 #include "usnic_ib_qp_grp.h"
 #include "usnic_vnic.h"
 #include "usnic_ib_verbs.h"
-#include "usnic_ib_sysfs.h"
 #include "usnic_log.h"
+
+static ssize_t usnic_ib_show_fw_ver(struct device *device,
+					struct device_attribute *attr,
+					char *buf)
+{
+	struct usnic_ib_dev *us_ibdev =
+		container_of(device, struct usnic_ib_dev, ib_dev.dev);
+	struct ethtool_drvinfo info;
+
+	mutex_lock(&us_ibdev->usdev_lock);
+	us_ibdev->netdev->ethtool_ops->get_drvinfo(us_ibdev->netdev, &info);
+	mutex_unlock(&us_ibdev->usdev_lock);
+
+	return scnprintf(buf, PAGE_SIZE, "%s\n", info.fw_version);
+}
 
 static ssize_t usnic_ib_show_board(struct device *device,
 					struct device_attribute *attr,
@@ -81,7 +95,7 @@ usnic_ib_show_config(struct device *device, struct device_attribute *attr,
 	left = PAGE_SIZE;
 
 	mutex_lock(&us_ibdev->usdev_lock);
-	if (kref_read(&us_ibdev->vf_cnt) > 0) {
+	if (atomic_read(&us_ibdev->vf_cnt.refcount) > 0) {
 		char *busname;
 
 		/*
@@ -100,7 +114,7 @@ usnic_ib_show_config(struct device *device, struct device_attribute *attr,
 			PCI_FUNC(us_ibdev->pdev->devfn),
 			netdev_name(us_ibdev->netdev),
 			us_ibdev->ufdev->mac,
-			kref_read(&us_ibdev->vf_cnt));
+			atomic_read(&us_ibdev->vf_cnt.refcount));
 		UPDATE_PTR_LEFT(n, ptr, left);
 
 		for (res_type = USNIC_VNIC_RES_TYPE_EOL;
@@ -148,7 +162,7 @@ usnic_ib_show_max_vf(struct device *device, struct device_attribute *attr,
 	us_ibdev = container_of(device, struct usnic_ib_dev, ib_dev.dev);
 
 	return scnprintf(buf, PAGE_SIZE, "%u\n",
-			kref_read(&us_ibdev->vf_cnt));
+			atomic_read(&us_ibdev->vf_cnt.refcount));
 }
 
 static ssize_t
@@ -178,6 +192,7 @@ usnic_ib_show_cq_per_vf(struct device *device, struct device_attribute *attr,
 			us_ibdev->vf_res_cnt[USNIC_VNIC_RES_TYPE_CQ]);
 }
 
+static DEVICE_ATTR(fw_ver, S_IRUGO, usnic_ib_show_fw_ver, NULL);
 static DEVICE_ATTR(board_id, S_IRUGO, usnic_ib_show_board, NULL);
 static DEVICE_ATTR(config, S_IRUGO, usnic_ib_show_config, NULL);
 static DEVICE_ATTR(iface, S_IRUGO, usnic_ib_show_iface, NULL);
@@ -186,6 +201,7 @@ static DEVICE_ATTR(qp_per_vf, S_IRUGO, usnic_ib_show_qp_per_vf, NULL);
 static DEVICE_ATTR(cq_per_vf, S_IRUGO, usnic_ib_show_cq_per_vf, NULL);
 
 static struct device_attribute *usnic_class_attributes[] = {
+	&dev_attr_fw_ver,
 	&dev_attr_board_id,
 	&dev_attr_config,
 	&dev_attr_iface,

@@ -134,7 +134,8 @@ static DECLARE_INTC_DESC(intc_desc, "sh7206", vectors, groups,
 			 mask_registers, prio_registers, NULL);
 
 static struct plat_sci_port scif0_platform_data = {
-	.scscr		= SCSCR_REIE,
+	.flags		= UPF_BOOT_AUTOCONF,
+	.scscr		= SCSCR_RE | SCSCR_TE | SCSCR_REIE,
 	.type		= PORT_SCIF,
 };
 
@@ -154,7 +155,8 @@ static struct platform_device scif0_device = {
 };
 
 static struct plat_sci_port scif1_platform_data = {
-	.scscr		= SCSCR_REIE,
+	.flags		= UPF_BOOT_AUTOCONF,
+	.scscr		= SCSCR_RE | SCSCR_TE | SCSCR_REIE,
 	.type		= PORT_SCIF,
 };
 
@@ -174,7 +176,8 @@ static struct platform_device scif1_device = {
 };
 
 static struct plat_sci_port scif2_platform_data = {
-	.scscr		= SCSCR_REIE,
+	.flags		= UPF_BOOT_AUTOCONF,
+	.scscr		= SCSCR_RE | SCSCR_TE | SCSCR_REIE,
 	.type		= PORT_SCIF,
 };
 
@@ -194,7 +197,8 @@ static struct platform_device scif2_device = {
 };
 
 static struct plat_sci_port scif3_platform_data = {
-	.scscr		= SCSCR_REIE,
+	.flags		= UPF_BOOT_AUTOCONF,
+	.scscr		= SCSCR_RE | SCSCR_TE | SCSCR_REIE,
 	.type		= PORT_SCIF,
 };
 

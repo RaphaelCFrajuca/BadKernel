@@ -15,7 +15,9 @@
 #include <linux/bcd.h>
 #include <linux/slab.h>
 #include <linux/module.h>
-#include <linux/of_device.h>
+
+#define DRV_VERSION "0.6"
+
 
 /*
  * Ricoh has a family of I2C based RTCs, which differ only slightly from
@@ -83,35 +85,6 @@ static const struct i2c_device_id rs5c372_id[] = {
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, rs5c372_id);
-
-static const struct of_device_id rs5c372_of_match[] = {
-	{
-		.compatible = "ricoh,r2025sd",
-		.data = (void *)rtc_r2025sd
-	},
-	{
-		.compatible = "ricoh,r2221tl",
-		.data = (void *)rtc_r2221tl
-	},
-	{
-		.compatible = "ricoh,rs5c372a",
-		.data = (void *)rtc_rs5c372a
-	},
-	{
-		.compatible = "ricoh,rs5c372b",
-		.data = (void *)rtc_rs5c372b
-	},
-	{
-		.compatible = "ricoh,rv5c386",
-		.data = (void *)rtc_rv5c386
-	},
-	{
-		.compatible = "ricoh,rv5c387a",
-		.data = (void *)rtc_rv5c387a
-	},
-	{ }
-};
-MODULE_DEVICE_TABLE(of, rs5c372_of_match);
 
 /* REVISIT:  this assumes that:
  *  - we're in the 21st century, so it's safe to ignore the century
@@ -207,9 +180,8 @@ static unsigned rs5c_hr2reg(struct rs5c372 *rs5c, unsigned hour)
 	return bin2bcd(hour);
 }
 
-static int rs5c372_rtc_read_time(struct device *dev, struct rtc_time *tm)
+static int rs5c372_get_datetime(struct i2c_client *client, struct rtc_time *tm)
 {
-	struct i2c_client *client = to_i2c_client(dev);
 	struct rs5c372	*rs5c = i2c_get_clientdata(client);
 	int		status = rs5c_get_regs(rs5c);
 
@@ -235,12 +207,12 @@ static int rs5c372_rtc_read_time(struct device *dev, struct rtc_time *tm)
 		tm->tm_sec, tm->tm_min, tm->tm_hour,
 		tm->tm_mday, tm->tm_mon, tm->tm_year, tm->tm_wday);
 
-	return 0;
+	/* rtc might need initialization */
+	return rtc_valid_tm(tm);
 }
 
-static int rs5c372_rtc_set_time(struct device *dev, struct rtc_time *tm)
+static int rs5c372_set_datetime(struct i2c_client *client, struct rtc_time *tm)
 {
-	struct i2c_client *client = to_i2c_client(dev);
 	struct rs5c372	*rs5c = i2c_get_clientdata(client);
 	unsigned char	buf[7];
 	int		addr;
@@ -268,11 +240,11 @@ static int rs5c372_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_RTC_INTF_PROC)
+#if defined(CONFIG_RTC_INTF_PROC) || defined(CONFIG_RTC_INTF_PROC_MODULE)
 #define	NEED_TRIM
 #endif
 
-#if IS_ENABLED(CONFIG_RTC_INTF_SYSFS)
+#if defined(CONFIG_RTC_INTF_SYSFS) || defined(CONFIG_RTC_INTF_SYSFS_MODULE)
 #define	NEED_TRIM
 #endif
 
@@ -305,6 +277,17 @@ static int rs5c372_get_trim(struct i2c_client *client, int *osc, int *trim)
 	return 0;
 }
 #endif
+
+static int rs5c372_rtc_read_time(struct device *dev, struct rtc_time *tm)
+{
+	return rs5c372_get_datetime(to_i2c_client(dev), tm);
+}
+
+static int rs5c372_rtc_set_time(struct device *dev, struct rtc_time *tm)
+{
+	return rs5c372_set_datetime(to_i2c_client(dev), tm);
+}
+
 
 static int rs5c_rtc_alarm_irq_enable(struct device *dev, unsigned int enabled)
 {
@@ -361,6 +344,12 @@ static int rs5c_read_alarm(struct device *dev, struct rtc_wkalrm *t)
 	t->time.tm_sec = 0;
 	t->time.tm_min = bcd2bin(rs5c->regs[RS5C_REG_ALARM_A_MIN] & 0x7f);
 	t->time.tm_hour = rs5c_reg2hr(rs5c, rs5c->regs[RS5C_REG_ALARM_A_HOURS]);
+	t->time.tm_mday = -1;
+	t->time.tm_mon = -1;
+	t->time.tm_year = -1;
+	t->time.tm_wday = -1;
+	t->time.tm_yday = -1;
+	t->time.tm_isdst = -1;
 
 	/* ... and status */
 	t->enabled = !!(rs5c->regs[RS5C_REG_CTRL1] & RS5C_CTRL1_AALE);
@@ -423,7 +412,7 @@ static int rs5c_set_alarm(struct device *dev, struct rtc_wkalrm *t)
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_RTC_INTF_PROC)
+#if defined(CONFIG_RTC_INTF_PROC) || defined(CONFIG_RTC_INTF_PROC_MODULE)
 
 static int rs5c372_rtc_proc(struct device *dev, struct seq_file *seq)
 {
@@ -452,7 +441,7 @@ static const struct rtc_class_ops rs5c372_rtc_ops = {
 	.alarm_irq_enable = rs5c_rtc_alarm_irq_enable,
 };
 
-#if IS_ENABLED(CONFIG_RTC_INTF_SYSFS)
+#if defined(CONFIG_RTC_INTF_SYSFS) || defined(CONFIG_RTC_INTF_SYSFS_MODULE)
 
 static ssize_t rs5c372_sysfs_show_trim(struct device *dev,
 				struct device_attribute *attr, char *buf)
@@ -520,9 +509,9 @@ static int rs5c_oscillator_setup(struct rs5c372 *rs5c372)
 	int addr, i, ret = 0;
 
 	if (rs5c372->type == rtc_r2025sd) {
-		if (rs5c372->regs[RS5C_REG_CTRL2] & R2025_CTRL2_XST)
+		if (!(rs5c372->regs[RS5C_REG_CTRL2] & R2025_CTRL2_XST))
 			return ret;
-		rs5c372->regs[RS5C_REG_CTRL2] |= R2025_CTRL2_XST;
+		rs5c372->regs[RS5C_REG_CTRL2] &= ~R2025_CTRL2_XST;
 	} else {
 		if (!(rs5c372->regs[RS5C_REG_CTRL2] & RS5C_CTRL2_XSTP))
 			return ret;
@@ -571,6 +560,7 @@ static int rs5c372_probe(struct i2c_client *client,
 	int err = 0;
 	int smbus_mode = 0;
 	struct rs5c372 *rs5c372;
+	struct rtc_time tm;
 
 	dev_dbg(&client->dev, "%s\n", __func__);
 
@@ -600,11 +590,7 @@ static int rs5c372_probe(struct i2c_client *client,
 
 	rs5c372->client = client;
 	i2c_set_clientdata(client, rs5c372);
-	if (client->dev.of_node)
-		rs5c372->type = (enum rtc_type)
-			of_device_get_match_data(&client->dev);
-	else
-		rs5c372->type = id->driver_data;
+	rs5c372->type = id->driver_data;
 
 	/* we read registers 0x0f then 0x00-0x0f; skip the first one */
 	rs5c372->regs = &rs5c372->buf[1];
@@ -651,7 +637,10 @@ static int rs5c372_probe(struct i2c_client *client,
 		goto exit;
 	}
 
-	dev_info(&client->dev, "%s found, %s\n",
+	if (rs5c372_get_datetime(client, &tm) < 0)
+		dev_warn(&client->dev, "clock needs to be set\n");
+
+	dev_info(&client->dev, "%s found, %s, driver version " DRV_VERSION "\n",
 			({ char *s; switch (rs5c372->type) {
 			case rtc_r2025sd:	s = "r2025sd"; break;
 			case rtc_r2221tl:	s = "r2221tl"; break;
@@ -693,7 +682,6 @@ static int rs5c372_remove(struct i2c_client *client)
 static struct i2c_driver rs5c372_driver = {
 	.driver		= {
 		.name	= "rtc-rs5c372",
-		.of_match_table = of_match_ptr(rs5c372_of_match),
 	},
 	.probe		= rs5c372_probe,
 	.remove		= rs5c372_remove,
@@ -708,3 +696,4 @@ MODULE_AUTHOR(
 		"Paul Mundt <lethal@linux-sh.org>");
 MODULE_DESCRIPTION("Ricoh RS5C372 RTC driver");
 MODULE_LICENSE("GPL");
+MODULE_VERSION(DRV_VERSION);

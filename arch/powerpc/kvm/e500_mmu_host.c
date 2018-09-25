@@ -25,12 +25,11 @@
 #include <linux/highmem.h>
 #include <linux/log2.h>
 #include <linux/uaccess.h>
-#include <linux/sched/mm.h>
+#include <linux/sched.h>
 #include <linux/rwsem.h>
 #include <linux/vmalloc.h>
 #include <linux/hugetlb.h>
 #include <asm/kvm_ppc.h>
-#include <asm/pte-walk.h>
 
 #include "e500.h"
 #include "timing.h"
@@ -164,9 +163,9 @@ void kvmppc_map_magic(struct kvm_vcpu *vcpu)
 	struct kvm_book3e_206_tlb_entry magic;
 	ulong shared_page = ((ulong)vcpu->arch.shared) & PAGE_MASK;
 	unsigned int stid;
-	kvm_pfn_t pfn;
+	pfn_t pfn;
 
-	pfn = (kvm_pfn_t)virt_to_phys((void *)shared_page) >> PAGE_SHIFT;
+	pfn = (pfn_t)virt_to_phys((void *)shared_page) >> PAGE_SHIFT;
 	get_page(pfn_to_page(pfn));
 
 	preempt_disable();
@@ -247,7 +246,7 @@ static inline int tlbe_is_writable(struct kvm_book3e_206_tlb_entry *tlbe)
 
 static inline void kvmppc_e500_ref_setup(struct tlbe_ref *ref,
 					 struct kvm_book3e_206_tlb_entry *gtlbe,
-					 kvm_pfn_t pfn, unsigned int wimg)
+					 pfn_t pfn, unsigned int wimg)
 {
 	ref->pfn = pfn;
 	ref->flags = E500_TLB_VALID;
@@ -310,7 +309,7 @@ static void kvmppc_e500_setup_stlbe(
 	int tsize, struct tlbe_ref *ref, u64 gvaddr,
 	struct kvm_book3e_206_tlb_entry *stlbe)
 {
-	kvm_pfn_t pfn = ref->pfn;
+	pfn_t pfn = ref->pfn;
 	u32 pr = vcpu->arch.shared->msr & MSR_PR;
 
 	BUG_ON(!(ref->flags & E500_TLB_VALID));
@@ -377,7 +376,7 @@ static inline int kvmppc_e500_shadow_map(struct kvmppc_vcpu_e500 *vcpu_e500,
 
 			start = vma->vm_pgoff;
 			end = start +
-			      vma_pages(vma);
+			      ((vma->vm_end - vma->vm_start) >> PAGE_SHIFT);
 
 			pfn = start + ((hva - vma->vm_start) >> PAGE_SHIFT);
 
@@ -477,7 +476,7 @@ static inline int kvmppc_e500_shadow_map(struct kvmppc_vcpu_e500 *vcpu_e500,
 	 * can't run hence pfn won't change.
 	 */
 	local_irq_save(flags);
-	ptep = find_linux_pte(pgdir, hva, NULL, NULL);
+	ptep = find_linux_pte_or_hugepte(pgdir, hva, NULL, NULL);
 	if (ptep) {
 		pte_t pte = READ_ONCE(*ptep);
 
@@ -625,8 +624,8 @@ void kvmppc_mmu_map(struct kvm_vcpu *vcpu, u64 eaddr, gpa_t gpaddr,
 }
 
 #ifdef CONFIG_KVM_BOOKE_HV
-int kvmppc_load_last_inst(struct kvm_vcpu *vcpu,
-		enum instruction_fetch_type type, u32 *instr)
+int kvmppc_load_last_inst(struct kvm_vcpu *vcpu, enum instruction_type type,
+			  u32 *instr)
 {
 	gva_t geaddr;
 	hpa_t addr;
@@ -715,8 +714,8 @@ int kvmppc_load_last_inst(struct kvm_vcpu *vcpu,
 	return EMULATE_DONE;
 }
 #else
-int kvmppc_load_last_inst(struct kvm_vcpu *vcpu,
-		enum instruction_fetch_type type, u32 *instr)
+int kvmppc_load_last_inst(struct kvm_vcpu *vcpu, enum instruction_type type,
+			  u32 *instr)
 {
 	return EMULATE_AGAIN;
 }
@@ -724,7 +723,7 @@ int kvmppc_load_last_inst(struct kvm_vcpu *vcpu,
 
 /************* MMU Notifiers *************/
 
-static int kvm_unmap_hva(struct kvm *kvm, unsigned long hva)
+int kvm_unmap_hva(struct kvm *kvm, unsigned long hva)
 {
 	trace_kvm_unmap_hva(hva);
 
@@ -798,8 +797,9 @@ int e500_mmu_host_init(struct kvmppc_vcpu_e500 *vcpu_e500)
 	host_tlb_params[0].sets =
 		host_tlb_params[0].entries / host_tlb_params[0].ways;
 	host_tlb_params[1].sets = 1;
-	vcpu_e500->h2g_tlb1_rmap = kcalloc(host_tlb_params[1].entries,
-					   sizeof(*vcpu_e500->h2g_tlb1_rmap),
+
+	vcpu_e500->h2g_tlb1_rmap = kzalloc(sizeof(unsigned int) *
+					   host_tlb_params[1].entries,
 					   GFP_KERNEL);
 	if (!vcpu_e500->h2g_tlb1_rmap)
 		return -EINVAL;

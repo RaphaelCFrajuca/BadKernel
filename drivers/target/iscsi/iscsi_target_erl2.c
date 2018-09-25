@@ -17,7 +17,6 @@
  * GNU General Public License for more details.
  ******************************************************************************/
 
-#include <linux/slab.h>
 #include <scsi/iscsi_proto.h>
 #include <target/target_core_base.h>
 #include <target/target_core_fabric.h>
@@ -312,7 +311,7 @@ int iscsit_discard_unacknowledged_ooo_cmdsns_for_conn(struct iscsi_conn *conn)
 	return 0;
 }
 
-int iscsit_prepare_cmds_for_reallegiance(struct iscsi_conn *conn)
+int iscsit_prepare_cmds_for_realligance(struct iscsi_conn *conn)
 {
 	u32 cmd_count = 0;
 	struct iscsi_cmd *cmd, *cmd_tmp;
@@ -347,7 +346,7 @@ int iscsit_prepare_cmds_for_reallegiance(struct iscsi_conn *conn)
 
 		if ((cmd->iscsi_opcode != ISCSI_OP_SCSI_CMD) &&
 		    (cmd->iscsi_opcode != ISCSI_OP_NOOP_OUT)) {
-			pr_debug("Not performing reallegiance on"
+			pr_debug("Not performing realligence on"
 				" Opcode: 0x%02x, ITT: 0x%08x, CmdSN: 0x%08x,"
 				" CID: %hu\n", cmd->iscsi_opcode,
 				cmd->init_task_tag, cmd->cmd_sn, conn->cid);
@@ -382,7 +381,7 @@ int iscsit_prepare_cmds_for_reallegiance(struct iscsi_conn *conn)
 		cmd_count++;
 		pr_debug("Preparing Opcode: 0x%02x, ITT: 0x%08x,"
 			" CmdSN: 0x%08x, StatSN: 0x%08x, CID: %hu for"
-			" reallegiance.\n", cmd->iscsi_opcode,
+			" realligence.\n", cmd->iscsi_opcode,
 			cmd->init_task_tag, cmd->cmd_sn, cmd->stat_sn,
 			conn->cid);
 

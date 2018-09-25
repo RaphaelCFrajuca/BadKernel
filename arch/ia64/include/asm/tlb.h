@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_IA64_TLB_H
 #define _ASM_IA64_TLB_H
 /*
@@ -169,8 +168,7 @@ static inline void __tlb_alloc_page(struct mmu_gather *tlb)
 
 
 static inline void
-arch_tlb_gather_mmu(struct mmu_gather *tlb, struct mm_struct *mm,
-			unsigned long start, unsigned long end)
+tlb_gather_mmu(struct mmu_gather *tlb, struct mm_struct *mm, unsigned long start, unsigned long end)
 {
 	tlb->mm = mm;
 	tlb->max = ARRAY_SIZE(tlb->local);
@@ -187,11 +185,8 @@ arch_tlb_gather_mmu(struct mmu_gather *tlb, struct mm_struct *mm,
  * collected.
  */
 static inline void
-arch_tlb_finish_mmu(struct mmu_gather *tlb,
-			unsigned long start, unsigned long end, bool force)
+tlb_finish_mmu(struct mmu_gather *tlb, unsigned long start, unsigned long end)
 {
-	if (force)
-		tlb->need_flush = 1;
 	/*
 	 * Note: tlb->nr may be 0 at this point, so we can't rely on tlb->start_addr and
 	 * tlb->end_addr.
@@ -210,7 +205,7 @@ arch_tlb_finish_mmu(struct mmu_gather *tlb,
  * must be delayed until after the TLB has been flushed (see comments at the beginning of
  * this file).
  */
-static inline bool __tlb_remove_page(struct mmu_gather *tlb, struct page *page)
+static inline int __tlb_remove_page(struct mmu_gather *tlb, struct page *page)
 {
 	tlb->need_flush = 1;
 
@@ -218,10 +213,9 @@ static inline bool __tlb_remove_page(struct mmu_gather *tlb, struct page *page)
 		__tlb_alloc_page(tlb);
 
 	tlb->pages[tlb->nr++] = page;
-	VM_WARN_ON(tlb->nr > tlb->max);
-	if (tlb->nr == tlb->max)
-		return true;
-	return false;
+	VM_BUG_ON(tlb->nr > tlb->max);
+
+	return tlb->max - tlb->nr;
 }
 
 static inline void tlb_flush_mmu_tlbonly(struct mmu_gather *tlb)
@@ -241,20 +235,8 @@ static inline void tlb_flush_mmu(struct mmu_gather *tlb)
 
 static inline void tlb_remove_page(struct mmu_gather *tlb, struct page *page)
 {
-	if (__tlb_remove_page(tlb, page))
+	if (!__tlb_remove_page(tlb, page))
 		tlb_flush_mmu(tlb);
-}
-
-static inline bool __tlb_remove_page_size(struct mmu_gather *tlb,
-					  struct page *page, int page_size)
-{
-	return __tlb_remove_page(tlb, page);
-}
-
-static inline void tlb_remove_page_size(struct mmu_gather *tlb,
-					struct page *page, int page_size)
-{
-	return tlb_remove_page(tlb, page);
 }
 
 /*
@@ -279,15 +261,6 @@ do {							\
 	tlb->need_flush = 1;				\
 	__tlb_remove_tlb_entry(tlb, ptep, addr);	\
 } while (0)
-
-#define tlb_remove_huge_tlb_entry(h, tlb, ptep, address)	\
-	tlb_remove_tlb_entry(tlb, ptep, address)
-
-#define tlb_remove_check_page_size_change tlb_remove_check_page_size_change
-static inline void tlb_remove_check_page_size_change(struct mmu_gather *tlb,
-						     unsigned int page_size)
-{
-}
 
 #define pte_free_tlb(tlb, ptep, address)		\
 do {							\

@@ -239,17 +239,17 @@ out:
 	return retval;
 }
 
-static __poll_t serio_raw_poll(struct file *file, poll_table *wait)
+static unsigned int serio_raw_poll(struct file *file, poll_table *wait)
 {
 	struct serio_raw_client *client = file->private_data;
 	struct serio_raw *serio_raw = client->serio_raw;
-	__poll_t mask;
+	unsigned int mask;
 
 	poll_wait(file, &serio_raw->wait, wait);
 
-	mask = serio_raw->dead ? EPOLLHUP | EPOLLERR : EPOLLOUT | EPOLLWRNORM;
+	mask = serio_raw->dead ? POLLHUP | POLLERR : POLLOUT | POLLWRNORM;
 	if (serio_raw->head != serio_raw->tail)
-		mask |= EPOLLIN | EPOLLRDNORM;
+		mask |= POLLIN | POLLRDNORM;
 
 	return mask;
 }
@@ -410,7 +410,7 @@ static void serio_raw_disconnect(struct serio *serio)
 	serio_set_drvdata(serio, NULL);
 }
 
-static const struct serio_device_id serio_raw_serio_ids[] = {
+static struct serio_device_id serio_raw_serio_ids[] = {
 	{
 		.type	= SERIO_8042,
 		.proto	= SERIO_ANY,

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  linux/fs/ext4/block_validity.c
  *
@@ -129,12 +128,12 @@ static void debug_print_tree(struct ext4_sb_info *sbi)
 	node = rb_first(&sbi->system_blks);
 	while (node) {
 		entry = rb_entry(node, struct ext4_system_zone, node);
-		printk(KERN_CONT "%s%llu-%llu", first ? "" : ", ",
+		printk("%s%llu-%llu", first ? "" : ", ",
 		       entry->start_blk, entry->start_blk + entry->count - 1);
 		first = 0;
 		node = rb_next(node);
 	}
-	printk(KERN_CONT "\n");
+	printk("\n");
 }
 
 int ext4_setup_system_zone(struct super_block *sb)
@@ -147,11 +146,11 @@ int ext4_setup_system_zone(struct super_block *sb)
 	int ret;
 
 	if (!test_opt(sb, BLOCK_VALIDITY)) {
-		if (sbi->system_blks.rb_node)
+		if (EXT4_SB(sb)->system_blks.rb_node)
 			ext4_release_system_zone(sb);
 		return 0;
 	}
-	if (sbi->system_blks.rb_node)
+	if (EXT4_SB(sb)->system_blks.rb_node)
 		return 0;
 
 	for (i=0; i < ngroups; i++) {
@@ -173,7 +172,7 @@ int ext4_setup_system_zone(struct super_block *sb)
 	}
 
 	if (test_opt(sb, DEBUG))
-		debug_print_tree(sbi);
+		debug_print_tree(EXT4_SB(sb));
 	return 0;
 }
 

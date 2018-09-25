@@ -10,7 +10,6 @@
 #include <linux/irq.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
-#include <linux/nmi.h>
 
 void do_after_copyback(void)
 {

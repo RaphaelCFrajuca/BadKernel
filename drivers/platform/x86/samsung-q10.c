@@ -95,7 +95,7 @@ static int __init dmi_check_callback(const struct dmi_system_id *id)
 	return 1;
 }
 
-static const struct dmi_system_id samsungq10_dmi_table[] __initconst = {
+static struct dmi_system_id __initdata samsungq10_dmi_table[] = {
 	{
 		.ident = "Samsung Q10",
 		.matches = {

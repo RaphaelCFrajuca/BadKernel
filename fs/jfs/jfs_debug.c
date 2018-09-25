@@ -22,13 +22,14 @@
 #include <linux/module.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include "jfs_incore.h"
 #include "jfs_filsys.h"
 #include "jfs_debug.h"
 
 #ifdef PROC_FS_JFS /* see jfs_debug.h */
 
+static struct proc_dir_entry *base;
 #ifdef CONFIG_JFS_DEBUG
 static int jfs_loglevel_proc_show(struct seq_file *m, void *v)
 {
@@ -57,6 +58,7 @@ static ssize_t jfs_loglevel_proc_write(struct file *file,
 }
 
 static const struct file_operations jfs_loglevel_proc_fops = {
+	.owner		= THIS_MODULE,
 	.open		= jfs_loglevel_proc_open,
 	.read		= seq_read,
 	.llseek		= seq_lseek,
@@ -65,29 +67,43 @@ static const struct file_operations jfs_loglevel_proc_fops = {
 };
 #endif
 
-void jfs_proc_init(void)
-{
-	struct proc_dir_entry *base;
-
-	base = proc_mkdir("fs/jfs", NULL);
-	if (!base)
-		return;
-
+static struct {
+	const char	*name;
+	const struct file_operations *proc_fops;
+} Entries[] = {
 #ifdef CONFIG_JFS_STATISTICS
-	proc_create_single("lmstats", 0, base, jfs_lmstats_proc_show);
-	proc_create_single("txstats", 0, base, jfs_txstats_proc_show);
-	proc_create_single("xtstat", 0, base, jfs_xtstat_proc_show);
-	proc_create_single("mpstat", 0, base, jfs_mpstat_proc_show);
+	{ "lmstats",	&jfs_lmstats_proc_fops, },
+	{ "txstats",	&jfs_txstats_proc_fops, },
+	{ "xtstat",	&jfs_xtstat_proc_fops, },
+	{ "mpstat",	&jfs_mpstat_proc_fops, },
 #endif
 #ifdef CONFIG_JFS_DEBUG
-	proc_create_single("TxAnchor", 0, base, jfs_txanchor_proc_show);
-	proc_create("loglevel", 0, base, &jfs_loglevel_proc_fops);
+	{ "TxAnchor",	&jfs_txanchor_proc_fops, },
+	{ "loglevel",	&jfs_loglevel_proc_fops }
 #endif
+};
+#define NPROCENT	ARRAY_SIZE(Entries)
+
+void jfs_proc_init(void)
+{
+	int i;
+
+	if (!(base = proc_mkdir("fs/jfs", NULL)))
+		return;
+
+	for (i = 0; i < NPROCENT; i++)
+		proc_create(Entries[i].name, 0, base, Entries[i].proc_fops);
 }
 
 void jfs_proc_clean(void)
 {
-	remove_proc_subtree("fs/jfs", NULL);
+	int i;
+
+	if (base) {
+		for (i = 0; i < NPROCENT; i++)
+			remove_proc_entry(Entries[i].name, base);
+		remove_proc_entry("fs/jfs", NULL);
+	}
 }
 
 #endif /* PROC_FS_JFS */

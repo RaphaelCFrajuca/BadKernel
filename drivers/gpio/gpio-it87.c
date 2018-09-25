@@ -2,7 +2,6 @@
  *  GPIO interface for IT87xx Super I/O chips
  *
  *  Author: Diego Elio Pettenò <flameeyes@flameeyes.eu>
- *  Copyright (c) 2017 Google, Inc.
  *
  *  Based on it87_wdt.c     by Oliver Schuster
  *           gpio-it8761e.c by Denis Turischev
@@ -31,16 +30,13 @@
 #include <linux/errno.h>
 #include <linux/ioport.h>
 #include <linux/slab.h>
-#include <linux/gpio/driver.h>
+#include <linux/gpio.h>
 
 /* Chip Id numbers */
 #define NO_DEV_ID	0xffff
-#define IT8620_ID	0x8620
-#define IT8628_ID	0x8628
 #define IT8728_ID	0x8728
 #define IT8732_ID	0x8732
 #define IT8761_ID	0x8761
-#define IT8772_ID	0x8772
 
 /* IO Ports */
 #define REG		0x2e
@@ -80,6 +76,11 @@ struct it87_gpio {
 static struct it87_gpio it87_gpio_chip = {
 	.lock = __SPIN_LOCK_UNLOCKED(it87_gpio_chip.lock),
 };
+
+static inline struct it87_gpio *to_it87_gpio(struct gpio_chip *chip)
+{
+	return container_of(chip, struct it87_gpio, chip);
+}
 
 /* Superio chip access functions; copied from wdt_it87 */
 
@@ -164,7 +165,7 @@ static int it87_gpio_request(struct gpio_chip *chip, unsigned gpio_num)
 {
 	u8 mask, group;
 	int rc = 0;
-	struct it87_gpio *it87_gpio = gpiochip_get_data(chip);
+	struct it87_gpio *it87_gpio = to_it87_gpio(chip);
 
 	mask = 1 << (gpio_num % 8);
 	group = (gpio_num / 8);
@@ -197,7 +198,7 @@ static int it87_gpio_get(struct gpio_chip *chip, unsigned gpio_num)
 {
 	u16 reg;
 	u8 mask;
-	struct it87_gpio *it87_gpio = gpiochip_get_data(chip);
+	struct it87_gpio *it87_gpio = to_it87_gpio(chip);
 
 	mask = 1 << (gpio_num % 8);
 	reg = (gpio_num / 8) + it87_gpio->io_base;
@@ -209,7 +210,7 @@ static int it87_gpio_direction_in(struct gpio_chip *chip, unsigned gpio_num)
 {
 	u8 mask, group;
 	int rc = 0;
-	struct it87_gpio *it87_gpio = gpiochip_get_data(chip);
+	struct it87_gpio *it87_gpio = to_it87_gpio(chip);
 
 	mask = 1 << (gpio_num % 8);
 	group = (gpio_num / 8);
@@ -235,7 +236,7 @@ static void it87_gpio_set(struct gpio_chip *chip,
 {
 	u8 mask, curr_vals;
 	u16 reg;
-	struct it87_gpio *it87_gpio = gpiochip_get_data(chip);
+	struct it87_gpio *it87_gpio = to_it87_gpio(chip);
 
 	mask = 1 << (gpio_num % 8);
 	reg = (gpio_num / 8) + it87_gpio->io_base;
@@ -252,7 +253,7 @@ static int it87_gpio_direction_out(struct gpio_chip *chip,
 {
 	u8 mask, group;
 	int rc = 0;
-	struct it87_gpio *it87_gpio = gpiochip_get_data(chip);
+	struct it87_gpio *it87_gpio = to_it87_gpio(chip);
 
 	mask = 1 << (gpio_num % 8);
 	group = (gpio_num / 8);
@@ -275,7 +276,7 @@ exit:
 	return rc;
 }
 
-static const struct gpio_chip it87_template_chip = {
+static struct gpio_chip it87_template_chip = {
 	.label			= KBUILD_MODNAME,
 	.owner			= THIS_MODULE,
 	.request		= it87_gpio_request,
@@ -306,17 +307,8 @@ static int __init it87_gpio_init(void)
 	it87_gpio->chip = it87_template_chip;
 
 	switch (chip_type) {
-	case IT8620_ID:
-	case IT8628_ID:
-		gpio_ba_reg = 0x62;
-		it87_gpio->io_size = 11;
-		it87_gpio->output_base = 0xc8;
-		it87_gpio->simple_size = 0;
-		it87_gpio->chip.ngpio = 64;
-		break;
 	case IT8728_ID:
 	case IT8732_ID:
-	case IT8772_ID:
 		gpio_ba_reg = 0x62;
 		it87_gpio->io_size = 8;
 		it87_gpio->output_base = 0xc8;
@@ -388,7 +380,7 @@ static int __init it87_gpio_init(void)
 
 	it87_gpio->chip.names = (const char *const*)labels_table;
 
-	rc = gpiochip_add_data(&it87_gpio->chip, it87_gpio);
+	rc = gpiochip_add(&it87_gpio->chip);
 	if (rc)
 		goto labels_free;
 
@@ -414,6 +406,6 @@ static void __exit it87_gpio_exit(void)
 module_init(it87_gpio_init);
 module_exit(it87_gpio_exit);
 
-MODULE_AUTHOR("Diego Elio Pettenò <flameeyes@flameeyes.eu>");
+MODULE_AUTHOR("Diego Elio PettenÃ² <flameeyes@flameeyes.eu>");
 MODULE_DESCRIPTION("GPIO interface for IT87xx Super I/O chips");
 MODULE_LICENSE("GPL");

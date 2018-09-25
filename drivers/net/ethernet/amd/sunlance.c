@@ -997,7 +997,7 @@ static int lance_reset(struct net_device *dev)
 	}
 	lp->init_ring(dev);
 	load_csrs(lp);
-	netif_trans_update(dev); /* prevent tx timeout */
+	dev->trans_start = jiffies; /* prevent tx timeout */
 	status = init_restart_lance(lp);
 	return status;
 }
@@ -1248,10 +1248,9 @@ static void lance_set_multicast(struct net_device *dev)
 	netif_wake_queue(dev);
 }
 
-static void lance_set_multicast_retry(struct timer_list *t)
+static void lance_set_multicast_retry(unsigned long _opaque)
 {
-	struct lance_private *lp = from_timer(lp, t, multicast_timer);
-	struct net_device *dev = lp->dev;
+	struct net_device *dev = (struct net_device *) _opaque;
 
 	lance_set_multicast(dev);
 }
@@ -1295,6 +1294,7 @@ static const struct net_device_ops sparc_lance_ops = {
 	.ndo_start_xmit		= lance_start_xmit,
 	.ndo_set_rx_mode	= lance_set_multicast,
 	.ndo_tx_timeout		= lance_tx_timeout,
+	.ndo_change_mtu		= eth_change_mtu,
 	.ndo_set_mac_address	= eth_mac_addr,
 	.ndo_validate_addr	= eth_validate_addr,
 };
@@ -1460,7 +1460,9 @@ no_link_test:
 	 * can occur from interrupts (ex. IPv6).  So we
 	 * use a timer to try again later when necessary. -DaveM
 	 */
-	timer_setup(&lp->multicast_timer, lance_set_multicast_retry, 0);
+	init_timer(&lp->multicast_timer);
+	lp->multicast_timer.data = (unsigned long) dev;
+	lp->multicast_timer.function = lance_set_multicast_retry;
 
 	if (register_netdev(dev)) {
 		printk(KERN_ERR "SunLance: Cannot register device.\n");

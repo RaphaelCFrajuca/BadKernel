@@ -1,13 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0
-#include <errno.h>
-#include <linux/kernel.h>
 #include <linux/types.h>
-#include <inttypes.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <ctype.h>
 #include <string.h>
-#include <sys/param.h>
 
 #include "parse-events.h"
 #include "evlist.h"
@@ -19,8 +15,6 @@
 #include "thread.h"
 
 #include "tests.h"
-
-#include "sane_ctype.h"
 
 #define BUFSZ	1024
 #define READLEN	128
@@ -39,86 +33,44 @@ static unsigned int hex(char c)
 	return c - 'A' + 10;
 }
 
-static size_t read_objdump_chunk(const char **line, unsigned char **buf,
-				 size_t *buf_len)
-{
-	size_t bytes_read = 0;
-	unsigned char *chunk_start = *buf;
-
-	/* Read bytes */
-	while (*buf_len > 0) {
-		char c1, c2;
-
-		/* Get 2 hex digits */
-		c1 = *(*line)++;
-		if (!isxdigit(c1))
-			break;
-		c2 = *(*line)++;
-		if (!isxdigit(c2))
-			break;
-
-		/* Store byte and advance buf */
-		**buf = (hex(c1) << 4) | hex(c2);
-		(*buf)++;
-		(*buf_len)--;
-		bytes_read++;
-
-		/* End of chunk? */
-		if (isspace(**line))
-			break;
-	}
-
-	/*
-	 * objdump will display raw insn as LE if code endian
-	 * is LE and bytes_per_chunk > 1. In that case reverse
-	 * the chunk we just read.
-	 *
-	 * see disassemble_bytes() at binutils/objdump.c for details
-	 * how objdump chooses display endian)
-	 */
-	if (bytes_read > 1 && !bigendian()) {
-		unsigned char *chunk_end = chunk_start + bytes_read - 1;
-		unsigned char tmp;
-
-		while (chunk_start < chunk_end) {
-			tmp = *chunk_start;
-			*chunk_start = *chunk_end;
-			*chunk_end = tmp;
-			chunk_start++;
-			chunk_end--;
-		}
-	}
-
-	return bytes_read;
-}
-
-static size_t read_objdump_line(const char *line, unsigned char *buf,
-				size_t buf_len)
+static size_t read_objdump_line(const char *line, size_t line_len, void *buf,
+			      size_t len)
 {
 	const char *p;
-	size_t ret, bytes_read = 0;
+	size_t i, j = 0;
 
 	/* Skip to a colon */
 	p = strchr(line, ':');
 	if (!p)
 		return 0;
-	p++;
+	i = p + 1 - line;
 
-	/* Skip initial spaces */
-	while (*p) {
-		if (!isspace(*p))
+	/* Read bytes */
+	while (j < len) {
+		char c1, c2;
+
+		/* Skip spaces */
+		for (; i < line_len; i++) {
+			if (!isspace(line[i]))
+				break;
+		}
+		/* Get 2 hex digits */
+		if (i >= line_len || !isxdigit(line[i]))
 			break;
-		p++;
+		c1 = line[i++];
+		if (i >= line_len || !isxdigit(line[i]))
+			break;
+		c2 = line[i++];
+		/* Followed by a space */
+		if (i < line_len && line[i] && !isspace(line[i]))
+			break;
+		/* Store byte */
+		*(unsigned char *)buf = (hex(c1) << 4) | hex(c2);
+		buf += 1;
+		j++;
 	}
-
-	do {
-		ret = read_objdump_chunk(&p, &buf, &buf_len);
-		bytes_read += ret;
-		p++;
-	} while (ret > 0);
-
 	/* return number of successfully read bytes */
-	return bytes_read;
+	return j;
 }
 
 static int read_objdump_output(FILE *f, void *buf, size_t *len, u64 start_addr)
@@ -143,7 +95,7 @@ static int read_objdump_output(FILE *f, void *buf, size_t *len, u64 start_addr)
 		}
 
 		/* read objdump data into temporary buffer */
-		read_bytes = read_objdump_line(line, tmp, sizeof(tmp));
+		read_bytes = read_objdump_line(line, ret, tmp, sizeof(tmp));
 		if (!read_bytes)
 			continue;
 
@@ -200,7 +152,7 @@ static int read_via_objdump(const char *filename, u64 addr, void *buf,
 
 	ret = read_objdump_output(f, buf, &len, addr);
 	if (len) {
-		pr_debug("objdump read too few bytes: %zd\n", len);
+		pr_debug("objdump read too few bytes\n");
 		if (!ret)
 			ret = len;
 	}
@@ -230,19 +182,13 @@ static int read_object_code(u64 addr, size_t len, u8 cpumode,
 	unsigned char buf2[BUFSZ];
 	size_t ret_len;
 	u64 objdump_addr;
-	const char *objdump_name;
-	char decomp_name[KMOD_DECOMP_LEN];
 	int ret;
 
 	pr_debug("Reading object code for memory address: %#"PRIx64"\n", addr);
 
-	if (!thread__find_map(thread, cpumode, addr, &al) || !al.map->dso) {
-		if (cpumode == PERF_RECORD_MISC_HYPERVISOR) {
-			pr_debug("Hypervisor address can not be resolved - skipping\n");
-			return 0;
-		}
-
-		pr_debug("thread__find_map failed\n");
+	thread__find_addr_map(thread, cpumode, MAP__FUNCTION, addr, &al);
+	if (!al.map || !al.map->dso) {
+		pr_debug("thread__find_addr_map failed\n");
 		return -1;
 	}
 
@@ -275,7 +221,7 @@ static int read_object_code(u64 addr, size_t len, u8 cpumode,
 	 * Converting addresses for use by objdump requires more information.
 	 * map__load() does that.  See map__rip_2objdump() for details.
 	 */
-	if (map__load(al.map))
+	if (map__load(al.map, NULL))
 		return -1;
 
 	/* objdump struggles with kcore - try each map only once */
@@ -296,25 +242,9 @@ static int read_object_code(u64 addr, size_t len, u8 cpumode,
 		state->done[state->done_cnt++] = al.map->start;
 	}
 
-	objdump_name = al.map->dso->long_name;
-	if (dso__needs_decompress(al.map->dso)) {
-		if (dso__decompress_kmodule_path(al.map->dso, objdump_name,
-						 decomp_name,
-						 sizeof(decomp_name)) < 0) {
-			pr_debug("decompression failed\n");
-			return -1;
-		}
-
-		objdump_name = decomp_name;
-	}
-
 	/* Read the object code using objdump */
 	objdump_addr = map__rip_2objdump(al.map, al.addr);
-	ret = read_via_objdump(objdump_name, objdump_addr, buf2, len);
-
-	if (dso__needs_decompress(al.map->dso))
-		unlink(objdump_name);
-
+	ret = read_via_objdump(al.map->dso->long_name, objdump_addr, buf2, len);
 	if (ret > 0) {
 		/*
 		 * The kernel maps are inaccurate - assume objdump is right in
@@ -363,6 +293,7 @@ static int process_sample_event(struct machine *machine,
 {
 	struct perf_sample sample;
 	struct thread *thread;
+	u8 cpumode;
 	int ret;
 
 	if (perf_evlist__parse_sample(evlist, event, &sample)) {
@@ -376,7 +307,9 @@ static int process_sample_event(struct machine *machine,
 		return -1;
 	}
 
-	ret = read_object_code(sample.ip, READLEN, sample.cpumode, thread, state);
+	cpumode = event->header.misc & PERF_RECORD_MISC_CPUMODE_MASK;
+
+	ret = read_object_code(sample.ip, READLEN, cpumode, thread, state);
 	thread__put(thread);
 	return ret;
 }
@@ -408,21 +341,15 @@ static int process_events(struct machine *machine, struct perf_evlist *evlist,
 			  struct state *state)
 {
 	union perf_event *event;
-	struct perf_mmap *md;
 	int i, ret;
 
 	for (i = 0; i < evlist->nr_mmaps; i++) {
-		md = &evlist->mmap[i];
-		if (perf_mmap__read_init(md) < 0)
-			continue;
-
-		while ((event = perf_mmap__read_event(md)) != NULL) {
+		while ((event = perf_evlist__mmap_read(evlist, i)) != NULL) {
 			ret = process_event(machine, evlist, event, state);
-			perf_mmap__consume(md);
+			perf_evlist__mmap_consume(evlist, i);
 			if (ret < 0)
 				return ret;
 		}
-		perf_mmap__read_done(md);
 	}
 	return 0;
 }
@@ -487,34 +414,6 @@ static void fs_something(void)
 	}
 }
 
-static const char *do_determine_event(bool excl_kernel)
-{
-	const char *event = excl_kernel ? "cycles:u" : "cycles";
-
-#ifdef __s390x__
-	char cpuid[128], model[16], model_c[16], cpum_cf_v[16];
-	unsigned int family;
-	int ret, cpum_cf_a;
-
-	if (get_cpuid(cpuid, sizeof(cpuid)))
-		goto out_clocks;
-	ret = sscanf(cpuid, "%*[^,],%u,%[^,],%[^,],%[^,],%x", &family, model_c,
-		     model, cpum_cf_v, &cpum_cf_a);
-	if (ret != 5)		 /* Not available */
-		goto out_clocks;
-	if (excl_kernel && (cpum_cf_a & 4))
-		return event;
-	if (!excl_kernel && (cpum_cf_a & 2))
-		return event;
-
-	/* Fall through: missing authorization */
-out_clocks:
-	event = excl_kernel ? "cpu-clock:u" : "cpu-clock";
-
-#endif
-	return event;
-}
-
 static void do_something(void)
 {
 	fs_something();
@@ -534,13 +433,14 @@ enum {
 
 static int do_test_code_reading(bool try_kcore)
 {
+	struct machines machines;
 	struct machine *machine;
 	struct thread *thread;
 	struct record_opts opts = {
 		.mmap_pages	     = UINT_MAX,
 		.user_freq	     = UINT_MAX,
 		.user_interval	     = ULLONG_MAX,
-		.freq		     = 500,
+		.freq		     = 4000,
 		.target		     = {
 			.uses_mmap   = true,
 		},
@@ -559,8 +459,8 @@ static int do_test_code_reading(bool try_kcore)
 
 	pid = getpid();
 
-	machine = machine__new_host();
-	machine->env = &perf_env;
+	machines__init(&machines);
+	machine = &machines.host;
 
 	ret = machine__create_kernel_maps(machine);
 	if (ret < 0) {
@@ -574,7 +474,7 @@ static int do_test_code_reading(bool try_kcore)
 
 	/* Load kernel map */
 	map = machine__kernel_map(machine);
-	ret = map__load(map);
+	ret = map__load(map, NULL);
 	if (ret < 0) {
 		pr_debug("map__load failed\n");
 		goto out_err;
@@ -626,7 +526,10 @@ static int do_test_code_reading(bool try_kcore)
 
 		perf_evlist__set_maps(evlist, cpus, threads);
 
-		str = do_determine_event(excl_kernel);
+		if (excl_kernel)
+			str = "cycles:u";
+		else
+			str = "cycles";
 		pr_debug("Parsing event '%s'\n", str);
 		ret = parse_events(evlist, str, NULL);
 		if (ret < 0) {
@@ -634,7 +537,7 @@ static int do_test_code_reading(bool try_kcore)
 			goto out_put;
 		}
 
-		perf_evlist__config(evlist, &opts, NULL);
+		perf_evlist__config(evlist, &opts);
 
 		evsel = perf_evlist__first(evlist);
 
@@ -646,31 +549,18 @@ static int do_test_code_reading(bool try_kcore)
 		if (ret < 0) {
 			if (!excl_kernel) {
 				excl_kernel = true;
-				/*
-				 * Both cpus and threads are now owned by evlist
-				 * and will be freed by following perf_evlist__set_maps
-				 * call. Getting refference to keep them alive.
-				 */
-				cpu_map__get(cpus);
-				thread_map__get(threads);
 				perf_evlist__set_maps(evlist, NULL, NULL);
 				perf_evlist__delete(evlist);
 				evlist = NULL;
 				continue;
 			}
-
-			if (verbose > 0) {
-				char errbuf[512];
-				perf_evlist__strerror_open(evlist, errno, errbuf, sizeof(errbuf));
-				pr_debug("perf_evlist__open() failed!\n%s\n", errbuf);
-			}
-
+			pr_debug("perf_evlist__open failed\n");
 			goto out_put;
 		}
 		break;
 	}
 
-	ret = perf_evlist__mmap(evlist, UINT_MAX);
+	ret = perf_evlist__mmap(evlist, UINT_MAX, false);
 	if (ret < 0) {
 		pr_debug("perf_evlist__mmap failed\n");
 		goto out_put;
@@ -704,13 +594,14 @@ out_err:
 		cpu_map__put(cpus);
 		thread_map__put(threads);
 	}
+	machines__destroy_kernel_maps(&machines);
 	machine__delete_threads(machine);
-	machine__delete(machine);
+	machines__exit(&machines);
 
 	return err;
 }
 
-int test__code_reading(struct test *test __maybe_unused, int subtest __maybe_unused)
+int test__code_reading(void)
 {
 	int ret;
 

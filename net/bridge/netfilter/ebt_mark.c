@@ -44,7 +44,7 @@ static int ebt_mark_tg_check(const struct xt_tgchk_param *par)
 	tmp = info->target | ~EBT_VERDICT_BITS;
 	if (BASE_CHAIN && tmp == EBT_RETURN)
 		return -EINVAL;
-	if (ebt_invalid_target(tmp))
+	if (tmp < -NUM_STANDARD_TARGETS || tmp >= 0)
 		return -EINVAL;
 	tmp = info->target & ~EBT_VERDICT_BITS;
 	if (tmp != MARK_SET_VALUE && tmp != MARK_OR_VALUE &&

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * DECnet       An implementation of the DECnet protocol suite for the LINUX
  *              operating system.  DECnet is implemented using the  BSD Socket
@@ -32,7 +31,7 @@
 #include <linux/timer.h>
 #include <linux/spinlock.h>
 #include <linux/atomic.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <net/neighbour.h>
 #include <net/dst.h>
 #include <net/flow.h>
@@ -42,7 +41,6 @@
 #include <net/dn_fib.h>
 #include <net/dn_neigh.h>
 #include <net/dn_dev.h>
-#include <net/nexthop.h>
 
 #define RT_MIN_TABLE 1
 
@@ -152,13 +150,14 @@ static int dn_fib_count_nhs(const struct nlattr *attr)
 	struct rtnexthop *nhp = nla_data(attr);
 	int nhs = 0, nhlen = nla_len(attr);
 
-	while (rtnh_ok(nhp, nhlen)) {
+	while(nhlen >= (int)sizeof(struct rtnexthop)) {
+		if ((nhlen -= nhp->rtnh_len) < 0)
+			return 0;
 		nhs++;
-		nhp = rtnh_next(nhp, &nhlen);
+		nhp = RTNH_NEXT(nhp);
 	}
 
-	/* leftover implies invalid nexthop configuration, discard it */
-	return nhlen > 0 ? 0 : nhs;
+	return nhs;
 }
 
 static int dn_fib_get_nhs(struct dn_fib_info *fi, const struct nlattr *attr,
@@ -168,24 +167,21 @@ static int dn_fib_get_nhs(struct dn_fib_info *fi, const struct nlattr *attr,
 	int nhlen = nla_len(attr);
 
 	change_nexthops(fi) {
-		int attrlen;
-
-		if (!rtnh_ok(nhp, nhlen))
+		int attrlen = nhlen - sizeof(struct rtnexthop);
+		if (attrlen < 0 || (nhlen -= nhp->rtnh_len) < 0)
 			return -EINVAL;
 
 		nh->nh_flags  = (r->rtm_flags&~0xFF) | nhp->rtnh_flags;
 		nh->nh_oif    = nhp->rtnh_ifindex;
 		nh->nh_weight = nhp->rtnh_hops + 1;
 
-		attrlen = rtnh_attrlen(nhp);
-		if (attrlen > 0) {
+		if (attrlen) {
 			struct nlattr *gw_attr;
 
 			gw_attr = nla_find((struct nlattr *) (nhp + 1), attrlen, RTA_GATEWAY);
 			nh->nh_gw = gw_attr ? nla_get_le16(gw_attr) : 0;
 		}
-
-		nhp = rtnh_next(nhp, &nhlen);
+		nhp = RTNH_NEXT(nhp);
 	} endfor_nexthops(fi);
 
 	return 0;
@@ -390,7 +386,7 @@ link_it:
 	}
 
 	fi->fib_treeref++;
-	refcount_set(&fi->fib_clntref, 1);
+	atomic_inc(&fi->fib_clntref);
 	spin_lock(&dn_fib_info_lock);
 	fi->fib_next = dn_fib_info_list;
 	fi->fib_prev = NULL;
@@ -426,7 +422,7 @@ int dn_fib_semantic_match(int type, struct dn_fib_info *fi, const struct flowidn
 		switch (type) {
 		case RTN_NAT:
 			DN_FIB_RES_RESET(*res);
-			refcount_inc(&fi->fib_clntref);
+			atomic_inc(&fi->fib_clntref);
 			return 0;
 		case RTN_UNICAST:
 		case RTN_LOCAL:
@@ -439,7 +435,7 @@ int dn_fib_semantic_match(int type, struct dn_fib_info *fi, const struct flowidn
 			}
 			if (nhsel < fi->fib_nhs) {
 				res->nh_sel = nhsel;
-				refcount_inc(&fi->fib_clntref);
+				atomic_inc(&fi->fib_clntref);
 				return 0;
 			}
 			endfor_nexthops(fi);
@@ -502,8 +498,7 @@ static inline u32 rtm_get_table(struct nlattr *attrs[], u8 table)
 	return table;
 }
 
-static int dn_fib_rtm_delroute(struct sk_buff *skb, struct nlmsghdr *nlh,
-			       struct netlink_ext_ack *extack)
+static int dn_fib_rtm_delroute(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
 	struct net *net = sock_net(skb->sk);
 	struct dn_fib_table *tb;
@@ -517,8 +512,7 @@ static int dn_fib_rtm_delroute(struct sk_buff *skb, struct nlmsghdr *nlh,
 	if (!net_eq(net, &init_net))
 		return -EINVAL;
 
-	err = nlmsg_parse(nlh, sizeof(*r), attrs, RTA_MAX, rtm_dn_policy,
-			  extack);
+	err = nlmsg_parse(nlh, sizeof(*r), attrs, RTA_MAX, rtm_dn_policy);
 	if (err < 0)
 		return err;
 
@@ -529,8 +523,7 @@ static int dn_fib_rtm_delroute(struct sk_buff *skb, struct nlmsghdr *nlh,
 	return tb->delete(tb, r, attrs, nlh, &NETLINK_CB(skb));
 }
 
-static int dn_fib_rtm_newroute(struct sk_buff *skb, struct nlmsghdr *nlh,
-			       struct netlink_ext_ack *extack)
+static int dn_fib_rtm_newroute(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
 	struct net *net = sock_net(skb->sk);
 	struct dn_fib_table *tb;
@@ -544,8 +537,7 @@ static int dn_fib_rtm_newroute(struct sk_buff *skb, struct nlmsghdr *nlh,
 	if (!net_eq(net, &init_net))
 		return -EINVAL;
 
-	err = nlmsg_parse(nlh, sizeof(*r), attrs, RTA_MAX, rtm_dn_policy,
-			  extack);
+	err = nlmsg_parse(nlh, sizeof(*r), attrs, RTA_MAX, rtm_dn_policy);
 	if (err < 0)
 		return err;
 
@@ -792,10 +784,8 @@ void __init dn_fib_init(void)
 
 	register_dnaddr_notifier(&dn_fib_dnaddr_notifier);
 
-	rtnl_register_module(THIS_MODULE, PF_DECnet, RTM_NEWROUTE,
-			     dn_fib_rtm_newroute, NULL, 0);
-	rtnl_register_module(THIS_MODULE, PF_DECnet, RTM_DELROUTE,
-			     dn_fib_rtm_delroute, NULL, 0);
+	rtnl_register(PF_DECnet, RTM_NEWROUTE, dn_fib_rtm_newroute, NULL, NULL);
+	rtnl_register(PF_DECnet, RTM_DELROUTE, dn_fib_rtm_delroute, NULL, NULL);
 }
 
 

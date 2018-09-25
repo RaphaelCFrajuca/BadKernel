@@ -23,6 +23,7 @@
 
 struct a4xx_gpu {
 	struct adreno_gpu base;
+	struct platform_device *pdev;
 
 	/* if OCMEM is used for GMEM: */
 	uint32_t ocmem_base;

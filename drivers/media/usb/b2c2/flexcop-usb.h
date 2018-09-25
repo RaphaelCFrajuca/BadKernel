@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Linux driver for digital TV devices equipped with B2C2 FlexcopII(b)/III
  * flexcop-usb.h - header file for the USB part
@@ -30,10 +29,6 @@ struct flexcop_usb {
 
 	u8 tmp_buffer[1023+190];
 	int tmp_buffer_length;
-
-	/* for URB control messages */
-	u8 data[80];
-	struct mutex data_mutex;
 };
 
 #if 0

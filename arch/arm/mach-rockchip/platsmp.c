@@ -42,7 +42,6 @@ static int ncores;
 #define PMU_PWRDN_SCU		4
 
 static struct regmap *pmu;
-static int has_pmu = true;
 
 static int pmu_power_domain_is_on(int pd)
 {
@@ -65,9 +64,9 @@ static struct reset_control *rockchip_get_core_reset(int cpu)
 	if (dev)
 		np = dev->of_node;
 	else
-		np = of_get_cpu_node(cpu, NULL);
+		np = of_get_cpu_node(cpu, 0);
 
-	return of_reset_control_get_exclusive(np, NULL);
+	return of_reset_control_get(np, NULL);
 }
 
 static int pmu_set_power_domain(int pd, bool on)
@@ -90,22 +89,19 @@ static int pmu_set_power_domain(int pd, bool on)
 	if (!IS_ERR(rstc) && !on)
 		reset_control_assert(rstc);
 
-	if (has_pmu) {
-		ret = regmap_update_bits(pmu, PMU_PWRDN_CON, BIT(pd), val);
+	ret = regmap_update_bits(pmu, PMU_PWRDN_CON, BIT(pd), val);
+	if (ret < 0) {
+		pr_err("%s: could not update power domain\n", __func__);
+		return ret;
+	}
+
+	ret = -1;
+	while (ret != on) {
+		ret = pmu_power_domain_is_on(pd);
 		if (ret < 0) {
-			pr_err("%s: could not update power domain\n",
+			pr_err("%s: could not read power domain state\n",
 			       __func__);
 			return ret;
-		}
-
-		ret = -1;
-		while (ret != on) {
-			ret = pmu_power_domain_is_on(pd);
-			if (ret < 0) {
-				pr_err("%s: could not read power domain state\n",
-				       __func__);
-				return ret;
-			}
 		}
 	}
 
@@ -126,7 +122,7 @@ static int rockchip_boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
 	int ret;
 
-	if (!sram_base_addr || (has_pmu && !pmu)) {
+	if (!sram_base_addr || !pmu) {
 		pr_err("%s: sram or pmu missing for cpu boot\n", __func__);
 		return -ENXIO;
 	}
@@ -156,7 +152,7 @@ static int rockchip_boot_secondary(unsigned int cpu, struct task_struct *idle)
 		 */
 		mdelay(1); /* ensure the cpus other than cpu0 to startup */
 
-		writel(__pa_symbol(secondary_startup), sram_base_addr + 8);
+		writel(virt_to_phys(secondary_startup), sram_base_addr + 8);
 		writel(0xDEADBEAF, sram_base_addr + 4);
 		dsb_sev();
 	}
@@ -182,8 +178,8 @@ static int __init rockchip_smp_prepare_sram(struct device_node *node)
 
 	ret = of_address_to_resource(node, 0, &res);
 	if (ret < 0) {
-		pr_err("%s: could not get address for node %pOF\n",
-		       __func__, node);
+		pr_err("%s: could not get address for node %s\n",
+		       __func__, node->full_name);
 		return ret;
 	}
 
@@ -195,7 +191,7 @@ static int __init rockchip_smp_prepare_sram(struct device_node *node)
 	}
 
 	/* set the boot function for the sram code */
-	rockchip_boot_fn = __pa_symbol(secondary_startup);
+	rockchip_boot_fn = virt_to_phys(secondary_startup);
 
 	/* copy the trampoline to sram, that runs during startup of the core */
 	memcpy(sram_base_addr, &rockchip_secondary_trampoline, trampoline_sz);
@@ -208,7 +204,6 @@ static int __init rockchip_smp_prepare_sram(struct device_node *node)
 }
 
 static const struct regmap_config rockchip_pmu_regmap_config = {
-	.name = "rockchip-pmu",
 	.reg_bits = 32,
 	.val_bits = 32,
 	.reg_stride = 4,
@@ -280,7 +275,7 @@ static void __init rockchip_smp_prepare_cpus(unsigned int max_cpus)
 		return;
 	}
 
-	if (has_pmu && rockchip_smp_prepare_pmu())
+	if (rockchip_smp_prepare_pmu())
 		return;
 
 	if (read_cpuid_part() == ARM_CPU_PART_CORTEX_A9) {
@@ -323,13 +318,6 @@ static void __init rockchip_smp_prepare_cpus(unsigned int max_cpus)
 		pmu_set_power_domain(0 + i, false);
 }
 
-static void __init rk3036_smp_prepare_cpus(unsigned int max_cpus)
-{
-	has_pmu = false;
-
-	rockchip_smp_prepare_cpus(max_cpus);
-}
-
 #ifdef CONFIG_HOTPLUG_CPU
 static int rockchip_cpu_kill(unsigned int cpu)
 {
@@ -352,16 +340,7 @@ static void rockchip_cpu_die(unsigned int cpu)
 }
 #endif
 
-static const struct smp_operations rk3036_smp_ops __initconst = {
-	.smp_prepare_cpus	= rk3036_smp_prepare_cpus,
-	.smp_boot_secondary	= rockchip_boot_secondary,
-#ifdef CONFIG_HOTPLUG_CPU
-	.cpu_kill		= rockchip_cpu_kill,
-	.cpu_die		= rockchip_cpu_die,
-#endif
-};
-
-static const struct smp_operations rockchip_smp_ops __initconst = {
+static struct smp_operations rockchip_smp_ops __initdata = {
 	.smp_prepare_cpus	= rockchip_smp_prepare_cpus,
 	.smp_boot_secondary	= rockchip_boot_secondary,
 #ifdef CONFIG_HOTPLUG_CPU
@@ -370,5 +349,4 @@ static const struct smp_operations rockchip_smp_ops __initconst = {
 #endif
 };
 
-CPU_METHOD_OF_DECLARE(rk3036_smp, "rockchip,rk3036-smp", &rk3036_smp_ops);
 CPU_METHOD_OF_DECLARE(rk3066_smp, "rockchip,rk3066-smp", &rockchip_smp_ops);

@@ -11,6 +11,10 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
  *
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
+ *
  * The full GNU General Public License is included in this distribution in the
  * file called LICENSE.
  *
@@ -42,7 +46,7 @@ void rtl92se_get_hw_reg(struct ieee80211_hw *hw,
 			u8 variable, u8 *val);
 void rtl92se_read_eeprom_info(struct ieee80211_hw *hw);
 void rtl92se_interrupt_recognized(struct ieee80211_hw *hw,
-				  struct rtl_int *int_vec);
+				  u32 *inta, u32 *intb);
 int rtl92se_hw_init(struct ieee80211_hw *hw);
 void rtl92se_card_disable(struct ieee80211_hw *hw);
 void rtl92se_enable_interrupt(struct ieee80211_hw *hw);
@@ -59,7 +63,7 @@ void rtl92se_update_interrupt_mask(struct ieee80211_hw *hw,
 void rtl92se_set_hw_reg(struct ieee80211_hw *hw, u8 variable,
 			u8 *val);
 void rtl92se_update_hal_rate_tbl(struct ieee80211_hw *hw,
-		struct ieee80211_sta *sta, u8 rssi_level, bool update_bw);
+		struct ieee80211_sta *sta, u8 rssi_level);
 void rtl92se_update_channel_access_setting(struct ieee80211_hw *hw);
 bool rtl92se_gpio_radio_on_off_checking(struct ieee80211_hw *hw,
 					u8 *valid);

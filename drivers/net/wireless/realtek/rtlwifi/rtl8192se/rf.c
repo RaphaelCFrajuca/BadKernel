@@ -11,6 +11,10 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
  *
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
+ *
  * The full GNU General Public License is included in this distribution in the
  * file called LICENSE.
  *
@@ -133,7 +137,7 @@ static void _rtl92s_set_antennadiff(struct ieee80211_hw *hw,
 	struct rtl_priv *rtlpriv = rtl_priv(hw);
 	struct rtl_efuse *rtlefuse = rtl_efuse(rtl_priv(hw));
 	struct rtl_phy *rtlphy = &(rtlpriv->phy);
-	s8 ant_pwr_diff = 0;
+	char ant_pwr_diff = 0;
 	u32	u4reg_val = 0;
 
 	if (rtlphy->rf_type == RF_2T2R) {
@@ -204,7 +208,8 @@ static void _rtl92s_get_txpower_writeval_byregulatory(struct ieee80211_hw *hw,
 				 "Realtek regulatory, 40MHz, writeval = 0x%x\n",
 				 writeval);
 		} else {
-			chnlgroup = 0;
+			if (rtlphy->pwrgroup_cnt == 1)
+				chnlgroup = 0;
 
 			if (rtlphy->pwrgroup_cnt >= 3) {
 				if (chnl <= 3)
@@ -523,7 +528,8 @@ void rtl92s_phy_rf6052_set_bandwidth(struct ieee80211_hw *hw, u8 bandwidth)
 					rtlphy->rfreg_chnlval[0]);
 		break;
 	default:
-		pr_err("unknown bandwidth: %#X\n", bandwidth);
+		RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
+			 "unknown bandwidth: %#X\n", bandwidth);
 		break;
 	}
 }

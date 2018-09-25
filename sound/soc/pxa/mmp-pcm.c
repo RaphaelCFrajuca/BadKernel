@@ -25,8 +25,6 @@
 #include <sound/soc.h>
 #include <sound/dmaengine_pcm.h>
 
-#define DRV_NAME "mmp-pcm"
-
 struct mmp_dma_data {
 	int ssp_id;
 	struct resource *dma_res;
@@ -102,8 +100,7 @@ static bool filter(struct dma_chan *chan, void *param)
 static int mmp_pcm_open(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_component *component = snd_soc_rtdcom_lookup(rtd, DRV_NAME);
-	struct platform_device *pdev = to_platform_device(component->dev);
+	struct platform_device *pdev = to_platform_device(rtd->platform->dev);
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	struct mmp_dma_data dma_data;
 	struct resource *r;
@@ -134,7 +131,7 @@ static int mmp_pcm_mmap(struct snd_pcm_substream *substream,
 		vma->vm_end - vma->vm_start, vma->vm_page_prot);
 }
 
-static const struct snd_pcm_ops mmp_pcm_ops = {
+static struct snd_pcm_ops mmp_pcm_ops = {
 	.open		= mmp_pcm_open,
 	.close		= snd_dmaengine_pcm_close_release_chan,
 	.ioctl		= snd_pcm_lib_ioctl,
@@ -169,6 +166,7 @@ static void mmp_pcm_free_dma_buffers(struct snd_pcm *pcm)
 		buf->area = NULL;
 	}
 
+	return;
 }
 
 static int mmp_pcm_preallocate_dma_buffer(struct snd_pcm_substream *substream,
@@ -214,8 +212,7 @@ err:
 	return ret;
 }
 
-static const struct snd_soc_component_driver mmp_soc_component = {
-	.name		= DRV_NAME,
+static struct snd_soc_platform_driver mmp_soc_platform = {
 	.ops		= &mmp_pcm_ops,
 	.pcm_new	= mmp_pcm_new,
 	.pcm_free	= mmp_pcm_free_dma_buffers,
@@ -235,8 +232,7 @@ static int mmp_pcm_probe(struct platform_device *pdev)
 		mmp_pcm_hardware[SNDRV_PCM_STREAM_CAPTURE].period_bytes_max =
 						pdata->period_max_capture;
 	}
-	return devm_snd_soc_register_component(&pdev->dev, &mmp_soc_component,
-					       NULL, 0);
+	return devm_snd_soc_register_platform(&pdev->dev, &mmp_soc_platform);
 }
 
 static struct platform_driver mmp_pcm_driver = {

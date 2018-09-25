@@ -16,6 +16,8 @@
 #include <linux/slab.h>
 #include <linux/rational.h>
 
+#define to_clk_fd(_hw) container_of(_hw, struct clk_fractional_divider, hw)
+
 static unsigned long clk_fd_recalc_rate(struct clk_hw *hw,
 					unsigned long parent_rate)
 {
@@ -49,12 +51,16 @@ static unsigned long clk_fd_recalc_rate(struct clk_hw *hw,
 	return ret;
 }
 
-static void clk_fd_general_approximation(struct clk_hw *hw, unsigned long rate,
-					 unsigned long *parent_rate,
-					 unsigned long *m, unsigned long *n)
+static long clk_fd_round_rate(struct clk_hw *hw, unsigned long rate,
+			      unsigned long *parent_rate)
 {
 	struct clk_fractional_divider *fd = to_clk_fd(hw);
 	unsigned long scale;
+	unsigned long m, n;
+	u64 ret;
+
+	if (!rate || rate >= *parent_rate)
+		return *parent_rate;
 
 	/*
 	 * Get rate closer to *parent_rate to guarantee there is no overflow
@@ -67,23 +73,7 @@ static void clk_fd_general_approximation(struct clk_hw *hw, unsigned long rate,
 
 	rational_best_approximation(rate, *parent_rate,
 			GENMASK(fd->mwidth - 1, 0), GENMASK(fd->nwidth - 1, 0),
-			m, n);
-}
-
-static long clk_fd_round_rate(struct clk_hw *hw, unsigned long rate,
-			      unsigned long *parent_rate)
-{
-	struct clk_fractional_divider *fd = to_clk_fd(hw);
-	unsigned long m, n;
-	u64 ret;
-
-	if (!rate || rate >= *parent_rate)
-		return *parent_rate;
-
-	if (fd->approximation)
-		fd->approximation(hw, rate, parent_rate, &m, &n);
-	else
-		clk_fd_general_approximation(hw, rate, parent_rate, &m, &n);
+			&m, &n);
 
 	ret = (u64)*parent_rate * m;
 	do_div(ret, n);
@@ -128,15 +118,14 @@ const struct clk_ops clk_fractional_divider_ops = {
 };
 EXPORT_SYMBOL_GPL(clk_fractional_divider_ops);
 
-struct clk_hw *clk_hw_register_fractional_divider(struct device *dev,
+struct clk *clk_register_fractional_divider(struct device *dev,
 		const char *name, const char *parent_name, unsigned long flags,
 		void __iomem *reg, u8 mshift, u8 mwidth, u8 nshift, u8 nwidth,
 		u8 clk_divider_flags, spinlock_t *lock)
 {
 	struct clk_fractional_divider *fd;
 	struct clk_init_data init;
-	struct clk_hw *hw;
-	int ret;
+	struct clk *clk;
 
 	fd = kzalloc(sizeof(*fd), GFP_KERNEL);
 	if (!fd)
@@ -159,39 +148,10 @@ struct clk_hw *clk_hw_register_fractional_divider(struct device *dev,
 	fd->lock = lock;
 	fd->hw.init = &init;
 
-	hw = &fd->hw;
-	ret = clk_hw_register(dev, hw);
-	if (ret) {
+	clk = clk_register(dev, &fd->hw);
+	if (IS_ERR(clk))
 		kfree(fd);
-		hw = ERR_PTR(ret);
-	}
 
-	return hw;
-}
-EXPORT_SYMBOL_GPL(clk_hw_register_fractional_divider);
-
-struct clk *clk_register_fractional_divider(struct device *dev,
-		const char *name, const char *parent_name, unsigned long flags,
-		void __iomem *reg, u8 mshift, u8 mwidth, u8 nshift, u8 nwidth,
-		u8 clk_divider_flags, spinlock_t *lock)
-{
-	struct clk_hw *hw;
-
-	hw = clk_hw_register_fractional_divider(dev, name, parent_name, flags,
-			reg, mshift, mwidth, nshift, nwidth, clk_divider_flags,
-			lock);
-	if (IS_ERR(hw))
-		return ERR_CAST(hw);
-	return hw->clk;
+	return clk;
 }
 EXPORT_SYMBOL_GPL(clk_register_fractional_divider);
-
-void clk_hw_unregister_fractional_divider(struct clk_hw *hw)
-{
-	struct clk_fractional_divider *fd;
-
-	fd = to_clk_fd(hw);
-
-	clk_hw_unregister(hw);
-	kfree(fd);
-}

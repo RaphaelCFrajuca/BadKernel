@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * bcache stats code
  *
@@ -147,9 +146,9 @@ static void scale_stats(struct cache_stats *stats, unsigned long rescale_at)
 	}
 }
 
-static void scale_accounting(struct timer_list *t)
+static void scale_accounting(unsigned long data)
 {
-	struct cache_accounting *acc = from_timer(acc, t, timer);
+	struct cache_accounting *acc = (struct cache_accounting *) data;
 
 #define move_stat(name) do {						\
 	unsigned t = atomic_xchg(&acc->collector.name, 0);		\
@@ -234,7 +233,9 @@ void bch_cache_accounting_init(struct cache_accounting *acc,
 	kobject_init(&acc->day.kobj,		&bch_stats_ktype);
 
 	closure_init(&acc->cl, parent);
-	timer_setup(&acc->timer, scale_accounting, 0);
+	init_timer(&acc->timer);
 	acc->timer.expires	= jiffies + accounting_delay;
+	acc->timer.data		= (unsigned long) acc;
+	acc->timer.function	= scale_accounting;
 	add_timer(&acc->timer);
 }

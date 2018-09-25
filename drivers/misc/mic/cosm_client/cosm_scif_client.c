@@ -22,8 +22,6 @@
 #include <linux/delay.h>
 #include <linux/reboot.h>
 #include <linux/kthread.h>
-#include <linux/sched/signal.h>
-
 #include "../cosm/cosm_main.h"
 
 #define COSM_SCIF_MAX_RETRIES 10
@@ -160,7 +158,7 @@ static int cosm_scif_client(void *unused)
 
 	while (!kthread_should_stop()) {
 		pollepd.epd = client_epd;
-		pollepd.events = EPOLLIN;
+		pollepd.events = POLLIN;
 
 		rc = scif_poll(&pollepd, 1, COSM_HEARTBEAT_SEND_MSEC);
 		if (rc < 0) {
@@ -171,7 +169,7 @@ static int cosm_scif_client(void *unused)
 			continue;
 		}
 
-		if (pollepd.revents & EPOLLIN)
+		if (pollepd.revents & POLLIN)
 			cosm_client_recv();
 
 		msg.id = COSM_MSG_HEARTBEAT;

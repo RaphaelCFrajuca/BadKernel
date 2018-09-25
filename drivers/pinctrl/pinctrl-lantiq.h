@@ -6,7 +6,7 @@
  *  it under the terms of the GNU General Public License version 2 as
  *  publishhed by the Free Software Foundation.
  *
- *  Copyright (C) 2012 John Crispin <john@phrozen.org>
+ *  Copyright (C) 2012 John Crispin <blogic@openwrt.org>
  */
 
 #ifndef __PINCTRL_LANTIQ_H
@@ -162,14 +162,6 @@ enum ltq_pin {
 	GPIO53,
 	GPIO54,
 	GPIO55,
-	GPIO56,
-	GPIO57,
-	GPIO58,
-	GPIO59,
-	GPIO60, /* 60 */
-	GPIO61,
-	GPIO62,
-	GPIO63,
 
 	GPIO64,
 	GPIO65,

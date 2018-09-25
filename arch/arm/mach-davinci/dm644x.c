@@ -11,7 +11,6 @@
 #include <linux/init.h>
 #include <linux/clk.h>
 #include <linux/serial_8250.h>
-#include <linux/dmaengine.h>
 #include <linux/platform_device.h>
 #include <linux/platform_data/edma.h>
 #include <linux/platform_data/gpio-davinci.h>
@@ -20,7 +19,7 @@
 
 #include <mach/cputype.h>
 #include <mach/irqs.h>
-#include "psc.h"
+#include <mach/psc.h>
 #include <mach/mux.h>
 #include <mach/time.h>
 #include <mach/serial.h>
@@ -506,20 +505,9 @@ static s8 queue_priority_mapping[][2] = {
 	{-1, -1},
 };
 
-static const struct dma_slave_map dm644x_edma_map[] = {
-	{ "davinci-mcbsp", "tx", EDMA_FILTER_PARAM(0, 2) },
-	{ "davinci-mcbsp", "rx", EDMA_FILTER_PARAM(0, 3) },
-	{ "spi_davinci", "tx", EDMA_FILTER_PARAM(0, 16) },
-	{ "spi_davinci", "rx", EDMA_FILTER_PARAM(0, 17) },
-	{ "dm6441-mmc.0", "rx", EDMA_FILTER_PARAM(0, 26) },
-	{ "dm6441-mmc.0", "tx", EDMA_FILTER_PARAM(0, 27) },
-};
-
 static struct edma_soc_info dm644x_edma_pdata = {
 	.queue_priority_mapping	= queue_priority_mapping,
 	.default_queue		= EVENTQ_1,
-	.slave_map		= dm644x_edma_map,
-	.slavecnt		= ARRAY_SIZE(dm644x_edma_map),
 };
 
 static struct resource edma_resources[] = {
@@ -899,12 +887,13 @@ struct platform_device dm644x_serial_device[] = {
 	}
 };
 
-static const struct davinci_soc_info davinci_soc_info_dm644x = {
+static struct davinci_soc_info davinci_soc_info_dm644x = {
 	.io_desc		= dm644x_io_desc,
 	.io_desc_num		= ARRAY_SIZE(dm644x_io_desc),
 	.jtag_id_reg		= 0x01c40028,
 	.ids			= dm644x_ids,
 	.ids_num		= ARRAY_SIZE(dm644x_ids),
+	.cpu_clks		= dm644x_clks,
 	.psc_bases		= dm644x_psc_bases,
 	.psc_bases_num		= ARRAY_SIZE(dm644x_psc_bases),
 	.pinmux_base		= DAVINCI_SYSTEM_MODULE_BASE,
@@ -920,9 +909,10 @@ static const struct davinci_soc_info davinci_soc_info_dm644x = {
 	.sram_len		= SZ_16K,
 };
 
-void __init dm644x_init_asp(void)
+void __init dm644x_init_asp(struct snd_platform_data *pdata)
 {
 	davinci_cfg_reg(DM644X_MCBSP);
+	dm644x_asp_device.dev.platform_data = pdata;
 	platform_device_register(&dm644x_asp_device);
 }
 
@@ -930,12 +920,6 @@ void __init dm644x_init(void)
 {
 	davinci_common_init(&davinci_soc_info_dm644x);
 	davinci_map_sysmod();
-}
-
-void __init dm644x_init_time(void)
-{
-	davinci_clk_init(dm644x_clks);
-	davinci_timer_init();
 }
 
 int __init dm644x_init_video(struct vpfe_config *vpfe_cfg,
@@ -961,14 +945,19 @@ int __init dm644x_init_video(struct vpfe_config *vpfe_cfg,
 	return 0;
 }
 
-void __init dm644x_init_devices(void)
+static int __init dm644x_init_devices(void)
 {
 	struct platform_device *edma_pdev;
-	int ret;
+	int ret = 0;
+
+	if (!cpu_is_davinci_dm644x())
+		return 0;
 
 	edma_pdev = platform_device_register_full(&dm644x_edma_device);
-	if (IS_ERR(edma_pdev))
+	if (IS_ERR(edma_pdev)) {
 		pr_warn("%s: Failed to register eDMA\n", __func__);
+		return PTR_ERR(edma_pdev);
+	}
 
 	platform_device_register(&dm644x_mdio_device);
 	platform_device_register(&dm644x_emac_device);
@@ -977,4 +966,6 @@ void __init dm644x_init_devices(void)
 	if (ret)
 		pr_warn("%s: watchdog init failed: %d\n", __func__, ret);
 
+	return ret;
 }
+postcore_initcall(dm644x_init_devices);

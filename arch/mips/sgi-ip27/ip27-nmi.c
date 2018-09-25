@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/kernel.h>
 #include <linux/mmzone.h>
 #include <linux/nodemask.h>
@@ -24,7 +23,7 @@ typedef unsigned long machreg_t;
 static arch_spinlock_t nmi_lock = __ARCH_SPIN_LOCK_UNLOCKED;
 
 /*
- * Let's see what else we need to do here. Set up sp, gp?
+ * Lets see what else we need to do here. Set up sp, gp?
  */
 void nmi_dump(void)
 {

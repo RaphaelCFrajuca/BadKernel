@@ -16,7 +16,6 @@
  *
  */
 
-#include <crypto/hmac.h>
 #include <crypto/internal/hash.h>
 #include <crypto/scatterwalk.h>
 #include <linux/err.h>
@@ -75,8 +74,8 @@ static int hmac_setkey(struct crypto_shash *parent,
 	memcpy(opad, ipad, bs);
 
 	for (i = 0; i < bs; i++) {
-		ipad[i] ^= HMAC_IPAD_VALUE;
-		opad[i] ^= HMAC_OPAD_VALUE;
+		ipad[i] ^= 0x36;
+		opad[i] ^= 0x5c;
 	}
 
 	return crypto_shash_init(shash) ?:

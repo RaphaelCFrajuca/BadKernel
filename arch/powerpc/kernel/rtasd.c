@@ -21,9 +21,8 @@
 #include <linux/cpu.h>
 #include <linux/workqueue.h>
 #include <linux/slab.h>
-#include <linux/topology.h>
 
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/rtas.h>
 #include <asm/prom.h>
@@ -50,7 +49,7 @@ static unsigned int rtas_error_log_buffer_max;
 static unsigned int event_scan;
 static unsigned int rtas_event_scan_rate;
 
-static bool full_rtas_msgs;
+static int full_rtas_msgs = 0;
 
 /* Stop logging to nvram after first fatal error */
 static int logging_enabled; /* Until we initialize everything,
@@ -283,7 +282,6 @@ static void prrn_work_fn(struct work_struct *work)
 	 * the RTAS event.
 	 */
 	pseries_devicetree_update(-prrn_update_scope);
-	numa_update_cpu_topology(false);
 }
 
 static DECLARE_WORK(prrn_work, prrn_work_fn);
@@ -388,11 +386,11 @@ out:
 	return error;
 }
 
-static __poll_t rtas_log_poll(struct file *file, poll_table * wait)
+static unsigned int rtas_log_poll(struct file *file, poll_table * wait)
 {
 	poll_wait(file, &rtas_log_wait, wait);
 	if (rtas_log_size)
-		return EPOLLIN | EPOLLRDNORM;
+		return POLLIN | POLLRDNORM;
 	return 0;
 }
 
@@ -436,10 +434,7 @@ static void do_event_scan(void)
 		}
 
 		if (error == 0) {
-			if (rtas_error_type((struct rtas_error_log *)logdata) !=
-			    RTAS_TYPE_PRRN)
-				pSeries_log_error(logdata, ERR_TYPE_RTAS_LOG,
-						  0);
+			pSeries_log_error(logdata, ERR_TYPE_RTAS_LOG, 0);
 			handle_rtas_event((struct rtas_error_log *)logdata);
 		}
 
@@ -447,7 +442,7 @@ static void do_event_scan(void)
 }
 
 static void rtas_event_scan(struct work_struct *w);
-static DECLARE_DELAYED_WORK(event_scan_work, rtas_event_scan);
+DECLARE_DELAYED_WORK(event_scan_work, rtas_event_scan);
 
 /*
  * Delay should be at least one second since some machines have problems if
@@ -488,7 +483,7 @@ static void rtas_event_scan(struct work_struct *w)
 }
 
 #ifdef CONFIG_PPC64
-static void retrieve_nvram_error_log(void)
+static void retreive_nvram_error_log(void)
 {
 	unsigned int err_type ;
 	int rc ;
@@ -506,7 +501,7 @@ static void retrieve_nvram_error_log(void)
 	}
 }
 #else /* CONFIG_PPC64 */
-static void retrieve_nvram_error_log(void)
+static void retreive_nvram_error_log(void)
 {
 }
 #endif /* CONFIG_PPC64 */
@@ -518,7 +513,7 @@ static void start_event_scan(void)
 		 (30000 / rtas_event_scan_rate));
 
 	/* Retrieve errors from nvram if any */
-	retrieve_nvram_error_log();
+	retreive_nvram_error_log();
 
 	schedule_delayed_work_on(cpumask_first(cpu_online_mask),
 				 &event_scan_work, event_scan_delay);
@@ -531,8 +526,10 @@ void rtas_cancel_event_scan(void)
 }
 EXPORT_SYMBOL_GPL(rtas_cancel_event_scan);
 
-static int __init rtas_event_scan_init(void)
+static int __init rtas_init(void)
 {
+	struct proc_dir_entry *entry;
+
 	if (!machine_is(pseries) && !machine_is(chrp))
 		return 0;
 
@@ -559,33 +556,18 @@ static int __init rtas_event_scan_init(void)
 	rtas_error_log_max = rtas_get_error_log_max();
 	rtas_error_log_buffer_max = rtas_error_log_max + sizeof(int);
 
-	rtas_log_buf = vmalloc(array_size(LOG_NUMBER,
-					  rtas_error_log_buffer_max));
+	rtas_log_buf = vmalloc(rtas_error_log_buffer_max*LOG_NUMBER);
 	if (!rtas_log_buf) {
 		printk(KERN_ERR "rtasd: no memory\n");
 		return -ENOMEM;
 	}
 
-	start_event_scan();
-
-	return 0;
-}
-arch_initcall(rtas_event_scan_init);
-
-static int __init rtas_init(void)
-{
-	struct proc_dir_entry *entry;
-
-	if (!machine_is(pseries) && !machine_is(chrp))
-		return 0;
-
-	if (!rtas_log_buf)
-		return -ENODEV;
-
-	entry = proc_create("powerpc/rtas/error_log", 0400, NULL,
+	entry = proc_create("powerpc/rtas/error_log", S_IRUSR, NULL,
 			    &proc_rtas_log_operations);
 	if (!entry)
 		printk(KERN_ERR "Failed to create error_log proc entry\n");
+
+	start_event_scan();
 
 	return 0;
 }
@@ -610,6 +592,11 @@ __setup("surveillance=", surveillance_setup);
 
 static int __init rtasmsgs_setup(char *str)
 {
-	return (kstrtobool(str, &full_rtas_msgs) == 0);
+	if (strcmp(str, "on") == 0)
+		full_rtas_msgs = 1;
+	else if (strcmp(str, "off") == 0)
+		full_rtas_msgs = 0;
+
+	return 1;
 }
 __setup("rtasmsgs=", rtasmsgs_setup);

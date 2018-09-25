@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * security/tomoyo/group.c
  *
@@ -6,8 +5,6 @@
  */
 
 #include <linux/slab.h>
-#include <linux/rculist.h>
-
 #include "common.h"
 
 /**

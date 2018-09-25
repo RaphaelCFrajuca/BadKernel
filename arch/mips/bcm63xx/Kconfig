@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 menu "CPU support"
 	depends on BCM63XX
 

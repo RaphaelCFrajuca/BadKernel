@@ -1,10 +1,5 @@
-// SPDX-License-Identifier: GPL-2.0
-#include "string2.h"
-#include <linux/kernel.h>
-#include <linux/string.h>
-#include <stdlib.h>
-
-#include "sane_ctype.h"
+#include "util.h"
+#include "linux/string.h"
 
 #define K 1024LL
 /*
@@ -104,10 +99,8 @@ static int count_argc(const char *str)
 void argv_free(char **argv)
 {
 	char **p;
-	for (p = argv; *p; p++) {
-		free(*p);
-		*p = NULL;
-	}
+	for (p = argv; *p; p++)
+		zfree(p);
 
 	free(argv);
 }
@@ -127,7 +120,7 @@ void argv_free(char **argv)
 char **argv_split(const char *str, int *argcp)
 {
 	int argc = count_argc(str);
-	char **argv = calloc(argc + 1, sizeof(*argv));
+	char **argv = zalloc(sizeof(*argv) * (argc+1));
 	char **argvp;
 
 	if (argv == NULL)
@@ -202,8 +195,7 @@ error:
 }
 
 /* Glob/lazy pattern matching */
-static bool __match_glob(const char *str, const char *pat, bool ignore_space,
-			bool case_ins)
+static bool __match_glob(const char *str, const char *pat, bool ignore_space)
 {
 	while (*str && *pat && *pat != '*') {
 		if (ignore_space) {
@@ -229,13 +221,8 @@ static bool __match_glob(const char *str, const char *pat, bool ignore_space,
 				return false;
 		else if (*pat == '\\') /* Escaped char match as normal char */
 			pat++;
-		if (case_ins) {
-			if (tolower(*str) != tolower(*pat))
-				return false;
-		} else if (*str != *pat)
+		if (*str++ != *pat++)
 			return false;
-		str++;
-		pat++;
 	}
 	/* Check wild card */
 	if (*pat == '*') {
@@ -244,7 +231,7 @@ static bool __match_glob(const char *str, const char *pat, bool ignore_space,
 		if (!*pat)	/* Tail wild card matches all */
 			return true;
 		while (*str)
-			if (__match_glob(str++, pat, ignore_space, case_ins))
+			if (__match_glob(str++, pat, ignore_space))
 				return true;
 	}
 	return !*str && !*pat;
@@ -264,12 +251,7 @@ static bool __match_glob(const char *str, const char *pat, bool ignore_space,
  */
 bool strglobmatch(const char *str, const char *pat)
 {
-	return __match_glob(str, pat, false, false);
-}
-
-bool strglobmatch_nocase(const char *str, const char *pat)
-{
-	return __match_glob(str, pat, false, true);
+	return __match_glob(str, pat, false);
 }
 
 /**
@@ -282,7 +264,7 @@ bool strglobmatch_nocase(const char *str, const char *pat)
  */
 bool strlazymatch(const char *str, const char *pat)
 {
-	return __match_glob(str, pat, true, false);
+	return __match_glob(str, pat, true);
 }
 
 /**
@@ -329,8 +311,12 @@ char *strxfrchar(char *s, char from, char to)
  */
 char *ltrim(char *s)
 {
-	while (isspace(*s))
+	int len = strlen(s);
+
+	while (len && isspace(*s)) {
+		len--;
 		s++;
+	}
 
 	return s;
 }
@@ -356,6 +342,22 @@ char *rtrim(char *s)
 	*(end + 1) = '\0';
 
 	return s;
+}
+
+/**
+ * memdup - duplicate region of memory
+ * @src: memory region to duplicate
+ * @len: memory region length
+ */
+void *memdup(const void *src, size_t len)
+{
+	void *p;
+
+	p = malloc(len);
+	if (p)
+		memcpy(p, src, len);
+
+	return p;
 }
 
 char *asprintf_expr_inout_ints(const char *var, bool in, size_t nints, int *ints)
@@ -384,7 +386,7 @@ char *asprintf_expr_inout_ints(const char *var, bool in, size_t nints, int *ints
 				goto out_err_overflow;
 
 			if (i > 0)
-				printed += scnprintf(e + printed, size - printed, " %s ", or_and);
+				printed += snprintf(e + printed, size - printed, " %s ", or_and);
 			printed += scnprintf(e + printed, size - printed,
 					     "%s %s %d", var, eq_neq, ints[i]);
 		}
@@ -395,50 +397,4 @@ char *asprintf_expr_inout_ints(const char *var, bool in, size_t nints, int *ints
 out_err_overflow:
 	free(expr);
 	return NULL;
-}
-
-/* Like strpbrk(), but not break if it is right after a backslash (escaped) */
-char *strpbrk_esc(char *str, const char *stopset)
-{
-	char *ptr;
-
-	do {
-		ptr = strpbrk(str, stopset);
-		if (ptr == str ||
-		    (ptr == str + 1 && *(ptr - 1) != '\\'))
-			break;
-		str = ptr + 1;
-	} while (ptr && *(ptr - 1) == '\\' && *(ptr - 2) != '\\');
-
-	return ptr;
-}
-
-/* Like strdup, but do not copy a single backslash */
-char *strdup_esc(const char *str)
-{
-	char *s, *d, *p, *ret = strdup(str);
-
-	if (!ret)
-		return NULL;
-
-	d = strchr(ret, '\\');
-	if (!d)
-		return ret;
-
-	s = d + 1;
-	do {
-		if (*s == '\0') {
-			*d = '\0';
-			break;
-		}
-		p = strchr(s + 1, '\\');
-		if (p) {
-			memmove(d, s, p - s);
-			d += p - s;
-			s = p + 1;
-		} else
-			memmove(d, s, strlen(s) + 1);
-	} while (p);
-
-	return ret;
 }

@@ -52,7 +52,7 @@
 #include <linux/platform_device.h>
 #include <linux/gfp.h>
 
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/io.h>
 
 #include <linux/sonypi.h>
@@ -603,7 +603,7 @@ static void sonypi_type3_srs(void)
 	u16 v16;
 	u8  v8;
 
-	/* This model type uses the same initialization of
+	/* This model type uses the same initialiazation of
 	 * the embedded controller as the type2 models. */
 	sonypi_type2_srs();
 
@@ -934,17 +934,17 @@ static ssize_t sonypi_misc_read(struct file *file, char __user *buf,
 
 	if (ret > 0) {
 		struct inode *inode = file_inode(file);
-		inode->i_atime = current_time(inode);
+		inode->i_atime = current_fs_time(inode->i_sb);
 	}
 
 	return ret;
 }
 
-static __poll_t sonypi_misc_poll(struct file *file, poll_table *wait)
+static unsigned int sonypi_misc_poll(struct file *file, poll_table *wait)
 {
 	poll_wait(file, &sonypi_device.fifo_proc_list, wait);
 	if (kfifo_len(&sonypi_device.fifo))
-		return EPOLLIN | EPOLLRDNORM;
+		return POLLIN | POLLRDNORM;
 	return 0;
 }
 
@@ -1491,7 +1491,7 @@ static struct platform_driver sonypi_driver = {
 
 static struct platform_device *sonypi_platform_device;
 
-static const struct dmi_system_id sonypi_dmi_table[] __initconst = {
+static struct dmi_system_id __initdata sonypi_dmi_table[] = {
 	{
 		.ident = "Sony Vaio",
 		.matches = {

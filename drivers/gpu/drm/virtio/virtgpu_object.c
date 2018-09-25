@@ -89,7 +89,7 @@ int virtio_gpu_object_create(struct virtio_gpu_device *vgdev,
 	virtio_gpu_init_ttm_placement(bo, pinned);
 
 	ret = ttm_bo_init(&vgdev->mman.bdev, &bo->tbo, size, type,
-			  &bo->placement, 0, !kernel, acc_size,
+			  &bo->placement, 0, !kernel, NULL, acc_size,
 			  NULL, NULL, &virtio_gpu_ttm_bo_destroy);
 	/* ttm_bo_init failure will call the destroy */
 	if (ret != 0)
@@ -124,17 +124,13 @@ int virtio_gpu_object_get_sg_table(struct virtio_gpu_device *qdev,
 	int ret;
 	struct page **pages = bo->tbo.ttm->pages;
 	int nr_pages = bo->tbo.num_pages;
-	struct ttm_operation_ctx ctx = {
-		.interruptible = false,
-		.no_wait_gpu = false
-	};
 
 	/* wtf swapping */
 	if (bo->pages)
 		return 0;
 
 	if (bo->tbo.ttm->state == tt_unpopulated)
-		bo->tbo.ttm->bdev->driver->ttm_tt_populate(bo->tbo.ttm, &ctx);
+		bo->tbo.ttm->bdev->driver->ttm_tt_populate(bo->tbo.ttm);
 	bo->pages = kmalloc(sizeof(struct sg_table), GFP_KERNEL);
 	if (!bo->pages)
 		goto out;
@@ -161,10 +157,10 @@ int virtio_gpu_object_wait(struct virtio_gpu_object *bo, bool no_wait)
 {
 	int r;
 
-	r = ttm_bo_reserve(&bo->tbo, true, no_wait, NULL);
+	r = ttm_bo_reserve(&bo->tbo, true, no_wait, false, NULL);
 	if (unlikely(r != 0))
 		return r;
-	r = ttm_bo_wait(&bo->tbo, true, no_wait);
+	r = ttm_bo_wait(&bo->tbo, true, true, no_wait);
 	ttm_bo_unreserve(&bo->tbo);
 	return r;
 }

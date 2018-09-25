@@ -12,6 +12,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 #include "gspca.h"
 
@@ -32,7 +36,7 @@ int gspca_expo_autogain(
 	int i, steps, retval = 0;
 
 	if (v4l2_ctrl_g_ctrl(gspca_dev->autogain) == 0)
-		return 0;
+	        return 0;
 
 	orig_gain = gain = v4l2_ctrl_g_ctrl(gspca_dev->gain);
 	orig_exposure = exposure = v4l2_ctrl_g_ctrl(gspca_dev->exposure);
@@ -41,8 +45,8 @@ int gspca_expo_autogain(
 	   desired lumination fast (with the risc of a slight overshoot) */
 	steps = abs(desired_avg_lum - avg_lum) / deadzone;
 
-	gspca_dbg(gspca_dev, D_FRAM, "autogain: lum: %d, desired: %d, steps: %d\n",
-		  avg_lum, desired_avg_lum, steps);
+	PDEBUG(D_FRAM, "autogain: lum: %d, desired: %d, steps: %d",
+		avg_lum, desired_avg_lum, steps);
 
 	for (i = 0; i < steps; i++) {
 		if (avg_lum > desired_avg_lum) {
@@ -75,17 +79,17 @@ int gspca_expo_autogain(
 	}
 
 	if (gain != orig_gain) {
-		v4l2_ctrl_s_ctrl(gspca_dev->gain, gain);
+	        v4l2_ctrl_s_ctrl(gspca_dev->gain, gain);
 		retval = 1;
 	}
 	if (exposure != orig_exposure) {
-		v4l2_ctrl_s_ctrl(gspca_dev->exposure, exposure);
+	        v4l2_ctrl_s_ctrl(gspca_dev->exposure, exposure);
 		retval = 1;
 	}
 
 	if (retval)
-		gspca_dbg(gspca_dev, D_FRAM, "autogain: changed gain: %d, expo: %d\n",
-			  gain, exposure);
+		PDEBUG(D_FRAM, "autogain: changed gain: %d, expo: %d",
+			gain, exposure);
 	return retval;
 }
 EXPORT_SYMBOL(gspca_expo_autogain);
@@ -112,7 +116,7 @@ int gspca_coarse_grained_expo_autogain(
 	int steps, retval = 0;
 
 	if (v4l2_ctrl_g_ctrl(gspca_dev->autogain) == 0)
-		return 0;
+	        return 0;
 
 	orig_gain = gain = v4l2_ctrl_g_ctrl(gspca_dev->gain);
 	orig_exposure = exposure = v4l2_ctrl_g_ctrl(gspca_dev->exposure);
@@ -126,8 +130,8 @@ int gspca_coarse_grained_expo_autogain(
 	   desired lumination fast (with the risc of a slight overshoot) */
 	steps = (desired_avg_lum - avg_lum) / deadzone;
 
-	gspca_dbg(gspca_dev, D_FRAM, "autogain: lum: %d, desired: %d, steps: %d\n",
-		  avg_lum, desired_avg_lum, steps);
+	PDEBUG(D_FRAM, "autogain: lum: %d, desired: %d, steps: %d",
+		avg_lum, desired_avg_lum, steps);
 
 	if ((gain + steps) > gain_high &&
 	    exposure < gspca_dev->exposure->maximum) {
@@ -158,17 +162,17 @@ int gspca_coarse_grained_expo_autogain(
 	}
 
 	if (gain != orig_gain) {
-		v4l2_ctrl_s_ctrl(gspca_dev->gain, gain);
+	        v4l2_ctrl_s_ctrl(gspca_dev->gain, gain);
 		retval = 1;
 	}
 	if (exposure != orig_exposure) {
-		v4l2_ctrl_s_ctrl(gspca_dev->exposure, exposure);
+	        v4l2_ctrl_s_ctrl(gspca_dev->exposure, exposure);
 		retval = 1;
 	}
 
 	if (retval)
-		gspca_dbg(gspca_dev, D_FRAM, "autogain: changed gain: %d, expo: %d\n",
-			  gain, exposure);
+		PDEBUG(D_FRAM, "autogain: changed gain: %d, expo: %d",
+			gain, exposure);
 	return retval;
 }
 EXPORT_SYMBOL(gspca_coarse_grained_expo_autogain);

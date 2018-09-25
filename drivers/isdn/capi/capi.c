@@ -724,19 +724,19 @@ capi_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos
 	return count;
 }
 
-static __poll_t
+static unsigned int
 capi_poll(struct file *file, poll_table *wait)
 {
 	struct capidev *cdev = file->private_data;
-	__poll_t mask = 0;
+	unsigned int mask = 0;
 
 	if (!cdev->ap.applid)
-		return EPOLLERR;
+		return POLLERR;
 
 	poll_wait(file, &(cdev->recvwait), wait);
-	mask = EPOLLOUT | EPOLLWRNORM;
+	mask = POLLOUT | POLLWRNORM;
 	if (!skb_queue_empty(&cdev->recvqueue))
-		mask |= EPOLLIN | EPOLLRDNORM;
+		mask |= POLLIN | POLLRDNORM;
 	return mask;
 }
 
@@ -1058,7 +1058,7 @@ static int capinc_tty_write(struct tty_struct *tty,
 	}
 
 	skb_reserve(skb, CAPI_DATA_B3_REQ_LEN);
-	skb_put_data(skb, buf, count);
+	memcpy(skb_put(skb, count), buf, count);
 
 	__skb_queue_tail(&mp->outqueue, skb);
 	mp->outbytes += skb->len;
@@ -1082,7 +1082,7 @@ static int capinc_tty_put_char(struct tty_struct *tty, unsigned char ch)
 	skb = mp->outskb;
 	if (skb) {
 		if (skb_tailroom(skb) > 0) {
-			skb_put_u8(skb, ch);
+			*(skb_put(skb, 1)) = ch;
 			goto unlock_out;
 		}
 		mp->outskb = NULL;
@@ -1094,7 +1094,7 @@ static int capinc_tty_put_char(struct tty_struct *tty, unsigned char ch)
 	skb = alloc_skb(CAPI_DATA_B3_REQ_LEN + CAPI_MAX_BLKSIZE, GFP_ATOMIC);
 	if (skb) {
 		skb_reserve(skb, CAPI_DATA_B3_REQ_LEN);
-		skb_put_u8(skb, ch);
+		*(skb_put(skb, 1)) = ch;
 		mp->outskb = skb;
 	} else {
 		printk(KERN_ERR "capinc_put_char: char %u lost\n", ch);
@@ -1260,7 +1260,7 @@ static int __init capinc_tty_init(void)
 	if (capi_ttyminors <= 0)
 		capi_ttyminors = CAPINC_NR_PORTS;
 
-	capiminors = kcalloc(capi_ttyminors, sizeof(struct capiminor *),
+	capiminors = kzalloc(sizeof(struct capiminor *) * capi_ttyminors,
 			     GFP_KERNEL);
 	if (!capiminors)
 		return -ENOMEM;
@@ -1340,6 +1340,19 @@ static int capi20_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
+static int capi20_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, capi20_proc_show, NULL);
+}
+
+static const struct file_operations capi20_proc_fops = {
+	.owner		= THIS_MODULE,
+	.open		= capi20_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
 /*
  * /proc/capi/capi20ncci:
  *  applid ncci
@@ -1360,10 +1373,23 @@ static int capi20ncci_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
+static int capi20ncci_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, capi20ncci_proc_show, NULL);
+}
+
+static const struct file_operations capi20ncci_proc_fops = {
+	.owner		= THIS_MODULE,
+	.open		= capi20ncci_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
 static void __init proc_init(void)
 {
-	proc_create_single("capi/capi20", 0, NULL, capi20_proc_show);
-	proc_create_single("capi/capi20ncci", 0, NULL, capi20ncci_proc_show);
+	proc_create("capi/capi20", 0, NULL, &capi20_proc_fops);
+	proc_create("capi/capi20ncci", 0, NULL, &capi20ncci_proc_fops);
 }
 
 static void __exit proc_exit(void)

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * PKUnity General-Purpose Input/Output (GPIO) Registers
  */

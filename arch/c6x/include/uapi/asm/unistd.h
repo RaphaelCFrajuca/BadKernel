@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  * Copyright (C) 2011 Texas Instruments Incorporated
  *
@@ -15,7 +14,6 @@
  *   more details.
  */
 
-#define __ARCH_WANT_RENAMEAT
 #define __ARCH_WANT_SYS_CLONE
 
 /* Use the standard ABI for syscalls. */

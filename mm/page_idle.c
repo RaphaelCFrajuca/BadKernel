@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/init.h>
 #include <linux/bootmem.h>
 #include <linux/fs.h>
@@ -42,44 +41,39 @@ static struct page *page_idle_get_page(unsigned long pfn)
 		return NULL;
 
 	zone = page_zone(page);
-	spin_lock_irq(zone_lru_lock(zone));
+	spin_lock_irq(&zone->lru_lock);
 	if (unlikely(!PageLRU(page))) {
 		put_page(page);
 		page = NULL;
 	}
-	spin_unlock_irq(zone_lru_lock(zone));
+	spin_unlock_irq(&zone->lru_lock);
 	return page;
 }
 
-static bool page_idle_clear_pte_refs_one(struct page *page,
+static int page_idle_clear_pte_refs_one(struct page *page,
 					struct vm_area_struct *vma,
 					unsigned long addr, void *arg)
 {
-	struct page_vma_mapped_walk pvmw = {
-		.page = page,
-		.vma = vma,
-		.address = addr,
-	};
+	struct mm_struct *mm = vma->vm_mm;
+	spinlock_t *ptl;
+	pmd_t *pmd;
+	pte_t *pte;
 	bool referenced = false;
 
-	while (page_vma_mapped_walk(&pvmw)) {
-		addr = pvmw.address;
-		if (pvmw.pte) {
-			/*
-			 * For PTE-mapped THP, one sub page is referenced,
-			 * the whole THP is referenced.
-			 */
-			if (ptep_clear_young_notify(vma, addr, pvmw.pte))
-				referenced = true;
-		} else if (IS_ENABLED(CONFIG_TRANSPARENT_HUGEPAGE)) {
-			if (pmdp_clear_young_notify(vma, addr, pvmw.pmd))
-				referenced = true;
-		} else {
-			/* unexpected pmd-mapped page? */
-			WARN_ON_ONCE(1);
+	if (unlikely(PageTransHuge(page))) {
+		pmd = page_check_address_pmd(page, mm, addr,
+					     PAGE_CHECK_ADDRESS_PMD_FLAG, &ptl);
+		if (pmd) {
+			referenced = pmdp_clear_young_notify(vma, addr, pmd);
+			spin_unlock(ptl);
+		}
+	} else {
+		pte = page_check_address(page, mm, addr, &ptl, 0);
+		if (pte) {
+			referenced = ptep_clear_young_notify(vma, addr, pte);
+			pte_unmap_unlock(pte, ptl);
 		}
 	}
-
 	if (referenced) {
 		clear_page_idle(page);
 		/*
@@ -89,7 +83,7 @@ static bool page_idle_clear_pte_refs_one(struct page *page,
 		 */
 		set_page_young(page);
 	}
-	return true;
+	return SWAP_AGAIN;
 }
 
 static void page_idle_clear_pte_refs(struct page *page)
@@ -201,7 +195,7 @@ static ssize_t page_idle_bitmap_write(struct file *file, struct kobject *kobj,
 }
 
 static struct bin_attribute page_idle_bitmap_attr =
-		__BIN_ATTR(bitmap, 0600,
+		__BIN_ATTR(bitmap, S_IRUSR | S_IWUSR,
 			   page_idle_bitmap_read, page_idle_bitmap_write, 0);
 
 static struct bin_attribute *page_idle_bin_attrs[] = {
@@ -209,7 +203,7 @@ static struct bin_attribute *page_idle_bin_attrs[] = {
 	NULL,
 };
 
-static const struct attribute_group page_idle_attr_group = {
+static struct attribute_group page_idle_attr_group = {
 	.bin_attrs = page_idle_bin_attrs,
 	.name = "page_idle",
 };

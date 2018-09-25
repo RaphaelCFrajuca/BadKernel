@@ -48,7 +48,7 @@
 #include <linux/random.h>
 #include <linux/scatterlist.h>
 #include <asm/io.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include "DAC960.h"
 
 #define DAC960_GAM_MINOR	252
@@ -268,17 +268,17 @@ static bool DAC960_CreateAuxiliaryStructures(DAC960_Controller_T *Controller)
   void *AllocationPointer = NULL;
   void *ScatterGatherCPU = NULL;
   dma_addr_t ScatterGatherDMA;
-  struct dma_pool *ScatterGatherPool;
+  struct pci_pool *ScatterGatherPool;
   void *RequestSenseCPU = NULL;
   dma_addr_t RequestSenseDMA;
-  struct dma_pool *RequestSensePool = NULL;
+  struct pci_pool *RequestSensePool = NULL;
 
   if (Controller->FirmwareType == DAC960_V1_Controller)
     {
       CommandAllocationLength = offsetof(DAC960_Command_T, V1.EndMarker);
       CommandAllocationGroupSize = DAC960_V1_CommandAllocationGroupSize;
-      ScatterGatherPool = dma_pool_create("DAC960_V1_ScatterGather",
-		&Controller->PCIDevice->dev,
+      ScatterGatherPool = pci_pool_create("DAC960_V1_ScatterGather",
+		Controller->PCIDevice,
 	DAC960_V1_ScatterGatherLimit * sizeof(DAC960_V1_ScatterGatherSegment_T),
 	sizeof(DAC960_V1_ScatterGatherSegment_T), 0);
       if (ScatterGatherPool == NULL)
@@ -290,18 +290,18 @@ static bool DAC960_CreateAuxiliaryStructures(DAC960_Controller_T *Controller)
     {
       CommandAllocationLength = offsetof(DAC960_Command_T, V2.EndMarker);
       CommandAllocationGroupSize = DAC960_V2_CommandAllocationGroupSize;
-      ScatterGatherPool = dma_pool_create("DAC960_V2_ScatterGather",
-		&Controller->PCIDevice->dev,
+      ScatterGatherPool = pci_pool_create("DAC960_V2_ScatterGather",
+		Controller->PCIDevice,
 	DAC960_V2_ScatterGatherLimit * sizeof(DAC960_V2_ScatterGatherSegment_T),
 	sizeof(DAC960_V2_ScatterGatherSegment_T), 0);
       if (ScatterGatherPool == NULL)
 	    return DAC960_Failure(Controller,
 			"AUXILIARY STRUCTURE CREATION (SG)");
-      RequestSensePool = dma_pool_create("DAC960_V2_RequestSense",
-		&Controller->PCIDevice->dev, sizeof(DAC960_SCSI_RequestSense_T),
+      RequestSensePool = pci_pool_create("DAC960_V2_RequestSense",
+		Controller->PCIDevice, sizeof(DAC960_SCSI_RequestSense_T),
 		sizeof(int), 0);
       if (RequestSensePool == NULL) {
-	    dma_pool_destroy(ScatterGatherPool);
+	    pci_pool_destroy(ScatterGatherPool);
 	    return DAC960_Failure(Controller,
 			"AUXILIARY STRUCTURE CREATION (SG)");
       }
@@ -335,16 +335,16 @@ static bool DAC960_CreateAuxiliaryStructures(DAC960_Controller_T *Controller)
       Command->Next = Controller->FreeCommands;
       Controller->FreeCommands = Command;
       Controller->Commands[CommandIdentifier-1] = Command;
-      ScatterGatherCPU = dma_pool_alloc(ScatterGatherPool, GFP_ATOMIC,
+      ScatterGatherCPU = pci_pool_alloc(ScatterGatherPool, GFP_ATOMIC,
 							&ScatterGatherDMA);
       if (ScatterGatherCPU == NULL)
 	  return DAC960_Failure(Controller, "AUXILIARY STRUCTURE CREATION");
 
       if (RequestSensePool != NULL) {
-	  RequestSenseCPU = dma_pool_alloc(RequestSensePool, GFP_ATOMIC,
+  	  RequestSenseCPU = pci_pool_alloc(RequestSensePool, GFP_ATOMIC,
 						&RequestSenseDMA);
   	  if (RequestSenseCPU == NULL) {
-                dma_pool_free(ScatterGatherPool, ScatterGatherCPU,
+                pci_pool_free(ScatterGatherPool, ScatterGatherCPU,
                                 ScatterGatherDMA);
     		return DAC960_Failure(Controller,
 					"AUXILIARY STRUCTURE CREATION");
@@ -379,8 +379,8 @@ static bool DAC960_CreateAuxiliaryStructures(DAC960_Controller_T *Controller)
 static void DAC960_DestroyAuxiliaryStructures(DAC960_Controller_T *Controller)
 {
   int i;
-  struct dma_pool *ScatterGatherPool = Controller->ScatterGatherPool;
-  struct dma_pool *RequestSensePool = NULL;
+  struct pci_pool *ScatterGatherPool = Controller->ScatterGatherPool;
+  struct pci_pool *RequestSensePool = NULL;
   void *ScatterGatherCPU;
   dma_addr_t ScatterGatherDMA;
   void *RequestSenseCPU;
@@ -411,9 +411,9 @@ static void DAC960_DestroyAuxiliaryStructures(DAC960_Controller_T *Controller)
 	  RequestSenseDMA = Command->V2.RequestSenseDMA;
       }
       if (ScatterGatherCPU != NULL)
-          dma_pool_free(ScatterGatherPool, ScatterGatherCPU, ScatterGatherDMA);
+          pci_pool_free(ScatterGatherPool, ScatterGatherCPU, ScatterGatherDMA);
       if (RequestSenseCPU != NULL)
-          dma_pool_free(RequestSensePool, RequestSenseCPU, RequestSenseDMA);
+          pci_pool_free(RequestSensePool, RequestSenseCPU, RequestSenseDMA);
 
       if ((Command->CommandIdentifier
 	   % Controller->CommandAllocationGroupSize) == 1) {
@@ -437,11 +437,13 @@ static void DAC960_DestroyAuxiliaryStructures(DAC960_Controller_T *Controller)
       Controller->CurrentStatusBuffer = NULL;
     }
 
-  dma_pool_destroy(ScatterGatherPool);
+  if (ScatterGatherPool != NULL)
+  	pci_pool_destroy(ScatterGatherPool);
   if (Controller->FirmwareType == DAC960_V1_Controller)
   	return;
 
-  dma_pool_destroy(RequestSensePool);
+  if (RequestSensePool != NULL)
+	pci_pool_destroy(RequestSensePool);
 
   for (i = 0; i < DAC960_MaxLogicalDrives; i++) {
 	kfree(Controller->V2.LogicalDeviceInformation[i]);
@@ -1179,6 +1181,7 @@ static bool DAC960_V1_EnableMemoryMailboxInterface(DAC960_Controller_T
 
   if (pci_set_dma_mask(Controller->PCIDevice, DMA_BIT_MASK(32)))
 	return DAC960_Failure(Controller, "DMA mask out of range");
+  Controller->BounceBufferLimit = DMA_BIT_MASK(32);
 
   if ((hw_type == DAC960_PD_Controller) || (hw_type == DAC960_P_Controller)) {
     CommandMailboxesSize =  0;
@@ -1379,8 +1382,11 @@ static bool DAC960_V2_EnableMemoryMailboxInterface(DAC960_Controller_T
   dma_addr_t	CommandMailboxDMA;
   DAC960_V2_CommandStatus_T CommandStatus;
 
-	if (pci_set_dma_mask(Controller->PCIDevice, DMA_BIT_MASK(64)) &&
-	    pci_set_dma_mask(Controller->PCIDevice, DMA_BIT_MASK(32)))
+	if (!pci_set_dma_mask(Controller->PCIDevice, DMA_BIT_MASK(64)))
+		Controller->BounceBufferLimit = DMA_BIT_MASK(64);
+	else if (!pci_set_dma_mask(Controller->PCIDevice, DMA_BIT_MASK(32)))
+		Controller->BounceBufferLimit = DMA_BIT_MASK(32);
+	else
 		return DAC960_Failure(Controller, "DMA mask out of range");
 
   /* This is a temporary dma mapping, used only in the scope of this function */
@@ -1672,12 +1678,9 @@ static bool DAC960_V1_ReadControllerConfiguration(DAC960_Controller_T
       Enquiry2->FirmwareID.FirmwareType = '0';
       Enquiry2->FirmwareID.TurnID = 0;
     }
-  snprintf(Controller->FirmwareVersion, sizeof(Controller->FirmwareVersion),
-	   "%d.%02d-%c-%02d",
-	   Enquiry2->FirmwareID.MajorVersion,
-	   Enquiry2->FirmwareID.MinorVersion,
-	   Enquiry2->FirmwareID.FirmwareType,
-	   Enquiry2->FirmwareID.TurnID);
+  sprintf(Controller->FirmwareVersion, "%d.%02d-%c-%02d",
+	  Enquiry2->FirmwareID.MajorVersion, Enquiry2->FirmwareID.MinorVersion,
+	  Enquiry2->FirmwareID.FirmwareType, Enquiry2->FirmwareID.TurnID);
   if (!((Controller->FirmwareVersion[0] == '5' &&
 	 strcmp(Controller->FirmwareVersion, "5.06") >= 0) ||
 	(Controller->FirmwareVersion[0] == '4' &&
@@ -2536,6 +2539,7 @@ static bool DAC960_RegisterBlockDevice(DAC960_Controller_T *Controller)
 		continue;
   	}
   	Controller->RequestQueue[n] = RequestQueue;
+  	blk_queue_bounce_limit(RequestQueue, Controller->BounceBufferLimit);
   	RequestQueue->queuedata = Controller;
 	blk_queue_max_segments(RequestQueue, Controller->DriverScatterGatherLimit);
 	blk_queue_max_hw_sectors(RequestQueue, Controller->MaxBlocksPerCommand);
@@ -2950,7 +2954,7 @@ DAC960_DetectController(struct pci_dev *PCI_Device,
 	case DAC960_PD_Controller:
 	  if (!request_region(Controller->IO_Address, 0x80,
 			      Controller->FullModelName)) {
-		DAC960_Error("IO port 0x%lx busy for Controller at\n",
+		DAC960_Error("IO port 0x%d busy for Controller at\n",
 			     Controller, Controller->IO_Address);
 		goto Failure;
 	  }
@@ -2986,7 +2990,7 @@ DAC960_DetectController(struct pci_dev *PCI_Device,
 	case DAC960_P_Controller:
 	  if (!request_region(Controller->IO_Address, 0x80,
 			      Controller->FullModelName)){
-		DAC960_Error("IO port 0x%lx busy for Controller at\n",
+		DAC960_Error("IO port 0x%d busy for Controller at\n",
 		   	     Controller, Controller->IO_Address);
 		goto Failure;
 	  }
@@ -3072,10 +3076,11 @@ DAC960_InitializeController(DAC960_Controller_T *Controller)
       /*
 	Initialize the Monitoring Timer.
       */
-      timer_setup(&Controller->MonitoringTimer,
-                  DAC960_MonitoringTimerFunction, 0);
+      init_timer(&Controller->MonitoringTimer);
       Controller->MonitoringTimer.expires =
 	jiffies + DAC960_MonitoringTimerInterval;
+      Controller->MonitoringTimer.data = (unsigned long) Controller;
+      Controller->MonitoringTimer.function = DAC960_MonitoringTimerFunction;
       add_timer(&Controller->MonitoringTimer);
       Controller->ControllerInitialized = true;
       return true;
@@ -3459,7 +3464,7 @@ static inline bool DAC960_ProcessCompletedRequest(DAC960_Command_T *Command,
 						 bool SuccessfulIO)
 {
 	struct request *Request = Command->Request;
-	blk_status_t Error = SuccessfulIO ? BLK_STS_OK : BLK_STS_IOERR;
+	int Error = SuccessfulIO ? 0 : -EIO;
 
 	pci_unmap_sg(Command->Controller->PCIDevice, Command->cmd_sglist,
 		Command->SegmentCount, Command->DmaDirection);
@@ -5612,9 +5617,9 @@ static void DAC960_V2_QueueMonitoringCommand(DAC960_Command_T *Command)
   the status of DAC960 Controllers.
 */
 
-static void DAC960_MonitoringTimerFunction(struct timer_list *t)
+static void DAC960_MonitoringTimerFunction(unsigned long TimerData)
 {
-  DAC960_Controller_T *Controller = from_timer(Controller, t, MonitoringTimer);
+  DAC960_Controller_T *Controller = (DAC960_Controller_T *) TimerData;
   DAC960_Command_T *Command;
   unsigned long flags;
 
@@ -5719,8 +5724,8 @@ static bool DAC960_CheckStatusBuffer(DAC960_Controller_T *Controller,
       Controller->CombinedStatusBufferLength = NewStatusBufferLength;
       return true;
     }
-  NewStatusBuffer = kmalloc_array(2, Controller->CombinedStatusBufferLength,
-                                  GFP_ATOMIC);
+  NewStatusBuffer = kmalloc(2 * Controller->CombinedStatusBufferLength,
+			     GFP_ATOMIC);
   if (NewStatusBuffer == NULL)
     {
       DAC960_Warning("Unable to expand Combined Status Buffer - Truncating\n",
@@ -6446,12 +6451,38 @@ static int dac960_proc_show(struct seq_file *m, void *v)
   return 0;
 }
 
+static int dac960_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, dac960_proc_show, NULL);
+}
+
+static const struct file_operations dac960_proc_fops = {
+	.owner		= THIS_MODULE,
+	.open		= dac960_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
 static int dac960_initial_status_proc_show(struct seq_file *m, void *v)
 {
 	DAC960_Controller_T *Controller = (DAC960_Controller_T *)m->private;
 	seq_printf(m, "%.*s", Controller->InitialStatusLength, Controller->CombinedStatusBuffer);
 	return 0;
 }
+
+static int dac960_initial_status_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, dac960_initial_status_proc_show, PDE_DATA(inode));
+}
+
+static const struct file_operations dac960_initial_status_proc_fops = {
+	.owner		= THIS_MODULE,
+	.open		= dac960_initial_status_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
 
 static int dac960_current_status_proc_show(struct seq_file *m, void *v)
 {
@@ -6485,6 +6516,19 @@ static int dac960_current_status_proc_show(struct seq_file *m, void *v)
 	seq_printf(m, "%.*s", Controller->CurrentStatusLength, Controller->CurrentStatusBuffer);
 	return 0;
 }
+
+static int dac960_current_status_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, dac960_current_status_proc_show, PDE_DATA(inode));
+}
+
+static const struct file_operations dac960_current_status_proc_fops = {
+	.owner		= THIS_MODULE,
+	.open		= dac960_current_status_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
 
 static int dac960_user_command_proc_show(struct seq_file *m, void *v)
 {
@@ -6540,19 +6584,16 @@ static void DAC960_CreateProcEntries(DAC960_Controller_T *Controller)
 
 	if (DAC960_ProcDirectoryEntry == NULL) {
 		DAC960_ProcDirectoryEntry = proc_mkdir("rd", NULL);
-		proc_create_single("status", 0, DAC960_ProcDirectoryEntry,
-				dac960_proc_show);
+		proc_create("status", 0, DAC960_ProcDirectoryEntry,
+			    &dac960_proc_fops);
 	}
 
-	snprintf(Controller->ControllerName, sizeof(Controller->ControllerName),
-		 "c%d", Controller->ControllerNumber);
+	sprintf(Controller->ControllerName, "c%d", Controller->ControllerNumber);
 	ControllerProcEntry = proc_mkdir(Controller->ControllerName,
 					 DAC960_ProcDirectoryEntry);
-	proc_create_single_data("initial_status", 0, ControllerProcEntry,
-			dac960_initial_status_proc_show, Controller);
-	proc_create_single_data("current_status", 0, ControllerProcEntry,
-			dac960_current_status_proc_show, Controller);
-	proc_create_data("user_command", 0600, ControllerProcEntry, &dac960_user_command_proc_fops, Controller);
+	proc_create_data("initial_status", 0, ControllerProcEntry, &dac960_initial_status_proc_fops, Controller);
+	proc_create_data("current_status", 0, ControllerProcEntry, &dac960_current_status_proc_fops, Controller);
+	proc_create_data("user_command", S_IWUSR | S_IRUSR, ControllerProcEntry, &dac960_user_command_proc_fops, Controller);
 	Controller->ControllerProcEntry = ControllerProcEntry;
 }
 
@@ -6575,27 +6616,43 @@ static void DAC960_DestroyProcEntries(DAC960_Controller_T *Controller)
 
 #ifdef DAC960_GAM_MINOR
 
-static long DAC960_gam_get_controller_info(DAC960_ControllerInfo_T __user *UserSpaceControllerInfo)
+/*
+ * DAC960_gam_ioctl is the ioctl function for performing RAID operations.
+*/
+
+static long DAC960_gam_ioctl(struct file *file, unsigned int Request,
+						unsigned long Argument)
 {
+  long ErrorCode = 0;
+  if (!capable(CAP_SYS_ADMIN)) return -EACCES;
+
+  mutex_lock(&DAC960_mutex);
+  switch (Request)
+    {
+    case DAC960_IOCTL_GET_CONTROLLER_COUNT:
+      ErrorCode = DAC960_ControllerCount;
+      break;
+    case DAC960_IOCTL_GET_CONTROLLER_INFO:
+      {
+	DAC960_ControllerInfo_T __user *UserSpaceControllerInfo =
+	  (DAC960_ControllerInfo_T __user *) Argument;
 	DAC960_ControllerInfo_T ControllerInfo;
 	DAC960_Controller_T *Controller;
 	int ControllerNumber;
-	long ErrorCode;
-
 	if (UserSpaceControllerInfo == NULL)
 		ErrorCode = -EINVAL;
 	else ErrorCode = get_user(ControllerNumber,
 			     &UserSpaceControllerInfo->ControllerNumber);
 	if (ErrorCode != 0)
-		goto out;
+		break;
 	ErrorCode = -ENXIO;
 	if (ControllerNumber < 0 ||
 	    ControllerNumber > DAC960_ControllerCount - 1) {
-		goto out;
+	  break;
 	}
 	Controller = DAC960_Controllers[ControllerNumber];
 	if (Controller == NULL)
-		goto out;
+		break;
 	memset(&ControllerInfo, 0, sizeof(DAC960_ControllerInfo_T));
 	ControllerInfo.ControllerNumber = ControllerNumber;
 	ControllerInfo.FirmwareType = Controller->FirmwareType;
@@ -6610,12 +6667,12 @@ static long DAC960_gam_get_controller_info(DAC960_ControllerInfo_T __user *UserS
 	strcpy(ControllerInfo.FirmwareVersion, Controller->FirmwareVersion);
 	ErrorCode = (copy_to_user(UserSpaceControllerInfo, &ControllerInfo,
 			     sizeof(DAC960_ControllerInfo_T)) ? -EFAULT : 0);
-out:
-	return ErrorCode;
-}
-
-static long DAC960_gam_v1_execute_command(DAC960_V1_UserCommand_T __user *UserSpaceUserCommand)
-{
+	break;
+      }
+    case DAC960_IOCTL_V1_EXECUTE_COMMAND:
+      {
+	DAC960_V1_UserCommand_T __user *UserSpaceUserCommand =
+	  (DAC960_V1_UserCommand_T __user *) Argument;
 	DAC960_V1_UserCommand_T UserCommand;
 	DAC960_Controller_T *Controller;
 	DAC960_Command_T *Command = NULL;
@@ -6628,41 +6685,39 @@ static long DAC960_gam_v1_execute_command(DAC960_V1_UserCommand_T __user *UserSp
 	int ControllerNumber, DataTransferLength;
 	unsigned char *DataTransferBuffer = NULL;
 	dma_addr_t DataTransferBufferDMA;
-        long ErrorCode;
-
 	if (UserSpaceUserCommand == NULL) {
 		ErrorCode = -EINVAL;
-		goto out;
+		break;
 	}
 	if (copy_from_user(&UserCommand, UserSpaceUserCommand,
 				   sizeof(DAC960_V1_UserCommand_T))) {
 		ErrorCode = -EFAULT;
-		goto out;
+		break;
 	}
 	ControllerNumber = UserCommand.ControllerNumber;
     	ErrorCode = -ENXIO;
 	if (ControllerNumber < 0 ||
 	    ControllerNumber > DAC960_ControllerCount - 1)
-		goto out;
+	    	break;
 	Controller = DAC960_Controllers[ControllerNumber];
 	if (Controller == NULL)
-		goto out;
+		break;
 	ErrorCode = -EINVAL;
 	if (Controller->FirmwareType != DAC960_V1_Controller)
-		goto out;
+		break;
 	CommandOpcode = UserCommand.CommandMailbox.Common.CommandOpcode;
 	DataTransferLength = UserCommand.DataTransferLength;
 	if (CommandOpcode & 0x80)
-		goto out;
+		break;
 	if (CommandOpcode == DAC960_V1_DCDB)
 	  {
 	    if (copy_from_user(&DCDB, UserCommand.DCDB,
 			       sizeof(DAC960_V1_DCDB_T))) {
 		ErrorCode = -EFAULT;
-		goto out;
+		break;
 	    }
 	    if (DCDB.Channel >= DAC960_V1_MaxChannels)
-		goto out;
+	    		break;
 	    if (!((DataTransferLength == 0 &&
 		   DCDB.Direction
 		   == DAC960_V1_DCDB_NoDataTransfer) ||
@@ -6672,15 +6727,15 @@ static long DAC960_gam_v1_execute_command(DAC960_V1_UserCommand_T __user *UserSp
 		  (DataTransferLength < 0 &&
 		   DCDB.Direction
 		   == DAC960_V1_DCDB_DataTransferSystemToDevice)))
-			goto out;
+		   	break;
 	    if (((DCDB.TransferLengthHigh4 << 16) | DCDB.TransferLength)
 		!= abs(DataTransferLength))
-			goto out;
+			break;
 	    DCDB_IOBUF = pci_alloc_consistent(Controller->PCIDevice,
 			sizeof(DAC960_V1_DCDB_T), &DCDB_IOBUFDMA);
 	    if (DCDB_IOBUF == NULL) {
 	    		ErrorCode = -ENOMEM;
-			goto out;
+			break;
 		}
 	  }
 	ErrorCode = -ENOMEM;
@@ -6690,19 +6745,19 @@ static long DAC960_gam_v1_execute_command(DAC960_V1_UserCommand_T __user *UserSp
                                                        DataTransferLength,
                                                        &DataTransferBufferDMA);
 	    if (DataTransferBuffer == NULL)
-		goto out;
+	    	break;
 	  }
 	else if (DataTransferLength < 0)
 	  {
 	    DataTransferBuffer = pci_alloc_consistent(Controller->PCIDevice,
 				-DataTransferLength, &DataTransferBufferDMA);
 	    if (DataTransferBuffer == NULL)
-		goto out;
+	    	break;
 	    if (copy_from_user(DataTransferBuffer,
 			       UserCommand.DataTransferBuffer,
 			       -DataTransferLength)) {
 		ErrorCode = -EFAULT;
-		goto out;
+		break;
 	    }
 	  }
 	if (CommandOpcode == DAC960_V1_DCDB)
@@ -6779,12 +6834,12 @@ static long DAC960_gam_v1_execute_command(DAC960_V1_UserCommand_T __user *UserSp
 	if (DCDB_IOBUF != NULL)
 	  pci_free_consistent(Controller->PCIDevice, sizeof(DAC960_V1_DCDB_T),
 			DCDB_IOBUF, DCDB_IOBUFDMA);
-	out:
-	return ErrorCode;
-}
-
-static long DAC960_gam_v2_execute_command(DAC960_V2_UserCommand_T __user *UserSpaceUserCommand)
-{
+      	break;
+      }
+    case DAC960_IOCTL_V2_EXECUTE_COMMAND:
+      {
+	DAC960_V2_UserCommand_T __user *UserSpaceUserCommand =
+	  (DAC960_V2_UserCommand_T __user *) Argument;
 	DAC960_V2_UserCommand_T UserCommand;
 	DAC960_Controller_T *Controller;
 	DAC960_Command_T *Command = NULL;
@@ -6797,26 +6852,26 @@ static long DAC960_gam_v2_execute_command(DAC960_V2_UserCommand_T __user *UserSp
 	dma_addr_t DataTransferBufferDMA;
 	unsigned char *RequestSenseBuffer = NULL;
 	dma_addr_t RequestSenseBufferDMA;
-	long ErrorCode = -EINVAL;
 
+	ErrorCode = -EINVAL;
 	if (UserSpaceUserCommand == NULL)
-		goto out;
+		break;
 	if (copy_from_user(&UserCommand, UserSpaceUserCommand,
 			   sizeof(DAC960_V2_UserCommand_T))) {
 		ErrorCode = -EFAULT;
-		goto out;
+		break;
 	}
 	ErrorCode = -ENXIO;
 	ControllerNumber = UserCommand.ControllerNumber;
 	if (ControllerNumber < 0 ||
 	    ControllerNumber > DAC960_ControllerCount - 1)
-		goto out;
+	    	break;
 	Controller = DAC960_Controllers[ControllerNumber];
 	if (Controller == NULL)
-		goto out;
+		break;
 	if (Controller->FirmwareType != DAC960_V2_Controller){
 		ErrorCode = -EINVAL;
-		goto out;
+		break;
 	}
 	DataTransferLength = UserCommand.DataTransferLength;
     	ErrorCode = -ENOMEM;
@@ -6826,14 +6881,14 @@ static long DAC960_gam_v2_execute_command(DAC960_V2_UserCommand_T __user *UserSp
                                                        DataTransferLength,
                                                        &DataTransferBufferDMA);
 	    if (DataTransferBuffer == NULL)
-		goto out;
+	    	break;
 	  }
 	else if (DataTransferLength < 0)
 	  {
 	    DataTransferBuffer = pci_alloc_consistent(Controller->PCIDevice,
 				-DataTransferLength, &DataTransferBufferDMA);
 	    if (DataTransferBuffer == NULL)
-		goto out;
+	    	break;
 	    if (copy_from_user(DataTransferBuffer,
 			       UserCommand.DataTransferBuffer,
 			       -DataTransferLength)) {
@@ -6943,44 +6998,42 @@ static long DAC960_gam_v2_execute_command(DAC960_V2_UserCommand_T __user *UserSp
 	if (RequestSenseBuffer != NULL)
 	  pci_free_consistent(Controller->PCIDevice, RequestSenseLength,
 		RequestSenseBuffer, RequestSenseBufferDMA);
-out:
-        return ErrorCode;
-}
-
-static long DAC960_gam_v2_get_health_status(DAC960_V2_GetHealthStatus_T __user *UserSpaceGetHealthStatus)
-{
+        break;
+      }
+    case DAC960_IOCTL_V2_GET_HEALTH_STATUS:
+      {
+	DAC960_V2_GetHealthStatus_T __user *UserSpaceGetHealthStatus =
+	  (DAC960_V2_GetHealthStatus_T __user *) Argument;
 	DAC960_V2_GetHealthStatus_T GetHealthStatus;
 	DAC960_V2_HealthStatusBuffer_T HealthStatusBuffer;
 	DAC960_Controller_T *Controller;
 	int ControllerNumber;
-	long ErrorCode;
-
 	if (UserSpaceGetHealthStatus == NULL) {
 		ErrorCode = -EINVAL;
-		goto out;
+		break;
 	}
 	if (copy_from_user(&GetHealthStatus, UserSpaceGetHealthStatus,
 			   sizeof(DAC960_V2_GetHealthStatus_T))) {
 		ErrorCode = -EFAULT;
-		goto out;
+		break;
 	}
 	ErrorCode = -ENXIO;
 	ControllerNumber = GetHealthStatus.ControllerNumber;
 	if (ControllerNumber < 0 ||
 	    ControllerNumber > DAC960_ControllerCount - 1)
-		goto out;
+		    break;
 	Controller = DAC960_Controllers[ControllerNumber];
 	if (Controller == NULL)
-		goto out;
+		break;
 	if (Controller->FirmwareType != DAC960_V2_Controller) {
 		ErrorCode = -EINVAL;
-		goto out;
+		break;
 	}
 	if (copy_from_user(&HealthStatusBuffer,
 			   GetHealthStatus.HealthStatusBuffer,
 			   sizeof(DAC960_V2_HealthStatusBuffer_T))) {
 		ErrorCode = -EFAULT;
-		goto out;
+		break;
 	}
 	ErrorCode = wait_event_interruptible_timeout(Controller->HealthStatusWaitQueue,
 			!(Controller->V2.HealthStatusBuffer->StatusChangeCounter
@@ -6990,7 +7043,7 @@ static long DAC960_gam_v2_get_health_status(DAC960_V2_GetHealthStatus_T __user *
 			DAC960_MonitoringTimerInterval);
 	if (ErrorCode == -ERESTARTSYS) {
 		ErrorCode = -EINTR;
-		goto out;
+		break;
 	}
 	if (copy_to_user(GetHealthStatus.HealthStatusBuffer,
 			 Controller->V2.HealthStatusBuffer,
@@ -6998,39 +7051,7 @@ static long DAC960_gam_v2_get_health_status(DAC960_V2_GetHealthStatus_T __user *
 		ErrorCode = -EFAULT;
 	else
 		ErrorCode =  0;
-
-out:
-	return ErrorCode;
-}
-
-/*
- * DAC960_gam_ioctl is the ioctl function for performing RAID operations.
-*/
-
-static long DAC960_gam_ioctl(struct file *file, unsigned int Request,
-						unsigned long Argument)
-{
-  long ErrorCode = 0;
-  void __user *argp = (void __user *)Argument;
-  if (!capable(CAP_SYS_ADMIN)) return -EACCES;
-
-  mutex_lock(&DAC960_mutex);
-  switch (Request)
-    {
-    case DAC960_IOCTL_GET_CONTROLLER_COUNT:
-      ErrorCode = DAC960_ControllerCount;
-      break;
-    case DAC960_IOCTL_GET_CONTROLLER_INFO:
-      ErrorCode = DAC960_gam_get_controller_info(argp);
-      break;
-    case DAC960_IOCTL_V1_EXECUTE_COMMAND:
-      ErrorCode = DAC960_gam_v1_execute_command(argp);
-      break;
-    case DAC960_IOCTL_V2_EXECUTE_COMMAND:
-      ErrorCode = DAC960_gam_v2_execute_command(argp);
-      break;
-    case DAC960_IOCTL_V2_GET_HEALTH_STATUS:
-      ErrorCode = DAC960_gam_v2_get_health_status(argp);
+      }
       break;
       default:
 	ErrorCode = -ENOTTY;

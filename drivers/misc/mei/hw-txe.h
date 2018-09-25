@@ -45,7 +45,7 @@
  * @intr_cause:          translated interrupt cause
  */
 struct mei_txe_hw {
-	void __iomem * const *mem_addr;
+	void __iomem *mem_addr[NUM_OF_MEM_BARS];
 	u32 aliveness;
 	u32 readiness;
 	u32 slots;

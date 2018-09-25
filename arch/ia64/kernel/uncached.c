@@ -19,7 +19,6 @@
 #include <linux/errno.h>
 #include <linux/string.h>
 #include <linux/efi.h>
-#include <linux/nmi.h>
 #include <linux/genalloc.h>
 #include <linux/gfp.h>
 #include <asm/page.h>

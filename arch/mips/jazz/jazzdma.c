@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Mips Jazz DMA controller support
  * Copyright (C) 1995, 1996 by Andreas Busse
@@ -10,7 +9,7 @@
  */
 #include <linux/kernel.h>
 #include <linux/init.h>
-#include <linux/export.h>
+#include <linux/module.h>
 #include <linux/errno.h>
 #include <linux/mm.h>
 #include <linux/bootmem.h>
@@ -19,7 +18,7 @@
 #include <asm/mipsregs.h>
 #include <asm/jazz.h>
 #include <asm/io.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/dma.h>
 #include <asm/jazzdma.h>
 #include <asm/pgtable.h>

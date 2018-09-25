@@ -1,10 +1,7 @@
-// SPDX-License-Identifier: GPL-2.0
 #include "parse-events.h"
 #include "pmu.h"
 #include "util.h"
 #include "tests.h"
-#include <errno.h>
-#include <linux/kernel.h>
 
 /* Simulated format definitions. */
 static struct test_format {
@@ -98,7 +95,7 @@ static char *test_format_dir_get(void)
 		struct test_format *format = &test_formats[i];
 		FILE *file;
 
-		scnprintf(name, PATH_MAX, "%s/%s", dir, format->name);
+		snprintf(name, PATH_MAX, "%s/%s", dir, format->name);
 
 		file = fopen(name, "w");
 		if (!file)
@@ -136,7 +133,7 @@ static struct list_head *test_terms_list(void)
 	return &terms;
 }
 
-int test__pmu(struct test *test __maybe_unused, int subtest __maybe_unused)
+int test__pmu(void)
 {
 	char *format = test_format_dir_get();
 	LIST_HEAD(formats);

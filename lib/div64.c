@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2003 Bernardo Innocenti <bernie@develer.com>
  *
@@ -14,8 +13,7 @@
  *
  * Code generated for this function might be very inefficient
  * for some CPUs. __div64_32() can be overridden by linking arch-specific
- * assembly versions such as arch/ppc/lib/div64.S and arch/sh/lib/div64.S
- * or by defining a preprocessor macro in arch/include/asm/div64.h.
+ * assembly versions such as arch/ppc/lib/div64.S and arch/sh/lib/div64.S.
  */
 
 #include <linux/export.h>
@@ -25,7 +23,6 @@
 /* Not needed on 64bit architectures */
 #if BITS_PER_LONG == 32
 
-#ifndef __div64_32
 uint32_t __attribute__((weak)) __div64_32(uint64_t *n, uint32_t base)
 {
 	uint64_t rem = *n;
@@ -58,15 +55,9 @@ uint32_t __attribute__((weak)) __div64_32(uint64_t *n, uint32_t base)
 	*n = res;
 	return rem;
 }
-EXPORT_SYMBOL(__div64_32);
-#endif
 
-/**
- * div_s64_rem - signed 64bit divide with 64bit divisor and remainder
- * @dividend:	64bit dividend
- * @divisor:	64bit divisor
- * @remainder:  64bit remainder
- */
+EXPORT_SYMBOL(__div64_32);
+
 #ifndef div_s64_rem
 s64 div_s64_rem(s64 dividend, s32 divisor, s32 *remainder)
 {

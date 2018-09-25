@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __KEYPAD_EP93XX_H
 #define __KEYPAD_EP93XX_H
 

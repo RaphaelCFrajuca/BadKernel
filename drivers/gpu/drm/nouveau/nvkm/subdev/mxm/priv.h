@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NVKM_MXM_PRIV_H__
 #define __NVKM_MXM_PRIV_H__
 #define nvkm_mxm(p) container_of((p), struct nvkm_mxm, subdev)

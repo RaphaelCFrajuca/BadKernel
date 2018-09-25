@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * su.c: Small serial driver for keyboard/mouse interface on sparc32/PCI
  *
@@ -959,7 +958,7 @@ sunsu_type(struct uart_port *port)
 	return uart_config[type].name;
 }
 
-static const struct uart_ops sunsu_pops = {
+static struct uart_ops sunsu_pops = {
 	.tx_empty	= sunsu_tx_empty,
 	.set_mctrl	= sunsu_set_mctrl,
 	.get_mctrl	= sunsu_get_mctrl,
@@ -1213,8 +1212,8 @@ static int sunsu_kbd_ms_init(struct uart_sunsu_port *up)
 	if (up->port.type == PORT_UNKNOWN)
 		return -ENODEV;
 
-	printk("%pOF: %s port at %llx, irq %u\n",
-	       up->port.dev->of_node,
+	printk("%s: %s port at %llx, irq %u\n",
+	       up->port.dev->of_node->full_name,
 	       (up->su_type == SU_PORT_KBD) ? "Keyboard" : "Mouse",
 	       (unsigned long long) up->port.mapbase,
 	       up->port.irq);
@@ -1263,7 +1262,7 @@ static int sunsu_kbd_ms_init(struct uart_sunsu_port *up)
 /*
  *	Wait for transmitter & holding register to empty
  */
-static void wait_for_xmitr(struct uart_sunsu_port *up)
+static __inline__ void wait_for_xmitr(struct uart_sunsu_port *up)
 {
 	unsigned int status, tmout = 10000;
 
@@ -1501,7 +1500,6 @@ static int su_probe(struct platform_device *op)
 
 out_unmap:
 	of_iounmap(&op->resource[0], up->port.membase, up->reg_size);
-	kfree(up);
 	return err;
 }
 

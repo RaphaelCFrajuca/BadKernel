@@ -158,6 +158,7 @@ static const struct file_operations exports_proc_operations = {
 	.read		= seq_read,
 	.llseek		= seq_lseek,
 	.release	= seq_release,
+	.owner		= THIS_MODULE,
 };
 
 static int exports_nfsd_open(struct inode *inode, struct file *file)
@@ -170,6 +171,7 @@ static const struct file_operations exports_nfsd_operations = {
 	.read		= seq_read,
 	.llseek		= seq_lseek,
 	.release	= seq_release,
+	.owner		= THIS_MODULE,
 };
 
 static int export_features_show(struct seq_file *m, void *v)
@@ -215,9 +217,10 @@ static const struct file_operations pool_stats_operations = {
 	.read		= seq_read,
 	.llseek		= seq_lseek,
 	.release	= nfsd_pool_stats_release,
+	.owner		= THIS_MODULE,
 };
 
-static const struct file_operations reply_cache_stats_operations = {
+static struct file_operations reply_cache_stats_operations = {
 	.open		= nfsd_reply_cache_stats_open,
 	.read		= seq_read,
 	.llseek		= seq_lseek,
@@ -536,32 +539,12 @@ out_free:
 	return rv;
 }
 
-static ssize_t
-nfsd_print_version_support(char *buf, int remaining, const char *sep,
-		unsigned vers, int minor)
-{
-	const char *format = minor < 0 ? "%s%c%u" : "%s%c%u.%u";
-	bool supported = !!nfsd_vers(vers, NFSD_TEST);
-
-	if (vers == 4 && minor >= 0 &&
-	    !nfsd_minorversion(minor, NFSD_TEST))
-		supported = false;
-	if (minor == 0 && supported)
-		/*
-		 * special case for backward compatability.
-		 * +4.0 is never reported, it is implied by
-		 * +4, unless -4.0 is present.
-		 */
-		return 0;
-	return snprintf(buf, remaining, format, sep,
-			supported ? '+' : '-', vers, minor);
-}
-
 static ssize_t __write_versions(struct file *file, char *buf, size_t size)
 {
 	char *mesg = buf;
 	char *vers, *minorp, sign;
 	int len, num, remaining;
+	unsigned minor;
 	ssize_t tlen = 0;
 	char *sep;
 	struct nfsd_net *nn = net_generic(netns(file), nfsd_net_id);
@@ -581,8 +564,6 @@ static ssize_t __write_versions(struct file *file, char *buf, size_t size)
 		len = qword_get(&mesg, vers, size);
 		if (len <= 0) return -EINVAL;
 		do {
-			enum vers_op cmd;
-			unsigned minor;
 			sign = *vers;
 			if (sign == '+' || sign == '-')
 				num = simple_strtol((vers+1), &minorp, 0);
@@ -591,34 +572,24 @@ static ssize_t __write_versions(struct file *file, char *buf, size_t size)
 			if (*minorp == '.') {
 				if (num != 4)
 					return -EINVAL;
-				if (kstrtouint(minorp+1, 0, &minor) < 0)
+				minor = simple_strtoul(minorp+1, NULL, 0);
+				if (minor == 0)
 					return -EINVAL;
+				if (nfsd_minorversion(minor, sign == '-' ?
+						     NFSD_CLEAR : NFSD_SET) < 0)
+					return -EINVAL;
+				goto next;
 			}
-
-			cmd = sign == '-' ? NFSD_CLEAR : NFSD_SET;
 			switch(num) {
 			case 2:
 			case 3:
-				nfsd_vers(num, cmd);
-				break;
 			case 4:
-				if (*minorp == '.') {
-					if (nfsd_minorversion(minor, cmd) < 0)
-						return -EINVAL;
-				} else if ((cmd == NFSD_SET) != nfsd_vers(num, NFSD_TEST)) {
-					/*
-					 * Either we have +4 and no minors are enabled,
-					 * or we have -4 and at least one minor is enabled.
-					 * In either case, propagate 'cmd' to all minors.
-					 */
-					minor = 0;
-					while (nfsd_minorversion(minor, cmd) >= 0)
-						minor++;
-				}
+				nfsd_vers(num, sign == '-' ? NFSD_CLEAR : NFSD_SET);
 				break;
 			default:
 				return -EINVAL;
 			}
+		next:
 			vers += len + 1;
 		} while ((len = qword_get(&mesg, vers, size)) > 0);
 		/* If all get turned off, turn them back on, as
@@ -631,26 +602,35 @@ static ssize_t __write_versions(struct file *file, char *buf, size_t size)
 	len = 0;
 	sep = "";
 	remaining = SIMPLE_TRANSACTION_LIMIT;
-	for (num=2 ; num <= 4 ; num++) {
-		int minor;
-		if (!nfsd_vers(num, NFSD_AVAIL))
-			continue;
+	for (num=2 ; num <= 4 ; num++)
+		if (nfsd_vers(num, NFSD_AVAIL)) {
+			len = snprintf(buf, remaining, "%s%c%d", sep,
+				       nfsd_vers(num, NFSD_TEST)?'+':'-',
+				       num);
+			sep = " ";
 
-		minor = -1;
-		do {
-			len = nfsd_print_version_support(buf, remaining,
-					sep, num, minor);
 			if (len >= remaining)
-				goto out;
+				break;
 			remaining -= len;
 			buf += len;
 			tlen += len;
-			minor++;
-			if (len)
-				sep = " ";
-		} while (num == 4 && minor <= NFSD_SUPPORTED_MINOR_VERSION);
-	}
-out:
+		}
+	if (nfsd_vers(4, NFSD_AVAIL))
+		for (minor = 1; minor <= NFSD_SUPPORTED_MINOR_VERSION;
+		     minor++) {
+			len = snprintf(buf, remaining, " %c4.%u",
+					(nfsd_vers(4, NFSD_TEST) &&
+					 nfsd_minorversion(minor, NFSD_TEST)) ?
+						'+' : '-',
+					minor);
+
+			if (len >= remaining)
+				break;
+			remaining -= len;
+			buf += len;
+			tlen += len;
+		}
+
 	len = snprintf(buf, remaining, "\n");
 	if (len >= remaining)
 		return -EINVAL;
@@ -1146,7 +1126,7 @@ static ssize_t write_v4_end_grace(struct file *file, char *buf, size_t size)
 
 static int nfsd_fill_super(struct super_block * sb, void * data, int silent)
 {
-	static const struct tree_descr nfsd_files[] = {
+	static struct tree_descr nfsd_files[] = {
 		[NFSD_List] = {"exports", &exports_nfsd_operations, S_IRUGO},
 		[NFSD_Export_features] = {"export_features",
 					&export_features_operations, S_IRUGO},
@@ -1174,15 +1154,20 @@ static int nfsd_fill_super(struct super_block * sb, void * data, int silent)
 #endif
 		/* last one */ {""}
 	};
-	get_net(sb->s_fs_info);
-	return simple_fill_super(sb, 0x6e667364, nfsd_files);
+	struct net *net = data;
+	int ret;
+
+	ret = simple_fill_super(sb, 0x6e667364, nfsd_files);
+	if (ret)
+		return ret;
+	sb->s_fs_info = get_net(net);
+	return 0;
 }
 
 static struct dentry *nfsd_mount(struct file_system_type *fs_type,
 	int flags, const char *dev_name, void *data)
 {
-	struct net *net = current->nsproxy->net_ns;
-	return mount_ns(fs_type, flags, data, net, net->user_ns, nfsd_fill_super);
+	return mount_ns(fs_type, flags, current->nsproxy->net_ns, nfsd_fill_super);
 }
 
 static void nfsd_umount(struct super_block *sb)
@@ -1224,7 +1209,7 @@ static int create_proc_exports_entry(void)
 }
 #endif
 
-unsigned int nfsd_net_id;
+int nfsd_net_id;
 
 static __net_init int nfsd_init_net(struct net *net)
 {
@@ -1239,11 +1224,6 @@ static __net_init int nfsd_init_net(struct net *net)
 		goto out_idmap_error;
 	nn->nfsd4_lease = 90;	/* default lease time */
 	nn->nfsd4_grace = 90;
-	nn->clverifier_counter = prandom_u32();
-	nn->clientid_counter = prandom_u32();
-
-	atomic_set(&nn->ntf_refcnt, 0);
-	init_waitqueue_head(&nn->ntf_wq);
 	return 0;
 
 out_idmap_error:

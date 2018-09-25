@@ -181,8 +181,6 @@ void dlm_add_cb(struct dlm_lkb *lkb, uint32_t flags, int mode, int status,
 
 	spin_lock(&dlm_cb_seq_spin);
 	new_seq = ++dlm_cb_seq;
-	if (!dlm_cb_seq)
-		new_seq = ++dlm_cb_seq;
 	spin_unlock(&dlm_cb_seq_spin);
 
 	if (lkb->lkb_flags & DLM_IFL_USER) {
@@ -270,7 +268,7 @@ void dlm_callback_work(struct work_struct *work)
 int dlm_callback_start(struct dlm_ls *ls)
 {
 	ls->ls_callback_wq = alloc_workqueue("dlm_callback",
-					     WQ_HIGHPRI | WQ_MEM_RECLAIM, 0);
+					     WQ_UNBOUND | WQ_MEM_RECLAIM, 0);
 	if (!ls->ls_callback_wq) {
 		log_print("can't start dlm_callback workqueue");
 		return -ENOMEM;

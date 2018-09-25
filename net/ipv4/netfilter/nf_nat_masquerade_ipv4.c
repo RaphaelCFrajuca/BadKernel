@@ -7,6 +7,7 @@
  */
 
 #include <linux/types.h>
+#include <linux/module.h>
 #include <linux/atomic.h>
 #include <linux/inetdevice.h>
 #include <linux/ip.h>
@@ -23,22 +24,23 @@
 
 unsigned int
 nf_nat_masquerade_ipv4(struct sk_buff *skb, unsigned int hooknum,
-		       const struct nf_nat_range2 *range,
+		       const struct nf_nat_range *range,
 		       const struct net_device *out)
 {
 	struct nf_conn *ct;
 	struct nf_conn_nat *nat;
 	enum ip_conntrack_info ctinfo;
-	struct nf_nat_range2 newrange;
+	struct nf_nat_range newrange;
 	const struct rtable *rt;
 	__be32 newsrc, nh;
 
-	WARN_ON(hooknum != NF_INET_POST_ROUTING);
+	NF_CT_ASSERT(hooknum == NF_INET_POST_ROUTING);
 
 	ct = nf_ct_get(skb, &ctinfo);
+	nat = nfct_nat(ct);
 
-	WARN_ON(!(ct && (ctinfo == IP_CT_NEW || ctinfo == IP_CT_RELATED ||
-			 ctinfo == IP_CT_RELATED_REPLY)));
+	NF_CT_ASSERT(ct && (ctinfo == IP_CT_NEW || ctinfo == IP_CT_RELATED ||
+			    ctinfo == IP_CT_RELATED_REPLY));
 
 	/* Source address is 0.0.0.0 - locally generated packet that is
 	 * probably not supposed to be masqueraded.
@@ -54,9 +56,7 @@ nf_nat_masquerade_ipv4(struct sk_buff *skb, unsigned int hooknum,
 		return NF_DROP;
 	}
 
-	nat = nf_ct_nat_ext_add(ct);
-	if (nat)
-		nat->masq_index = out->ifindex;
+	nat->masq_index = out->ifindex;
 
 	/* Transfer from original range. */
 	memset(&newrange.min_addr, 0, sizeof(newrange.min_addr));
@@ -95,10 +95,10 @@ static int masq_device_event(struct notifier_block *this,
 		 * conntracks which were associated with that device,
 		 * and forget them.
 		 */
-		WARN_ON(dev->ifindex == 0);
+		NF_CT_ASSERT(dev->ifindex != 0);
 
-		nf_ct_iterate_cleanup_net(net, device_cmp,
-					  (void *)(long)dev->ifindex, 0, 0);
+		nf_ct_iterate_cleanup(net, device_cmp,
+				      (void *)(long)dev->ifindex, 0, 0);
 	}
 
 	return NOTIFY_DONE;
@@ -156,3 +156,6 @@ void nf_nat_masquerade_ipv4_unregister_notifier(void)
 	unregister_inetaddr_notifier(&masq_inet_notifier);
 }
 EXPORT_SYMBOL_GPL(nf_nat_masquerade_ipv4_unregister_notifier);
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Rusty Russell <rusty@rustcorp.com.au>");

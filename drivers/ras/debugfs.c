@@ -1,6 +1,6 @@
 #include <linux/debugfs.h>
 
-struct dentry *ras_debugfs_dir;
+static struct dentry *ras_debugfs_dir;
 
 static atomic_t trace_count = ATOMIC_INIT(0);
 

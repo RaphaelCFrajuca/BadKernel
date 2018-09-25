@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NVKM_BSP_H__
 #define __NVKM_BSP_H__
 #include <engine/xtensa.h>

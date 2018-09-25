@@ -10,8 +10,7 @@
  * (at your option) any later version.
  */
 
-#include <linux/io.h>
-#include <linux/export.h>
+#include <linux/module.h>
 #include <linux/spinlock.h>
 #include <linux/delay.h>
 

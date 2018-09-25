@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LIBLOCKDEP_MUTEX_H
 #define _LIBLOCKDEP_MUTEX_H
 

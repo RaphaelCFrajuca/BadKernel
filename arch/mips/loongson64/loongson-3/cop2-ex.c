@@ -13,7 +13,6 @@
 #include <linux/init.h>
 #include <linux/sched.h>
 #include <linux/notifier.h>
-#include <linux/ptrace.h>
 
 #include <asm/fpu.h>
 #include <asm/cop2.h>

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _BCACHE_STATS_H_
 #define _BCACHE_STATS_H_
 

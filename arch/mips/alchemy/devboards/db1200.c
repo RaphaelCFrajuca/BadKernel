@@ -29,7 +29,7 @@
 #include <linux/leds.h>
 #include <linux/mmc/host.h>
 #include <linux/mtd/mtd.h>
-#include <linux/mtd/rawnand.h>
+#include <linux/mtd/nand.h>
 #include <linux/mtd/partitions.h>
 #include <linux/platform_device.h>
 #include <linux/serial_8250.h>
@@ -200,7 +200,7 @@ static struct i2c_board_info db1200_i2c_devs[] __initdata = {
 static void au1200_nand_cmd_ctrl(struct mtd_info *mtd, int cmd,
 				 unsigned int ctrl)
 {
-	struct nand_chip *this = mtd_to_nand(mtd);
+	struct nand_chip *this = mtd->priv;
 	unsigned long ioaddr = (unsigned long)this->IO_ADDR_W;
 
 	ioaddr &= 0xffffff00;
@@ -344,31 +344,27 @@ static struct platform_device db1200_ide_dev = {
 
 /* SD carddetects:  they're supposed to be edge-triggered, but ack
  * doesn't seem to work (CPLD Rev 2).  Instead, the screaming one
- * is disabled and its counterpart enabled.  The 200ms timeout is
- * because the carddetect usually triggers twice, after debounce.
+ * is disabled and its counterpart enabled.  The 500ms timeout is
+ * because the carddetect isn't debounced in hardware.
  */
 static irqreturn_t db1200_mmc_cd(int irq, void *ptr)
 {
-	disable_irq_nosync(irq);
-	return IRQ_WAKE_THREAD;
-}
+	void(*mmc_cd)(struct mmc_host *, unsigned long);
 
-static irqreturn_t db1200_mmc_cdfn(int irq, void *ptr)
-{
-	void (*mmc_cd)(struct mmc_host *, unsigned long);
+	if (irq == DB1200_SD0_INSERT_INT) {
+		disable_irq_nosync(DB1200_SD0_INSERT_INT);
+		enable_irq(DB1200_SD0_EJECT_INT);
+	} else {
+		disable_irq_nosync(DB1200_SD0_EJECT_INT);
+		enable_irq(DB1200_SD0_INSERT_INT);
+	}
 
 	/* link against CONFIG_MMC=m */
 	mmc_cd = symbol_get(mmc_detect_change);
 	if (mmc_cd) {
-		mmc_cd(ptr, msecs_to_jiffies(200));
+		mmc_cd(ptr, msecs_to_jiffies(500));
 		symbol_put(mmc_detect_change);
 	}
-
-	msleep(100);	/* debounce */
-	if (irq == DB1200_SD0_INSERT_INT)
-		enable_irq(DB1200_SD0_EJECT_INT);
-	else
-		enable_irq(DB1200_SD0_INSERT_INT);
 
 	return IRQ_HANDLED;
 }
@@ -378,13 +374,13 @@ static int db1200_mmc_cd_setup(void *mmc_host, int en)
 	int ret;
 
 	if (en) {
-		ret = request_threaded_irq(DB1200_SD0_INSERT_INT, db1200_mmc_cd,
-				db1200_mmc_cdfn, 0, "sd_insert", mmc_host);
+		ret = request_irq(DB1200_SD0_INSERT_INT, db1200_mmc_cd,
+				  0, "sd_insert", mmc_host);
 		if (ret)
 			goto out;
 
-		ret = request_threaded_irq(DB1200_SD0_EJECT_INT, db1200_mmc_cd,
-				db1200_mmc_cdfn, 0, "sd_eject", mmc_host);
+		ret = request_irq(DB1200_SD0_EJECT_INT, db1200_mmc_cd,
+				  0, "sd_eject", mmc_host);
 		if (ret) {
 			free_irq(DB1200_SD0_INSERT_INT, mmc_host);
 			goto out;
@@ -440,26 +436,22 @@ static struct led_classdev db1200_mmc_led = {
 
 static irqreturn_t pb1200_mmc1_cd(int irq, void *ptr)
 {
-	disable_irq_nosync(irq);
-	return IRQ_WAKE_THREAD;
-}
+	void(*mmc_cd)(struct mmc_host *, unsigned long);
 
-static irqreturn_t pb1200_mmc1_cdfn(int irq, void *ptr)
-{
-	void (*mmc_cd)(struct mmc_host *, unsigned long);
+	if (irq == PB1200_SD1_INSERT_INT) {
+		disable_irq_nosync(PB1200_SD1_INSERT_INT);
+		enable_irq(PB1200_SD1_EJECT_INT);
+	} else {
+		disable_irq_nosync(PB1200_SD1_EJECT_INT);
+		enable_irq(PB1200_SD1_INSERT_INT);
+	}
 
 	/* link against CONFIG_MMC=m */
 	mmc_cd = symbol_get(mmc_detect_change);
 	if (mmc_cd) {
-		mmc_cd(ptr, msecs_to_jiffies(200));
+		mmc_cd(ptr, msecs_to_jiffies(500));
 		symbol_put(mmc_detect_change);
 	}
-
-	msleep(100);	/* debounce */
-	if (irq == PB1200_SD1_INSERT_INT)
-		enable_irq(PB1200_SD1_EJECT_INT);
-	else
-		enable_irq(PB1200_SD1_INSERT_INT);
 
 	return IRQ_HANDLED;
 }
@@ -469,13 +461,13 @@ static int pb1200_mmc1_cd_setup(void *mmc_host, int en)
 	int ret;
 
 	if (en) {
-		ret = request_threaded_irq(PB1200_SD1_INSERT_INT, pb1200_mmc1_cd,
-				pb1200_mmc1_cdfn, 0, "sd1_insert", mmc_host);
+		ret = request_irq(PB1200_SD1_INSERT_INT, pb1200_mmc1_cd, 0,
+				  "sd1_insert", mmc_host);
 		if (ret)
 			goto out;
 
-		ret = request_threaded_irq(PB1200_SD1_EJECT_INT, pb1200_mmc1_cd,
-				pb1200_mmc1_cdfn, 0, "sd1_eject", mmc_host);
+		ret = request_irq(PB1200_SD1_EJECT_INT, pb1200_mmc1_cd, 0,
+				  "sd1_eject", mmc_host);
 		if (ret) {
 			free_irq(PB1200_SD1_INSERT_INT, mmc_host);
 			goto out;

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * sysctl_net_atalk.c: sysctl interface to net AppleTalk subsystem.
  *

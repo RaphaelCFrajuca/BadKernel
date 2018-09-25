@@ -12,6 +12,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
 #include <linux/device.h>
@@ -113,7 +117,6 @@ static void process_ir_data(struct iguanair *ir, unsigned len)
 			break;
 		case CMD_TX_OVERFLOW:
 			ir->tx_overflow = true;
-			/* fall through */
 		case CMD_RECEIVER_OFF:
 		case CMD_RECEIVER_ON:
 		case CMD_SEND:
@@ -327,7 +330,7 @@ static int iguanair_set_tx_carrier(struct rc_dev *dev, uint32_t carrier)
 
 	mutex_unlock(&ir->lock);
 
-	return 0;
+	return carrier;
 }
 
 static int iguanair_set_tx_mask(struct rc_dev *dev, uint32_t mask)
@@ -347,23 +350,26 @@ static int iguanair_set_tx_mask(struct rc_dev *dev, uint32_t mask)
 static int iguanair_tx(struct rc_dev *dev, unsigned *txbuf, unsigned count)
 {
 	struct iguanair *ir = dev->priv;
-	unsigned int i, size, p, periods;
+	uint8_t space;
+	unsigned i, size, periods, bytes;
 	int rc;
 
 	mutex_lock(&ir->lock);
 
 	/* convert from us to carrier periods */
-	for (i = size = 0; i < count; i++) {
+	for (i = space = size = 0; i < count; i++) {
 		periods = DIV_ROUND_CLOSEST(txbuf[i] * ir->carrier, 1000000);
+		bytes = DIV_ROUND_UP(periods, 127);
+		if (size + bytes > ir->bufsize) {
+			rc = -EINVAL;
+			goto out;
+		}
 		while (periods) {
-			p = min(periods, 127u);
-			if (size >= ir->bufsize) {
-				rc = -EINVAL;
-				goto out;
-			}
-			ir->packet->payload[size++] = p | ((i & 1) ? 0x80 : 0);
+			unsigned p = min(periods, 127u);
+			ir->packet->payload[size++] = p | space;
 			periods -= p;
 		}
+		space ^= 0x80;
 	}
 
 	ir->packet->header.start = 0;
@@ -425,7 +431,7 @@ static int iguanair_probe(struct usb_interface *intf,
 	struct usb_host_interface *idesc;
 
 	ir = kzalloc(sizeof(*ir), GFP_KERNEL);
-	rc = rc_allocate_device(RC_DRIVER_IR_RAW);
+	rc = rc_allocate_device();
 	if (!ir || !rc) {
 		ret = -ENOMEM;
 		goto out;
@@ -484,11 +490,12 @@ static int iguanair_probe(struct usb_interface *intf,
 
 	usb_make_path(ir->udev, ir->phys, sizeof(ir->phys));
 
-	rc->device_name = ir->name;
+	rc->input_name = ir->name;
 	rc->input_phys = ir->phys;
 	usb_to_input_id(ir->udev, &rc->input_id);
 	rc->dev.parent = &intf->dev;
-	rc->allowed_protocols = RC_PROTO_BIT_ALL_IR_DECODER;
+	rc->driver_type = RC_DRIVER_IR_RAW;
+	rc->allowed_protocols = RC_BIT_ALL;
 	rc->priv = ir;
 	rc->open = iguanair_open;
 	rc->close = iguanair_close;
@@ -497,9 +504,7 @@ static int iguanair_probe(struct usb_interface *intf,
 	rc->tx_ir = iguanair_tx;
 	rc->driver_name = DRIVER_NAME;
 	rc->map_name = RC_MAP_RC6_MCE;
-	rc->min_timeout = 1;
-	rc->timeout = IR_DEFAULT_TIMEOUT;
-	rc->max_timeout = 10 * IR_DEFAULT_TIMEOUT;
+	rc->timeout = MS_TO_NS(100);
 	rc->rx_resolution = RX_RESOLUTION;
 
 	iguanair_set_tx_carrier(rc, 38000);

@@ -184,7 +184,7 @@ static const struct backlight_ops msi_backlight_ops = {
 static void msi_wmi_notify(u32 value, void *context)
 {
 	struct acpi_buffer response = { ACPI_ALLOCATE_BUFFER, NULL };
-	struct key_entry *key;
+	static struct key_entry *key;
 	union acpi_object *obj;
 	acpi_status status;
 
@@ -281,12 +281,14 @@ static int __init msi_wmi_input_setup(void)
 	err = input_register_device(msi_wmi_input_dev);
 
 	if (err)
-		goto err_free_dev;
+		goto err_free_keymap;
 
-	last_pressed = 0;
+	last_pressed = ktime_set(0, 0);
 
 	return 0;
 
+err_free_keymap:
+	sparse_keymap_free(msi_wmi_input_dev);
 err_free_dev:
 	input_free_device(msi_wmi_input_dev);
 	return err;
@@ -340,8 +342,10 @@ err_uninstall_handler:
 	if (event_wmi)
 		wmi_remove_notify_handler(event_wmi->guid);
 err_free_input:
-	if (event_wmi)
+	if (event_wmi) {
+		sparse_keymap_free(msi_wmi_input_dev);
 		input_unregister_device(msi_wmi_input_dev);
+	}
 	return err;
 }
 
@@ -349,6 +353,7 @@ static void __exit msi_wmi_exit(void)
 {
 	if (event_wmi) {
 		wmi_remove_notify_handler(event_wmi->guid);
+		sparse_keymap_free(msi_wmi_input_dev);
 		input_unregister_device(msi_wmi_input_dev);
 	}
 	backlight_device_unregister(backlight);

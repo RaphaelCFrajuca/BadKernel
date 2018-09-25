@@ -98,9 +98,9 @@ static int kernfs_get_target_path(struct kernfs_node *parent,
 	return 0;
 }
 
-static int kernfs_getlink(struct inode *inode, char *path)
+static int kernfs_getlink(struct dentry *dentry, char *path)
 {
-	struct kernfs_node *kn = inode->i_private;
+	struct kernfs_node *kn = dentry->d_fsdata;
 	struct kernfs_node *parent = kn->parent;
 	struct kernfs_node *target = kn->symlink.target_kn;
 	int error;
@@ -112,30 +112,28 @@ static int kernfs_getlink(struct inode *inode, char *path)
 	return error;
 }
 
-static const char *kernfs_iop_get_link(struct dentry *dentry,
-				       struct inode *inode,
-				       struct delayed_call *done)
+static const char *kernfs_iop_follow_link(struct dentry *dentry, void **cookie)
 {
-	char *body;
-	int error;
-
-	if (!dentry)
-		return ERR_PTR(-ECHILD);
-	body = kzalloc(PAGE_SIZE, GFP_KERNEL);
-	if (!body)
+	int error = -ENOMEM;
+	unsigned long page = get_zeroed_page(GFP_KERNEL);
+	if (!page)
 		return ERR_PTR(-ENOMEM);
-	error = kernfs_getlink(inode, body);
+	error = kernfs_getlink(dentry, (char *)page);
 	if (unlikely(error < 0)) {
-		kfree(body);
+		free_page((unsigned long)page);
 		return ERR_PTR(error);
 	}
-	set_delayed_call(done, kfree_link, body);
-	return body;
+	return *cookie = (char *)page;
 }
 
 const struct inode_operations kernfs_symlink_iops = {
+	.setxattr	= kernfs_iop_setxattr,
+	.removexattr	= kernfs_iop_removexattr,
+	.getxattr	= kernfs_iop_getxattr,
 	.listxattr	= kernfs_iop_listxattr,
-	.get_link	= kernfs_iop_get_link,
+	.readlink	= generic_readlink,
+	.follow_link	= kernfs_iop_follow_link,
+	.put_link	= free_page_put_link,
 	.setattr	= kernfs_iop_setattr,
 	.getattr	= kernfs_iop_getattr,
 	.permission	= kernfs_iop_permission,

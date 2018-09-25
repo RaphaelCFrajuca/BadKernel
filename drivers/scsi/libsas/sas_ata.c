@@ -205,10 +205,7 @@ static unsigned int sas_ata_qc_issue(struct ata_queued_cmd *qc)
 	task->task_done = sas_ata_task_done;
 
 	if (qc->tf.command == ATA_CMD_FPDMA_WRITE ||
-	    qc->tf.command == ATA_CMD_FPDMA_READ ||
-	    qc->tf.command == ATA_CMD_FPDMA_RECV ||
-	    qc->tf.command == ATA_CMD_FPDMA_SEND ||
-	    qc->tf.command == ATA_CMD_NCQ_NON_DATA) {
+	    qc->tf.command == ATA_CMD_FPDMA_READ) {
 		/* Need to zero out the tag libata assigned us */
 		qc->tf.nsect = 0;
 	}
@@ -233,8 +230,15 @@ static unsigned int sas_ata_qc_issue(struct ata_queued_cmd *qc)
 	task->task_state_flags = SAS_TASK_STATE_PENDING;
 	qc->lldd_task = task;
 
-	task->ata_task.use_ncq = ata_is_ncq(qc->tf.protocol);
-	task->ata_task.dma_xfer = ata_is_dma(qc->tf.protocol);
+	switch (qc->tf.protocol) {
+	case ATA_PROT_NCQ:
+		task->ata_task.use_ncq = 1;
+		/* fall through */
+	case ATAPI_PROT_DMA:
+	case ATA_PROT_DMA:
+		task->ata_task.dma_xfer = 1;
+		break;
+	}
 
 	if (qc->scsicmd)
 		ASSIGN_SAS_TASK(qc->scsicmd, task);
@@ -246,7 +250,6 @@ static unsigned int sas_ata_qc_issue(struct ata_queued_cmd *qc)
 		if (qc->scsicmd)
 			ASSIGN_SAS_TASK(qc->scsicmd, NULL);
 		sas_free_task(task);
-		qc->lldd_task = NULL;
 		ret = AC_ERR_SYSTEM;
 	}
 
@@ -343,7 +346,6 @@ static int smp_ata_check_ready(struct ata_link *link)
 	case SAS_END_DEVICE:
 		if (ex_phy->attached_sata_dev)
 			return sas_ata_clear_pending(dev, ex_phy);
-		/* fall through */
 	default:
 		return -ENODEV;
 	}
@@ -546,7 +548,7 @@ static struct ata_port_operations sas_sata_ops = {
 
 static struct ata_port_info sata_port_info = {
 	.flags = ATA_FLAG_SATA | ATA_FLAG_PIO_DMA | ATA_FLAG_NCQ |
-		 ATA_FLAG_SAS_HOST | ATA_FLAG_FPDMA_AUX,
+		 ATA_FLAG_SAS_HOST,
 	.pio_mask = ATA_PIO4,
 	.mwdma_mask = ATA_MWDMA2,
 	.udma_mask = ATA_UDMA6,
@@ -573,11 +575,6 @@ int sas_ata_init(struct domain_device *found_dev)
 	ap->cbl = ATA_CBL_SATA;
 	ap->scsi_host = shost;
 	rc = ata_sas_port_init(ap);
-	if (rc) {
-		ata_sas_port_destroy(ap);
-		return rc;
-	}
-	rc = ata_sas_tport_add(found_dev->sata_dev.ata_host.dev, ap);
 	if (rc) {
 		ata_sas_port_destroy(ap);
 		return rc;
@@ -714,7 +711,7 @@ void sas_resume_sata(struct asd_sas_port *port)
 }
 
 /**
- * sas_discover_sata - discover an STP/SATA domain device
+ * sas_discover_sata -- discover an STP/SATA domain device
  * @dev: pointer to struct domain_device of interest
  *
  * Devices directly attached to a HA port, have no parents.  All other
@@ -735,6 +732,7 @@ int sas_discover_sata(struct domain_device *dev)
 	if (res)
 		return res;
 
+	sas_discover_event(dev->port, DISCE_PROBE);
 	return 0;
 }
 

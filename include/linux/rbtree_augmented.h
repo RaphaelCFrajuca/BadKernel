@@ -26,7 +26,6 @@
 
 #include <linux/compiler.h>
 #include <linux/rbtree.h>
-#include <linux/rcupdate.h>
 
 /*
  * Please note - only struct rb_augment_callbacks and the prototypes for
@@ -42,9 +41,7 @@ struct rb_augment_callbacks {
 	void (*rotate)(struct rb_node *old, struct rb_node *new);
 };
 
-extern void __rb_insert_augmented(struct rb_node *node,
-				  struct rb_root *root,
-				  bool newleft, struct rb_node **leftmost,
+extern void __rb_insert_augmented(struct rb_node *node, struct rb_root *root,
 	void (*augment_rotate)(struct rb_node *old, struct rb_node *new));
 /*
  * Fixup the rbtree and update the augmented information when rebalancing.
@@ -60,16 +57,7 @@ static inline void
 rb_insert_augmented(struct rb_node *node, struct rb_root *root,
 		    const struct rb_augment_callbacks *augment)
 {
-	__rb_insert_augmented(node, root, false, NULL, augment->rotate);
-}
-
-static inline void
-rb_insert_augmented_cached(struct rb_node *node,
-			   struct rb_root_cached *root, bool newleft,
-			   const struct rb_augment_callbacks *augment)
-{
-	__rb_insert_augmented(node, &root->rb_root,
-			      newleft, &root->rb_leftmost, augment->rotate);
+	__rb_insert_augmented(node, root, augment->rotate);
 }
 
 #define RB_DECLARE_CALLBACKS(rbstatic, rbname, rbstruct, rbfield,	\
@@ -102,9 +90,7 @@ rbname ## _rotate(struct rb_node *rb_old, struct rb_node *rb_new)	\
 	old->rbaugmented = rbcompute(old);				\
 }									\
 rbstatic const struct rb_augment_callbacks rbname = {			\
-	.propagate = rbname ## _propagate,				\
-	.copy = rbname ## _copy,					\
-	.rotate = rbname ## _rotate					\
+	rbname ## _propagate, rbname ## _copy, rbname ## _rotate	\
 };
 
 
@@ -144,34 +130,17 @@ __rb_change_child(struct rb_node *old, struct rb_node *new,
 		WRITE_ONCE(root->rb_node, new);
 }
 
-static inline void
-__rb_change_child_rcu(struct rb_node *old, struct rb_node *new,
-		      struct rb_node *parent, struct rb_root *root)
-{
-	if (parent) {
-		if (parent->rb_left == old)
-			rcu_assign_pointer(parent->rb_left, new);
-		else
-			rcu_assign_pointer(parent->rb_right, new);
-	} else
-		rcu_assign_pointer(root->rb_node, new);
-}
-
 extern void __rb_erase_color(struct rb_node *parent, struct rb_root *root,
 	void (*augment_rotate)(struct rb_node *old, struct rb_node *new));
 
 static __always_inline struct rb_node *
 __rb_erase_augmented(struct rb_node *node, struct rb_root *root,
-		     struct rb_node **leftmost,
 		     const struct rb_augment_callbacks *augment)
 {
 	struct rb_node *child = node->rb_right;
 	struct rb_node *tmp = node->rb_left;
 	struct rb_node *parent, *rebalance;
 	unsigned long pc;
-
-	if (leftmost && node == *leftmost)
-		*leftmost = rb_next(node);
 
 	if (!tmp) {
 		/*
@@ -272,21 +241,9 @@ static __always_inline void
 rb_erase_augmented(struct rb_node *node, struct rb_root *root,
 		   const struct rb_augment_callbacks *augment)
 {
-	struct rb_node *rebalance = __rb_erase_augmented(node, root,
-							 NULL, augment);
+	struct rb_node *rebalance = __rb_erase_augmented(node, root, augment);
 	if (rebalance)
 		__rb_erase_color(rebalance, root, augment->rotate);
-}
-
-static __always_inline void
-rb_erase_augmented_cached(struct rb_node *node, struct rb_root_cached *root,
-			  const struct rb_augment_callbacks *augment)
-{
-	struct rb_node *rebalance = __rb_erase_augmented(node, &root->rb_root,
-							 &root->rb_leftmost,
-							 augment);
-	if (rebalance)
-		__rb_erase_color(rebalance, &root->rb_root, augment->rotate);
 }
 
 #endif	/* _LINUX_RBTREE_AUGMENTED_H */

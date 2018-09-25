@@ -10,7 +10,6 @@
  * Miscellaneous linux stuff
  */
 
-#include <linux/errno.h>
 #include <linux/module.h>
 #include <linux/types.h>
 #include <linux/mm.h>
@@ -26,8 +25,6 @@
 #include <linux/platform_device.h>
 #include <linux/adb.h>
 #include <linux/cuda.h>
-#include <linux/pmu.h>
-#include <linux/rtc.h>
 
 #include <asm/setup.h>
 #include <asm/bootinfo.h>
@@ -37,6 +34,7 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/pgtable.h>
+#include <asm/rtc.h>
 #include <asm/machdep.h>
 
 #include <asm/macintosh.h>
@@ -151,7 +149,7 @@ static void mac_cache_card_flush(int writeback)
 void __init config_mac(void)
 {
 	if (!MACH_IS_MAC)
-		pr_err("ERROR: no Mac, but config_mac() called!!\n");
+		printk(KERN_ERR "ERROR: no Mac, but config_mac() called!!\n");
 
 	mach_sched_init = mac_sched_init;
 	mach_init_IRQ = mac_init_IRQ;
@@ -163,7 +161,7 @@ void __init config_mac(void)
 	mach_halt = mac_poweroff;
 	mach_power_off = mac_poweroff;
 	mach_max_dma_address = 0xffffffff;
-#if IS_ENABLED(CONFIG_INPUT_M68K_BEEP)
+#if defined(CONFIG_INPUT_M68K_BEEP) || defined(CONFIG_INPUT_M68K_BEEP_MODULE)
 	mach_beep = mac_mksound;
 #endif
 
@@ -213,7 +211,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_II,
 		.scsi_type	= MAC_SCSI_OLD,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_IWM,
 	},
 
@@ -228,7 +226,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_II,
 		.scsi_type	= MAC_SCSI_OLD,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_IWM,
 	}, {
 		.ident		= MAC_MODEL_IIX,
@@ -237,7 +235,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_II,
 		.scsi_type	= MAC_SCSI_OLD,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_IICX,
@@ -246,7 +244,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_II,
 		.scsi_type	= MAC_SCSI_OLD,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_SE30,
@@ -255,7 +253,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_II,
 		.scsi_type	= MAC_SCSI_OLD,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_PDS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	},
 
@@ -273,7 +271,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_OLD,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_IIFX,
@@ -282,34 +280,34 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_IIFX,
 		.scc_type	= MAC_SCC_IOP,
-		.expansion_type	= MAC_EXP_PDS_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_IOP,
 	}, {
 		.ident		= MAC_MODEL_IISI,
 		.name		= "IIsi",
-		.adb_type	= MAC_ADB_EGRET,
+		.adb_type	= MAC_ADB_IISI,
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_OLD,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_PDS_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_IIVI,
 		.name		= "IIvi",
-		.adb_type	= MAC_ADB_EGRET,
+		.adb_type	= MAC_ADB_IISI,
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_LC,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_IIVX,
 		.name		= "IIvx",
-		.adb_type	= MAC_ADB_EGRET,
+		.adb_type	= MAC_ADB_IISI,
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_LC,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	},
 
@@ -320,10 +318,11 @@ static struct mac_model mac_data_table[] = {
 	{
 		.ident		= MAC_MODEL_CLII,
 		.name		= "Classic II",
-		.adb_type	= MAC_ADB_EGRET,
+		.adb_type	= MAC_ADB_IISI,
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_LC,
 		.scc_type	= MAC_SCC_II,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_CCL,
@@ -332,7 +331,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_LC,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_PDS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_CCLII,
@@ -341,7 +340,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_LC,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_PDS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	},
 
@@ -352,29 +351,29 @@ static struct mac_model mac_data_table[] = {
 	{
 		.ident		= MAC_MODEL_LC,
 		.name		= "LC",
-		.adb_type	= MAC_ADB_EGRET,
+		.adb_type	= MAC_ADB_IISI,
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_LC,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_PDS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_LCII,
 		.name		= "LC II",
-		.adb_type	= MAC_ADB_EGRET,
+		.adb_type	= MAC_ADB_IISI,
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_LC,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_PDS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_LCIII,
 		.name		= "LC III",
-		.adb_type	= MAC_ADB_EGRET,
+		.adb_type	= MAC_ADB_IISI,
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_LC,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_PDS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	},
 
@@ -395,7 +394,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_QUADRA,
 		.scsi_type	= MAC_SCSI_QUADRA,
 		.scc_type	= MAC_SCC_QUADRA,
-		.expansion_type	= MAC_EXP_PDS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR1,
 	}, {
 		.ident		= MAC_MODEL_Q605_ACC,
@@ -404,7 +403,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_QUADRA,
 		.scsi_type	= MAC_SCSI_QUADRA,
 		.scc_type	= MAC_SCC_QUADRA,
-		.expansion_type	= MAC_EXP_PDS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR1,
 	}, {
 		.ident		= MAC_MODEL_Q610,
@@ -414,7 +413,7 @@ static struct mac_model mac_data_table[] = {
 		.scsi_type	= MAC_SCSI_QUADRA,
 		.scc_type	= MAC_SCC_QUADRA,
 		.ether_type	= MAC_ETHER_SONIC,
-		.expansion_type	= MAC_EXP_PDS_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR1,
 	}, {
 		.ident		= MAC_MODEL_Q630,
@@ -424,7 +423,8 @@ static struct mac_model mac_data_table[] = {
 		.scsi_type	= MAC_SCSI_QUADRA,
 		.ide_type	= MAC_IDE_QUADRA,
 		.scc_type	= MAC_SCC_QUADRA,
-		.expansion_type	= MAC_EXP_PDS_COMM,
+		.ether_type	= MAC_ETHER_SONIC,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR1,
 	}, {
 		.ident		= MAC_MODEL_Q650,
@@ -434,7 +434,7 @@ static struct mac_model mac_data_table[] = {
 		.scsi_type	= MAC_SCSI_QUADRA,
 		.scc_type	= MAC_SCC_QUADRA,
 		.ether_type	= MAC_ETHER_SONIC,
-		.expansion_type	= MAC_EXP_PDS_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR1,
 	},
 	/* The Q700 does have a NS Sonic */
@@ -446,7 +446,7 @@ static struct mac_model mac_data_table[] = {
 		.scsi_type	= MAC_SCSI_QUADRA2,
 		.scc_type	= MAC_SCC_QUADRA,
 		.ether_type	= MAC_ETHER_SONIC,
-		.expansion_type	= MAC_EXP_PDS_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR1,
 	}, {
 		.ident		= MAC_MODEL_Q800,
@@ -456,7 +456,7 @@ static struct mac_model mac_data_table[] = {
 		.scsi_type	= MAC_SCSI_QUADRA,
 		.scc_type	= MAC_SCC_QUADRA,
 		.ether_type	= MAC_ETHER_SONIC,
-		.expansion_type	= MAC_EXP_PDS_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR1,
 	}, {
 		.ident		= MAC_MODEL_Q840,
@@ -466,7 +466,7 @@ static struct mac_model mac_data_table[] = {
 		.scsi_type	= MAC_SCSI_QUADRA3,
 		.scc_type	= MAC_SCC_PSC,
 		.ether_type	= MAC_ETHER_MACE,
-		.expansion_type	= MAC_EXP_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_AV,
 	}, {
 		.ident		= MAC_MODEL_Q900,
@@ -476,7 +476,7 @@ static struct mac_model mac_data_table[] = {
 		.scsi_type	= MAC_SCSI_QUADRA2,
 		.scc_type	= MAC_SCC_IOP,
 		.ether_type	= MAC_ETHER_SONIC,
-		.expansion_type	= MAC_EXP_PDS_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_IOP,
 	}, {
 		.ident		= MAC_MODEL_Q950,
@@ -486,7 +486,7 @@ static struct mac_model mac_data_table[] = {
 		.scsi_type	= MAC_SCSI_QUADRA2,
 		.scc_type	= MAC_SCC_IOP,
 		.ether_type	= MAC_ETHER_SONIC,
-		.expansion_type	= MAC_EXP_PDS_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_IOP,
 	},
 
@@ -497,11 +497,11 @@ static struct mac_model mac_data_table[] = {
 	{
 		.ident		= MAC_MODEL_P460,
 		.name		= "Performa 460",
-		.adb_type	= MAC_ADB_EGRET,
+		.adb_type	= MAC_ADB_IISI,
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_LC,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_PDS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_P475,
@@ -510,7 +510,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_QUADRA,
 		.scsi_type	= MAC_SCSI_QUADRA,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_PDS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR1,
 	}, {
 		.ident		= MAC_MODEL_P475F,
@@ -519,7 +519,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_QUADRA,
 		.scsi_type	= MAC_SCSI_QUADRA,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_PDS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR1,
 	}, {
 		.ident		= MAC_MODEL_P520,
@@ -528,7 +528,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_LC,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_PDS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_P550,
@@ -537,7 +537,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_LC,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_PDS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	},
 	/* These have the comm slot, and therefore possibly SONIC ethernet */
@@ -548,7 +548,8 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_QUADRA,
 		.scsi_type	= MAC_SCSI_QUADRA,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_PDS_COMM,
+		.ether_type	= MAC_ETHER_SONIC,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR1,
 	}, {
 		.ident		= MAC_MODEL_P588,
@@ -558,7 +559,8 @@ static struct mac_model mac_data_table[] = {
 		.scsi_type	= MAC_SCSI_QUADRA,
 		.ide_type	= MAC_IDE_QUADRA,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_PDS_COMM,
+		.ether_type	= MAC_ETHER_SONIC,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR1,
 	}, {
 		.ident		= MAC_MODEL_TV,
@@ -567,15 +569,16 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_LC,
 		.scc_type	= MAC_SCC_II,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_P600,
 		.name		= "Performa 600",
-		.adb_type	= MAC_ADB_EGRET,
+		.adb_type	= MAC_ADB_IISI,
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_LC,
 		.scc_type	= MAC_SCC_II,
-		.expansion_type	= MAC_EXP_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	},
 
@@ -592,7 +595,7 @@ static struct mac_model mac_data_table[] = {
 		.scsi_type	= MAC_SCSI_QUADRA,
 		.scc_type	= MAC_SCC_QUADRA,
 		.ether_type	= MAC_ETHER_SONIC,
-		.expansion_type	= MAC_EXP_PDS_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR1,
 	}, {
 		.ident		= MAC_MODEL_C650,
@@ -602,7 +605,7 @@ static struct mac_model mac_data_table[] = {
 		.scsi_type	= MAC_SCSI_QUADRA,
 		.scc_type	= MAC_SCC_QUADRA,
 		.ether_type	= MAC_ETHER_SONIC,
-		.expansion_type	= MAC_EXP_PDS_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR1,
 	}, {
 		.ident		= MAC_MODEL_C660,
@@ -612,7 +615,7 @@ static struct mac_model mac_data_table[] = {
 		.scsi_type	= MAC_SCSI_QUADRA3,
 		.scc_type	= MAC_SCC_PSC,
 		.ether_type	= MAC_ETHER_MACE,
-		.expansion_type	= MAC_EXP_PDS_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_AV,
 	},
 
@@ -629,6 +632,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_QUADRA,
 		.scsi_type	= MAC_SCSI_OLD,
 		.scc_type	= MAC_SCC_QUADRA,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_PB145,
@@ -637,6 +641,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_QUADRA,
 		.scsi_type	= MAC_SCSI_OLD,
 		.scc_type	= MAC_SCC_QUADRA,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_PB150,
@@ -646,6 +651,7 @@ static struct mac_model mac_data_table[] = {
 		.scsi_type	= MAC_SCSI_OLD,
 		.ide_type	= MAC_IDE_PB,
 		.scc_type	= MAC_SCC_QUADRA,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_PB160,
@@ -654,6 +660,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_QUADRA,
 		.scsi_type	= MAC_SCSI_OLD,
 		.scc_type	= MAC_SCC_QUADRA,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_PB165,
@@ -662,6 +669,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_QUADRA,
 		.scsi_type	= MAC_SCSI_OLD,
 		.scc_type	= MAC_SCC_QUADRA,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_PB165C,
@@ -670,6 +678,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_QUADRA,
 		.scsi_type	= MAC_SCSI_OLD,
 		.scc_type	= MAC_SCC_QUADRA,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_PB170,
@@ -678,6 +687,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_QUADRA,
 		.scsi_type	= MAC_SCSI_OLD,
 		.scc_type	= MAC_SCC_QUADRA,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_PB180,
@@ -686,6 +696,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_QUADRA,
 		.scsi_type	= MAC_SCSI_OLD,
 		.scc_type	= MAC_SCC_QUADRA,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_PB180C,
@@ -694,15 +705,17 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_QUADRA,
 		.scsi_type	= MAC_SCSI_OLD,
 		.scc_type	= MAC_SCC_QUADRA,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_PB190,
 		.name		= "PowerBook 190",
 		.adb_type	= MAC_ADB_PB2,
 		.via_type	= MAC_VIA_QUADRA,
-		.scsi_type	= MAC_SCSI_OLD,
+		.scsi_type	= MAC_SCSI_LATE,
 		.ide_type	= MAC_IDE_BABOON,
 		.scc_type	= MAC_SCC_QUADRA,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_PB520,
@@ -712,6 +725,7 @@ static struct mac_model mac_data_table[] = {
 		.scsi_type	= MAC_SCSI_LATE,
 		.scc_type	= MAC_SCC_QUADRA,
 		.ether_type	= MAC_ETHER_SONIC,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	},
 
@@ -728,7 +742,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_DUO,
 		.scc_type	= MAC_SCC_QUADRA,
-		.expansion_type	= MAC_EXP_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_PB230,
@@ -737,7 +751,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_DUO,
 		.scc_type	= MAC_SCC_QUADRA,
-		.expansion_type	= MAC_EXP_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_PB250,
@@ -746,7 +760,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_DUO,
 		.scc_type	= MAC_SCC_QUADRA,
-		.expansion_type	= MAC_EXP_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_PB270C,
@@ -755,7 +769,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_DUO,
 		.scc_type	= MAC_SCC_QUADRA,
-		.expansion_type	= MAC_EXP_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_PB280,
@@ -764,7 +778,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_DUO,
 		.scc_type	= MAC_SCC_QUADRA,
-		.expansion_type	= MAC_EXP_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	}, {
 		.ident		= MAC_MODEL_PB280C,
@@ -773,7 +787,7 @@ static struct mac_model mac_data_table[] = {
 		.via_type	= MAC_VIA_IICI,
 		.scsi_type	= MAC_SCSI_DUO,
 		.scc_type	= MAC_SCC_QUADRA,
-		.expansion_type	= MAC_EXP_NUBUS,
+		.nubus_type	= MAC_NUBUS,
 		.floppy_type	= MAC_FLOPPY_SWIM_ADDR2,
 	},
 
@@ -822,7 +836,8 @@ static void __init mac_identify(void)
 		/* no bootinfo model id -> NetBSD booter was used! */
 		/* XXX FIXME: breaks for model > 31 */
 		model = (mac_bi_data.cpuid >> 2) & 63;
-		pr_warn("No bootinfo model ID, using cpuid instead (obsolete bootloader?)\n");
+		printk(KERN_WARNING "No bootinfo model ID, using cpuid instead "
+		       "(obsolete bootloader?)\n");
 	}
 
 	macintosh_config = mac_data_table;
@@ -864,13 +879,14 @@ static void __init mac_identify(void)
 	 */
 	iop_preinit();
 
-	pr_info("Detected Macintosh model: %d\n", model);
+	printk(KERN_INFO "Detected Macintosh model: %d\n", model);
 
 	/*
 	 * Report booter data:
 	 */
 	printk(KERN_DEBUG " Penguin bootinfo data:\n");
-	printk(KERN_DEBUG " Video: addr 0x%lx row 0x%lx depth %lx dimensions %ld x %ld\n",
+	printk(KERN_DEBUG " Video: addr 0x%lx "
+		"row 0x%lx depth %lx dimensions %ld x %ld\n",
 		mac_bi_data.videoaddr, mac_bi_data.videorow,
 		mac_bi_data.videodepth, mac_bi_data.dimensions & 0xFFFF,
 		mac_bi_data.dimensions >> 16);
@@ -883,22 +899,19 @@ static void __init mac_identify(void)
 		mac_bi_data.id, mac_bi_data.cpuid, mac_bi_data.memsize);
 
 	iop_init();
-	oss_init();
 	via_init();
+	oss_init();
 	psc_init();
 	baboon_init();
 
 #ifdef CONFIG_ADB_CUDA
 	find_via_cuda();
 #endif
-#ifdef CONFIG_ADB_PMU68K
-	find_via_pmu();
-#endif
 }
 
 static void __init mac_report_hardware(void)
 {
-	pr_info("Apple Macintosh %s\n", macintosh_config->name);
+	printk(KERN_INFO "Apple Macintosh %s\n", macintosh_config->name);
 }
 
 static void mac_get_model(char *str)
@@ -906,6 +919,15 @@ static void mac_get_model(char *str)
 	strcpy(str, "Macintosh ");
 	strcat(str, macintosh_config->name);
 }
+
+static struct resource swim_rsrc = { .flags = IORESOURCE_MEM };
+
+static struct platform_device swim_pdev = {
+	.name		= "swim",
+	.id		= -1,
+	.num_resources	= 1,
+	.resource	= &swim_rsrc,
+};
 
 static const struct resource mac_scsi_iifx_rsrc[] __initconst = {
 	{
@@ -971,6 +993,26 @@ static const struct resource mac_scsi_ccl_rsrc[] __initconst = {
 	},
 };
 
+static struct platform_device esp_0_pdev = {
+	.name		= "mac_esp",
+	.id		= 0,
+};
+
+static struct platform_device esp_1_pdev = {
+	.name		= "mac_esp",
+	.id		= 1,
+};
+
+static struct platform_device sonic_pdev = {
+	.name		= "macsonic",
+	.id		= -1,
+};
+
+static struct platform_device mace_pdev = {
+	.name		= "macmace",
+	.id		= -1,
+};
+
 int __init mac_platform_init(void)
 {
 	u8 *swim_base;
@@ -1002,13 +1044,9 @@ int __init mac_platform_init(void)
 	}
 
 	if (swim_base) {
-		struct resource swim_rsrc = {
-			.flags = IORESOURCE_MEM,
-			.start = (resource_size_t)swim_base,
-			.end   = (resource_size_t)swim_base + 0x1FFF,
-		};
-
-		platform_device_register_simple("swim", -1, &swim_rsrc, 1);
+		swim_rsrc.start = (resource_size_t) swim_base,
+		swim_rsrc.end   = (resource_size_t) swim_base + 0x2000,
+		platform_device_register(&swim_pdev);
 	}
 
 	/*
@@ -1018,13 +1056,13 @@ int __init mac_platform_init(void)
 	switch (macintosh_config->scsi_type) {
 	case MAC_SCSI_QUADRA:
 	case MAC_SCSI_QUADRA3:
-		platform_device_register_simple("mac_esp", 0, NULL, 0);
+		platform_device_register(&esp_0_pdev);
 		break;
 	case MAC_SCSI_QUADRA2:
-		platform_device_register_simple("mac_esp", 0, NULL, 0);
+		platform_device_register(&esp_0_pdev);
 		if ((macintosh_config->ident == MAC_MODEL_Q900) ||
 		    (macintosh_config->ident == MAC_MODEL_Q950))
-			platform_device_register_simple("mac_esp", 1, NULL, 0);
+			platform_device_register(&esp_1_pdev);
 		break;
 	case MAC_SCSI_IIFX:
 		/* Addresses from The Guide to Mac Family Hardware.
@@ -1065,7 +1103,9 @@ int __init mac_platform_init(void)
 			mac_scsi_old_rsrc, ARRAY_SIZE(mac_scsi_old_rsrc));
 		break;
 	case MAC_SCSI_LATE:
-		/* XXX PDMA support for PowerBook 500 series needs testing */
+		/* PDMA logic in 68040 PowerBooks is somehow different to
+		 * '030 models. It's probably more like Quadras (see mac_esp).
+		 */
 		platform_device_register_simple("mac_scsi", 0,
 			mac_scsi_late_rsrc, ARRAY_SIZE(mac_scsi_late_rsrc));
 		break;
@@ -1086,16 +1126,14 @@ int __init mac_platform_init(void)
 	 * Ethernet device
 	 */
 
-	if (macintosh_config->ether_type == MAC_ETHER_SONIC ||
-	    macintosh_config->expansion_type == MAC_EXP_PDS_COMM)
-		platform_device_register_simple("macsonic", -1, NULL, 0);
-
-	if (macintosh_config->expansion_type == MAC_EXP_PDS ||
-	    macintosh_config->expansion_type == MAC_EXP_PDS_COMM)
-		platform_device_register_simple("mac89x0", -1, NULL, 0);
-
-	if (macintosh_config->ether_type == MAC_ETHER_MACE)
-		platform_device_register_simple("macmace", -1, NULL, 0);
+	switch (macintosh_config->ether_type) {
+	case MAC_ETHER_SONIC:
+		platform_device_register(&sonic_pdev);
+		break;
+	case MAC_ETHER_MACE:
+		platform_device_register(&mace_pdev);
+		break;
+	}
 
 	return 0;
 }

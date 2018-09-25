@@ -11,6 +11,11 @@
  * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
  * more details.
  *
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
+ *
+ *
  ******************************************************************************/
 #ifndef _RTW_QOS_H_
 #define _RTW_QOS_H_
@@ -19,8 +24,7 @@
 
 struct	qos_priv	{
 	unsigned int	  qos_option;	/* bit mask option: u-apsd,
-					 * s-apsd, ts, block ack...
-					 */
+					 * s-apsd, ts, block ack... */
 };
 
 #endif	/* _RTL871X_QOS_H_ */

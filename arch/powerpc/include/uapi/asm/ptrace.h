@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0+ WITH Linux-syscall-note */
 /*
  * Copyright (C) 2001 PPC64 Team, IBM Corp
  *

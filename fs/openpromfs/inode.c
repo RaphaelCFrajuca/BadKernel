@@ -16,7 +16,7 @@
 #include <asm/openprom.h>
 #include <asm/oplib.h>
 #include <asm/prom.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
 static DEFINE_MUTEX(op_mutex);
 
@@ -166,7 +166,7 @@ static int openpromfs_readdir(struct file *, struct dir_context *);
 
 static const struct file_operations openprom_operations = {
 	.read		= generic_read_dir,
-	.iterate_shared	= openpromfs_readdir,
+	.iterate	= openpromfs_readdir,
 	.llseek		= generic_file_llseek,
 };
 
@@ -256,7 +256,8 @@ found:
 		break;
 	}
 
-	return d_splice_alias(inode, dentry);
+	d_add(dentry, inode);
+	return NULL;
 }
 
 static int openpromfs_readdir(struct file *file, struct dir_context *ctx)
@@ -354,7 +355,7 @@ static struct inode *openprom_iget(struct super_block *sb, ino_t ino)
 	if (!inode)
 		return ERR_PTR(-ENOMEM);
 	if (inode->i_state & I_NEW) {
-		inode->i_mtime = inode->i_atime = inode->i_ctime = current_time(inode);
+		inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME;
 		if (inode->i_ino == OPENPROM_ROOT_INO) {
 			inode->i_op = &openprom_inode_operations;
 			inode->i_fop = &openprom_operations;
@@ -368,7 +369,7 @@ static struct inode *openprom_iget(struct super_block *sb, ino_t ino)
 static int openprom_remount(struct super_block *sb, int *flags, char *data)
 {
 	sync_filesystem(sb);
-	*flags |= SB_NOATIME;
+	*flags |= MS_NOATIME;
 	return 0;
 }
 
@@ -385,7 +386,7 @@ static int openprom_fill_super(struct super_block *s, void *data, int silent)
 	struct op_inode_info *oi;
 	int ret;
 
-	s->s_flags |= SB_NOATIME;
+	s->s_flags |= MS_NOATIME;
 	s->s_blocksize = 1024;
 	s->s_blocksize_bits = 10;
 	s->s_magic = OPENPROM_SUPER_MAGIC;
@@ -442,7 +443,7 @@ static int __init init_openprom_fs(void)
 					    sizeof(struct op_inode_info),
 					    0,
 					    (SLAB_RECLAIM_ACCOUNT |
-					     SLAB_MEM_SPREAD | SLAB_ACCOUNT),
+					     SLAB_MEM_SPREAD),
 					    op_inode_init_once);
 	if (!op_inode_cachep)
 		return -ENOMEM;

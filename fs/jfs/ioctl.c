@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * linux/fs/jfs/ioctl.c
  *
@@ -14,7 +13,7 @@
 #include <linux/sched.h>
 #include <linux/blkdev.h>
 #include <asm/current.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
 #include "jfs_filsys.h"
 #include "jfs_debug.h"
@@ -65,6 +64,7 @@ long jfs_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case JFS_IOC_GETFLAGS:
+		jfs_get_inode_flags(jfs_inode);
 		flags = jfs_inode->mode2 & JFS_FL_USER_VISIBLE;
 		flags = jfs_map_ext2(flags, 0);
 		return put_user(flags, (int __user *) arg);
@@ -96,8 +96,9 @@ long jfs_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		}
 
 		/* Lock against other parallel changes of flags */
-		inode_lock(inode);
+		mutex_lock(&inode->i_mutex);
 
+		jfs_get_inode_flags(jfs_inode);
 		oldflags = jfs_inode->mode2;
 
 		/*
@@ -108,7 +109,7 @@ long jfs_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			((flags ^ oldflags) &
 			(JFS_APPEND_FL | JFS_IMMUTABLE_FL))) {
 			if (!capable(CAP_LINUX_IMMUTABLE)) {
-				inode_unlock(inode);
+				mutex_unlock(&inode->i_mutex);
 				err = -EPERM;
 				goto setflags_out;
 			}
@@ -119,8 +120,8 @@ long jfs_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		jfs_inode->mode2 = flags;
 
 		jfs_set_inode_flags(inode);
-		inode_unlock(inode);
-		inode->i_ctime = current_time(inode);
+		mutex_unlock(&inode->i_mutex);
+		inode->i_ctime = CURRENT_TIME_SEC;
 		mark_inode_dirty(inode);
 setflags_out:
 		mnt_drop_write_file(filp);

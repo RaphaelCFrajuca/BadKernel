@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  */
 
-#include <media/dvb_frontend.h>
+#include <dvb_frontend.h>
 
 #include "as102_fe.h"
 
@@ -190,10 +190,10 @@ static int as102_fe_set_frontend(struct dvb_frontend *fe)
 	return state->ops->set_tune(state->priv, &tune_args);
 }
 
-static int as102_fe_get_frontend(struct dvb_frontend *fe,
-				 struct dtv_frontend_properties *c)
+static int as102_fe_get_frontend(struct dvb_frontend *fe)
 {
 	struct as102_state *state = fe->demodulator_priv;
+	struct dtv_frontend_properties *c = &fe->dtv_property_cache;
 	int ret = 0;
 	struct as10x_tps tps = { 0 };
 
@@ -415,7 +415,7 @@ static void as102_fe_release(struct dvb_frontend *fe)
 }
 
 
-static const struct dvb_frontend_ops as102_fe_ops = {
+static struct dvb_frontend_ops as102_fe_ops = {
 	.delsys = { SYS_DVBT },
 	.info = {
 		.name			= "Abilis AS102 DVB-T",
@@ -455,10 +455,11 @@ struct dvb_frontend *as102_attach(const char *name,
 	struct as102_state *state;
 	struct dvb_frontend *fe;
 
-	state = kzalloc(sizeof(*state), GFP_KERNEL);
-	if (!state)
+	state = kzalloc(sizeof(struct as102_state), GFP_KERNEL);
+	if (state == NULL) {
+		pr_err("%s: unable to allocate memory for state\n", __func__);
 		return NULL;
-
+	}
 	fe = &state->frontend;
 	fe->demodulator_priv = state;
 	state->ops = ops;

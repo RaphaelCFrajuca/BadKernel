@@ -129,7 +129,8 @@ static int fc_probe(struct fmc_device *fmc)
 
 	struct fc_instance *fc;
 
-	index = fmc_validate(fmc, &fc_drv);
+	if (fmc->op->validate)
+		index = fmc->op->validate(fmc, &fc_drv);
 	if (index < 0)
 		return -EINVAL; /* not our device: invalid */
 

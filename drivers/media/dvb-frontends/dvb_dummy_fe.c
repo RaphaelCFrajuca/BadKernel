@@ -13,6 +13,10 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *
  *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.=
  */
 
 #include <linux/module.h>
@@ -20,7 +24,7 @@
 #include <linux/string.h>
 #include <linux/slab.h>
 
-#include <media/dvb_frontend.h>
+#include "dvb_frontend.h"
 #include "dvb_dummy_fe.h"
 
 
@@ -66,12 +70,9 @@ static int dvb_dummy_fe_read_ucblocks(struct dvb_frontend* fe, u32* ucblocks)
 }
 
 /*
- * Should only be implemented if it actually reads something from the hardware.
- * Also, it should check for the locks, in order to avoid report wrong data
- * to userspace.
+ * Only needed if it actually reads something from the hardware
  */
-static int dvb_dummy_fe_get_frontend(struct dvb_frontend *fe,
-				     struct dtv_frontend_properties *p)
+static int dvb_dummy_fe_get_frontend(struct dvb_frontend *fe)
 {
 	return 0;
 }
@@ -115,7 +116,7 @@ static void dvb_dummy_fe_release(struct dvb_frontend* fe)
 	kfree(state);
 }
 
-static const struct dvb_frontend_ops dvb_dummy_fe_ofdm_ops;
+static struct dvb_frontend_ops dvb_dummy_fe_ofdm_ops;
 
 struct dvb_frontend* dvb_dummy_fe_ofdm_attach(void)
 {
@@ -132,7 +133,7 @@ struct dvb_frontend* dvb_dummy_fe_ofdm_attach(void)
 	return &state->frontend;
 }
 
-static const struct dvb_frontend_ops dvb_dummy_fe_qpsk_ops;
+static struct dvb_frontend_ops dvb_dummy_fe_qpsk_ops;
 
 struct dvb_frontend *dvb_dummy_fe_qpsk_attach(void)
 {
@@ -149,7 +150,7 @@ struct dvb_frontend *dvb_dummy_fe_qpsk_attach(void)
 	return &state->frontend;
 }
 
-static const struct dvb_frontend_ops dvb_dummy_fe_qam_ops;
+static struct dvb_frontend_ops dvb_dummy_fe_qam_ops;
 
 struct dvb_frontend *dvb_dummy_fe_qam_attach(void)
 {
@@ -166,7 +167,7 @@ struct dvb_frontend *dvb_dummy_fe_qam_attach(void)
 	return &state->frontend;
 }
 
-static const struct dvb_frontend_ops dvb_dummy_fe_ofdm_ops = {
+static struct dvb_frontend_ops dvb_dummy_fe_ofdm_ops = {
 	.delsys = { SYS_DVBT },
 	.info = {
 		.name			= "Dummy DVB-T",
@@ -197,7 +198,7 @@ static const struct dvb_frontend_ops dvb_dummy_fe_ofdm_ops = {
 	.read_ucblocks = dvb_dummy_fe_read_ucblocks,
 };
 
-static const struct dvb_frontend_ops dvb_dummy_fe_qam_ops = {
+static struct dvb_frontend_ops dvb_dummy_fe_qam_ops = {
 	.delsys = { SYS_DVBC_ANNEX_A },
 	.info = {
 		.name			= "Dummy DVB-C",
@@ -226,7 +227,7 @@ static const struct dvb_frontend_ops dvb_dummy_fe_qam_ops = {
 	.read_ucblocks = dvb_dummy_fe_read_ucblocks,
 };
 
-static const struct dvb_frontend_ops dvb_dummy_fe_qpsk_ops = {
+static struct dvb_frontend_ops dvb_dummy_fe_qpsk_ops = {
 	.delsys = { SYS_DVBS },
 	.info = {
 		.name			= "Dummy DVB-S",

@@ -1,8 +1,8 @@
 /*
    3w-9xxx.c -- 3ware 9000 Storage Controller device driver for Linux.
 
-   Written By: Adam Radford <aradford@gmail.com>
-   Modifications By: Tom Couch
+   Written By: Adam Radford <linuxraid@lsi.com>
+   Modifications By: Tom Couch <linuxraid@lsi.com>
 
    Copyright (C) 2004-2009 Applied Micro Circuits Corporation.
    Copyright (C) 2010 LSI Corporation.
@@ -41,7 +41,10 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
    Bugs/Comments/Suggestions should be mailed to:
-   aradford@gmail.com
+   linuxraid@lsi.com
+
+   For more information, goto:
+   http://www.lsi.com
 
    Note: This version of the driver does not contain a bundled firmware
          image.
@@ -92,7 +95,7 @@
 #include <linux/slab.h>
 #include <asm/io.h>
 #include <asm/irq.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <scsi/scsi.h>
 #include <scsi/scsi_host.h>
 #include <scsi/scsi_tcq.h>
@@ -369,6 +372,7 @@ out:
 static void twa_aen_queue_event(TW_Device_Extension *tw_dev, TW_Command_Apache_Header *header)
 {
 	u32 local_time;
+	struct timeval time;
 	TW_Event *event;
 	unsigned short aen;
 	char host[16];
@@ -391,8 +395,8 @@ static void twa_aen_queue_event(TW_Device_Extension *tw_dev, TW_Command_Apache_H
 	memset(event, 0, sizeof(TW_Event));
 
 	event->severity = TW_SEV_OUT(header->status_block.severity__reserved);
-	/* event->time_stamp_sec overflows in y2106 */
-	local_time = (u32)(ktime_get_real_seconds() - (sys_tz.tz_minuteswest * 60));
+	do_gettimeofday(&time);
+	local_time = (u32)(time.tv_sec - (sys_tz.tz_minuteswest * 60));
 	event->time_stamp_sec = local_time;
 	event->aen_code = aen;
 	event->retrieved = TW_AEN_NOT_RETRIEVED;
@@ -472,10 +476,11 @@ out:
 static void twa_aen_sync_time(TW_Device_Extension *tw_dev, int request_id)
 {
 	u32 schedulertime;
+	struct timeval utc;
 	TW_Command_Full *full_command_packet;
 	TW_Command *command_packet;
 	TW_Param_Apache *param;
-	time64_t local_time;
+	u32 local_time;
 
 	/* Fill out the command packet */
 	full_command_packet = tw_dev->command_packet_virt[request_id];
@@ -497,8 +502,9 @@ static void twa_aen_sync_time(TW_Device_Extension *tw_dev, int request_id)
 
 	/* Convert system time in UTC to local time seconds since last 
            Sunday 12:00AM */
-	local_time = (ktime_get_real_seconds() - (sys_tz.tz_minuteswest * 60));
-	div_u64_rem(local_time - (3 * 86400), 604800, &schedulertime);
+	do_gettimeofday(&utc);
+	local_time = (u32)(utc.tv_sec - (sys_tz.tz_minuteswest * 60));
+	schedulertime = local_time - (3 * 86400);
 	schedulertime = cpu_to_le32(schedulertime % 604800);
 
 	memcpy(param->data, &schedulertime, sizeof(u32));
@@ -645,7 +651,8 @@ static long twa_chrdev_ioctl(struct file *file, unsigned int cmd, unsigned long 
 	TW_Command_Full *full_command_packet;
 	TW_Compatibility_Info *tw_compat_info;
 	TW_Event *event;
-	ktime_t current_time;
+	struct timeval current_time;
+	u32 current_time_ms;
 	TW_Device_Extension *tw_dev = twa_device_extension_list[iminor(inode)];
 	int retval = TW_IOCTL_ERROR_OS_EFAULT;
 	void __user *argp = (void __user *)arg;
@@ -836,17 +843,17 @@ static long twa_chrdev_ioctl(struct file *file, unsigned int cmd, unsigned long 
 		break;
 	case TW_IOCTL_GET_LOCK:
 		tw_lock = (TW_Lock *)tw_ioctl->data_buffer;
-		current_time = ktime_get();
+		do_gettimeofday(&current_time);
+		current_time_ms = (current_time.tv_sec * 1000) + (current_time.tv_usec / 1000);
 
-		if ((tw_lock->force_flag == 1) || (tw_dev->ioctl_sem_lock == 0) ||
-		    ktime_after(current_time, tw_dev->ioctl_time)) {
+		if ((tw_lock->force_flag == 1) || (tw_dev->ioctl_sem_lock == 0) || (current_time_ms >= tw_dev->ioctl_msec)) {
 			tw_dev->ioctl_sem_lock = 1;
-			tw_dev->ioctl_time = ktime_add_ms(current_time, tw_lock->timeout_msec);
+			tw_dev->ioctl_msec = current_time_ms + tw_lock->timeout_msec;
 			tw_ioctl->driver_command.status = 0;
 			tw_lock->time_remaining_msec = tw_lock->timeout_msec;
 		} else {
 			tw_ioctl->driver_command.status = TW_IOCTL_ERROR_STATUS_LOCKED;
-			tw_lock->time_remaining_msec = ktime_ms_delta(tw_dev->ioctl_time, current_time);
+			tw_lock->time_remaining_msec = tw_dev->ioctl_msec - current_time_ms;
 		}
 		break;
 	case TW_IOCTL_RELEASE_LOCK:

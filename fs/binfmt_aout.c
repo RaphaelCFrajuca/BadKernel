@@ -25,9 +25,8 @@
 #include <linux/init.h>
 #include <linux/coredump.h>
 #include <linux/slab.h>
-#include <linux/sched/task_stack.h>
 
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/cacheflush.h>
 #include <asm/a.out-core.h>
 
@@ -128,8 +127,12 @@ static int set_brk(unsigned long start, unsigned long end)
 {
 	start = PAGE_ALIGN(start);
 	end = PAGE_ALIGN(end);
-	if (end > start)
-		return vm_brk(start, end - start);
+	if (end > start) {
+		unsigned long addr;
+		addr = vm_brk(start, end - start);
+		if (BAD_ADDR(addr))
+			return addr;
+	}
 	return 0;
 }
 
@@ -272,7 +275,7 @@ static int load_aout_binary(struct linux_binprm * bprm)
 		map_size = ex.a_text+ex.a_data;
 #endif
 		error = vm_brk(text_addr & PAGE_MASK, map_size);
-		if (error)
+		if (error != (text_addr & PAGE_MASK))
 			return error;
 
 		error = read_code(bprm->file, text_addr, pos,
@@ -294,10 +297,7 @@ static int load_aout_binary(struct linux_binprm * bprm)
 		}
 
 		if (!bprm->file->f_op->mmap||((fd_offset & ~PAGE_MASK) != 0)) {
-			error = vm_brk(N_TXTADDR(ex), ex.a_text+ex.a_data);
-			if (error)
-				return error;
-
+			vm_brk(N_TXTADDR(ex), ex.a_text+ex.a_data);
 			read_code(bprm->file, N_TXTADDR(ex), fd_offset,
 				  ex.a_text + ex.a_data);
 			goto beyond_if;
@@ -330,7 +330,6 @@ beyond_if:
 #ifdef __alpha__
 	regs->gp = ex.a_gpvalue;
 #endif
-	finalize_exec(bprm);
 	start_thread(regs, ex.a_entry, current->mm->start_stack);
 	return 0;
 }
@@ -342,12 +341,11 @@ static int load_aout_library(struct file *file)
 	unsigned long error;
 	int retval;
 	struct exec ex;
-	loff_t pos = 0;
 
 	inode = file_inode(file);
 
 	retval = -ENOEXEC;
-	error = kernel_read(file, &ex, sizeof(ex), &pos);
+	error = kernel_read(file, 0, (char *) &ex, sizeof(ex));
 	if (error != sizeof(ex))
 		goto out;
 
@@ -380,10 +378,8 @@ static int load_aout_library(struct file *file)
 			       "N_TXTOFF is not page aligned. Please convert library: %pD\n",
 			       file);
 		}
-		retval = vm_brk(start_addr, ex.a_text + ex.a_data + ex.a_bss);
-		if (retval)
-			goto out;
-
+		vm_brk(start_addr, ex.a_text + ex.a_data + ex.a_bss);
+		
 		read_code(file, start_addr, N_TXTOFF(ex),
 			  ex.a_text + ex.a_data);
 		retval = 0;
@@ -401,8 +397,9 @@ static int load_aout_library(struct file *file)
 	len = PAGE_ALIGN(ex.a_text + ex.a_data);
 	bss = ex.a_text + ex.a_data + ex.a_bss;
 	if (bss > len) {
-		retval = vm_brk(start_addr + len, bss - len);
-		if (retval)
+		error = vm_brk(start_addr + len, bss - len);
+		retval = error;
+		if (error != start_addr + len)
 			goto out;
 	}
 	retval = 0;

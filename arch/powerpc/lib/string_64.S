@@ -19,9 +19,7 @@
  */
 
 #include <asm/ppc_asm.h>
-#include <asm/linkage.h>
 #include <asm/asm-offsets.h>
-#include <asm/export.h>
 
 	.section	".toc","aw"
 PPC64_CACHES:
@@ -42,17 +40,26 @@ PPC64_CACHES:
 
 	.macro err1
 100:
-	EX_TABLE(100b,.Ldo_err1)
+	.section __ex_table,"a"
+	.align 3
+	.llong 100b,.Ldo_err1
+	.previous
 	.endm
 
 	.macro err2
 200:
-	EX_TABLE(200b,.Ldo_err2)
+	.section __ex_table,"a"
+	.align 3
+	.llong 200b,.Ldo_err2
+	.previous
 	.endm
 
 	.macro err3
 300:
-	EX_TABLE(300b,.Ldo_err3)
+	.section __ex_table,"a"
+	.align 3
+	.llong 300b,.Ldo_err3
+	.previous
 	.endm
 
 .Ldo_err1:
@@ -152,9 +159,9 @@ err2;	std	r0,0(r3)
 	addi	r3,r3,8
 	addi	r4,r4,-8
 
-	/* Destination is 16 byte aligned, need to get it cache block aligned */
-11:	lwz	r7,DCACHEL1LOGBLOCKSIZE(r5)
-	lwz	r9,DCACHEL1BLOCKSIZE(r5)
+	/* Destination is 16 byte aligned, need to get it cacheline aligned */
+11:	lwz	r7,DCACHEL1LOGLINESIZE(r5)
+	lwz	r9,DCACHEL1LINESIZE(r5)
 
 	/*
 	 * With worst case alignment the long clear loop takes a minimum
@@ -184,7 +191,7 @@ err1;	std	r0,8(r3)
 	mtctr	r6
 	mr	r8,r3
 14:
-err1;	dcbz	0,r3
+err1;	dcbz	r0,r3
 	add	r3,r3,r9
 	bdnz	14b
 
@@ -193,4 +200,3 @@ err1;	dcbz	0,r3
 	cmpdi	r4,32
 	blt	.Lshort_clear
 	b	.Lmedium_clear
-EXPORT_SYMBOL(__clear_user)

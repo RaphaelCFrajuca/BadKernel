@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/kernel.h>
 #include <linux/gfp.h>
 #include <linux/ide.h>
@@ -19,16 +18,15 @@ int generic_ide_suspend(struct device *dev, pm_message_t mesg)
 	}
 
 	memset(&rqpm, 0, sizeof(rqpm));
-	rq = blk_get_request(drive->queue, REQ_OP_DRV_IN, 0);
-	ide_req(rq)->type = ATA_PRIV_PM_SUSPEND;
+	rq = blk_get_request(drive->queue, READ, __GFP_RECLAIM);
+	rq->cmd_type = REQ_TYPE_ATA_PM_SUSPEND;
 	rq->special = &rqpm;
 	rqpm.pm_step = IDE_PM_START_SUSPEND;
 	if (mesg.event == PM_EVENT_PRETHAW)
 		mesg.event = PM_EVENT_FREEZE;
 	rqpm.pm_state = mesg.event;
 
-	blk_execute_rq(drive->queue, NULL, rq, 0);
-	ret = scsi_req(rq)->result ? -EIO : 0;
+	ret = blk_execute_rq(drive->queue, NULL, rq, 0);
 	blk_put_request(rq);
 
 	if (ret == 0 && ide_port_acpi(hwif)) {
@@ -40,7 +38,7 @@ int generic_ide_suspend(struct device *dev, pm_message_t mesg)
 	return ret;
 }
 
-static void ide_end_sync_rq(struct request *rq, blk_status_t error)
+static void ide_end_sync_rq(struct request *rq, int error)
 {
 	complete(rq->end_io_data);
 }
@@ -55,9 +53,9 @@ static int ide_pm_execute_rq(struct request *rq)
 
 	spin_lock_irq(q->queue_lock);
 	if (unlikely(blk_queue_dying(q))) {
-		rq->rq_flags |= RQF_QUIET;
-		scsi_req(rq)->result = -ENXIO;
-		__blk_end_request_all(rq, BLK_STS_OK);
+		rq->cmd_flags |= REQ_QUIET;
+		rq->errors = -ENXIO;
+		__blk_end_request_all(rq, rq->errors);
 		spin_unlock_irq(q->queue_lock);
 		return -ENXIO;
 	}
@@ -67,7 +65,7 @@ static int ide_pm_execute_rq(struct request *rq)
 
 	wait_for_completion_io(&wait);
 
-	return scsi_req(rq)->result ? -EIO : 0;
+	return rq->errors ? -EIO : 0;
 }
 
 int generic_ide_resume(struct device *dev)
@@ -90,8 +88,9 @@ int generic_ide_resume(struct device *dev)
 	}
 
 	memset(&rqpm, 0, sizeof(rqpm));
-	rq = blk_get_request(drive->queue, REQ_OP_DRV_IN, BLK_MQ_REQ_PREEMPT);
-	ide_req(rq)->type = ATA_PRIV_PM_RESUME;
+	rq = blk_get_request(drive->queue, READ, __GFP_RECLAIM);
+	rq->cmd_type = REQ_TYPE_ATA_PM_RESUME;
+	rq->cmd_flags |= REQ_PREEMPT;
 	rq->special = &rqpm;
 	rqpm.pm_step = IDE_PM_START_RESUME;
 	rqpm.pm_state = PM_EVENT_ON;
@@ -222,10 +221,10 @@ void ide_complete_pm_rq(ide_drive_t *drive, struct request *rq)
 
 #ifdef DEBUG_PM
 	printk("%s: completing PM request, %s\n", drive->name,
-	       (ide_req(rq)->type == ATA_PRIV_PM_SUSPEND) ? "suspend" : "resume");
+	       (rq->cmd_type == REQ_TYPE_ATA_PM_SUSPEND) ? "suspend" : "resume");
 #endif
 	spin_lock_irqsave(q->queue_lock, flags);
-	if (ide_req(rq)->type == ATA_PRIV_PM_SUSPEND)
+	if (rq->cmd_type == REQ_TYPE_ATA_PM_SUSPEND)
 		blk_stop_queue(q);
 	else
 		drive->dev_flags &= ~IDE_DFLAG_BLOCKED;
@@ -233,7 +232,7 @@ void ide_complete_pm_rq(ide_drive_t *drive, struct request *rq)
 
 	drive->hwif->rq = NULL;
 
-	if (blk_end_request(rq, BLK_STS_OK, 0))
+	if (blk_end_request(rq, 0, 0))
 		BUG();
 }
 
@@ -241,13 +240,11 @@ void ide_check_pm_state(ide_drive_t *drive, struct request *rq)
 {
 	struct ide_pm_state *pm = rq->special;
 
-	if (blk_rq_is_private(rq) &&
-	    ide_req(rq)->type == ATA_PRIV_PM_SUSPEND &&
+	if (rq->cmd_type == REQ_TYPE_ATA_PM_SUSPEND &&
 	    pm->pm_step == IDE_PM_START_SUSPEND)
 		/* Mark drive blocked when starting the suspend sequence. */
 		drive->dev_flags |= IDE_DFLAG_BLOCKED;
-	else if (blk_rq_is_private(rq) &&
-	         ide_req(rq)->type == ATA_PRIV_PM_RESUME &&
+	else if (rq->cmd_type == REQ_TYPE_ATA_PM_RESUME &&
 		 pm->pm_step == IDE_PM_START_RESUME) {
 		/*
 		 * The first thing we do on wakeup is to wait for BSY bit to

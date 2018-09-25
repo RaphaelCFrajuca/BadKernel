@@ -41,6 +41,9 @@ struct msm_perf_state {
 	int buftot, bufpos;
 
 	unsigned long next_jiffies;
+
+	struct dentry *ent;
+	struct drm_info_node *node;
 };
 
 #define SAMPLE_TIME (HZ/4)
@@ -129,7 +132,7 @@ static ssize_t perf_read(struct file *file, char __user *buf,
 		size_t sz, loff_t *ppos)
 {
 	struct msm_perf_state *perf = file->private_data;
-	int n = 0, ret = 0;
+	int n = 0, ret;
 
 	mutex_lock(&perf->read_lock);
 
@@ -140,10 +143,9 @@ static ssize_t perf_read(struct file *file, char __user *buf,
 	}
 
 	n = min((int)sz, perf->buftot - perf->bufpos);
-	if (copy_to_user(buf, &perf->buf[perf->bufpos], n)) {
-		ret = -EFAULT;
+	ret = copy_to_user(buf, &perf->buf[perf->bufpos], n);
+	if (ret)
 		goto out;
-	}
 
 	perf->bufpos += n;
 	*ppos += n;
@@ -205,7 +207,6 @@ int msm_perf_debugfs_init(struct drm_minor *minor)
 {
 	struct msm_drm_private *priv = minor->dev->dev_private;
 	struct msm_perf_state *perf;
-	struct dentry *ent;
 
 	/* only create on first minor: */
 	if (priv->perf)
@@ -220,29 +221,51 @@ int msm_perf_debugfs_init(struct drm_minor *minor)
 	mutex_init(&perf->read_lock);
 	priv->perf = perf;
 
-	ent = debugfs_create_file("perf", S_IFREG | S_IRUGO,
+	perf->node = kzalloc(sizeof(*perf->node), GFP_KERNEL);
+	if (!perf->node)
+		goto fail;
+
+	perf->ent = debugfs_create_file("perf", S_IFREG | S_IRUGO,
 			minor->debugfs_root, perf, &perf_debugfs_fops);
-	if (!ent) {
-		DRM_ERROR("Cannot create /sys/kernel/debug/dri/%pd/perf\n",
-				minor->debugfs_root);
+	if (!perf->ent) {
+		DRM_ERROR("Cannot create /sys/kernel/debug/dri/%s/perf\n",
+				minor->debugfs_root->d_name.name);
 		goto fail;
 	}
+
+	perf->node->minor = minor;
+	perf->node->dent  = perf->ent;
+	perf->node->info_ent = NULL;
+
+	mutex_lock(&minor->debugfs_lock);
+	list_add(&perf->node->list, &minor->debugfs_list);
+	mutex_unlock(&minor->debugfs_lock);
 
 	return 0;
 
 fail:
-	msm_perf_debugfs_cleanup(priv);
+	msm_perf_debugfs_cleanup(minor);
 	return -1;
 }
 
-void msm_perf_debugfs_cleanup(struct msm_drm_private *priv)
+void msm_perf_debugfs_cleanup(struct drm_minor *minor)
 {
+	struct msm_drm_private *priv = minor->dev->dev_private;
 	struct msm_perf_state *perf = priv->perf;
 
 	if (!perf)
 		return;
 
 	priv->perf = NULL;
+
+	debugfs_remove(perf->ent);
+
+	if (perf->node) {
+		mutex_lock(&minor->debugfs_lock);
+		list_del(&perf->node->list);
+		mutex_unlock(&minor->debugfs_lock);
+		kfree(perf->node);
+	}
 
 	mutex_destroy(&perf->read_lock);
 

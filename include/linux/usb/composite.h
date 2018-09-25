@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0+
 /*
  * composite.h -- framework for usb gadgets which are composite devices
  *
@@ -56,10 +55,7 @@
 #define USB_GADGET_DELAYED_STATUS       0x7fff	/* Impossibly large value */
 
 /* big enough to hold our biggest descriptor */
-#define USB_COMP_EP0_BUFSIZ	4096
-
-/* OS feature descriptor length <= 4kB */
-#define USB_COMP_EP0_OS_DESC_BUFSIZ	4096
+#define USB_COMP_EP0_BUFSIZ	1024
 
 /* OS feature descriptor length <= 4kB */
 #define USB_COMP_EP0_OS_DESC_BUFSIZ	4096
@@ -137,10 +133,6 @@ struct usb_os_desc_table {
  *	string identifiers assigned during @bind(). If this
  *	pointer is null after initiation, the function will not
  *	be available at super speed.
- * @ssp_descriptors: Table of super speed plus descriptors, using
- *	interface and string identifiers assigned during @bind(). If
- *	this pointer is null after initiation, the function will not
- *	be available at super speed plus.
  * @config: assigned when @usb_add_function() is called; this is the
  *	configuration with which this function is associated.
  * @os_desc_table: Table of (interface id, os descriptors) pairs. The function
@@ -201,7 +193,6 @@ struct usb_function {
 	struct usb_descriptor_header	**fs_descriptors;
 	struct usb_descriptor_header	**hs_descriptors;
 	struct usb_descriptor_header	**ss_descriptors;
-	struct usb_descriptor_header	**ssp_descriptors;
 
 	struct usb_configuration	*config;
 
@@ -243,8 +234,7 @@ struct usb_function {
 	int			(*setup)(struct usb_function *,
 					const struct usb_ctrlrequest *);
 	bool			(*req_match)(struct usb_function *,
-					const struct usb_ctrlrequest *,
-					bool config0);
+					const struct usb_ctrlrequest *);
 	void			(*suspend)(struct usb_function *);
 	void			(*resume)(struct usb_function *);
 
@@ -346,7 +336,6 @@ struct usb_configuration {
 	unsigned		superspeed:1;
 	unsigned		highspeed:1;
 	unsigned		fullspeed:1;
-	unsigned		superspeed_plus:1;
 	struct usb_function	*interface[MAX_CONFIG_INTERFACES];
 };
 
@@ -474,7 +463,6 @@ static inline struct usb_composite_driver *to_cdriver(
  * sure doing that won't hurt too much.
  *
  * One notion for how to handle Wireless USB devices involves:
- *
  * (a) a second gadget here, discovery mechanism TBD, but likely
  *     needing separate "register/unregister WUSB gadget" calls;
  * (b) updates to usb_gadget to include flags "is it wireless",
@@ -534,9 +522,8 @@ struct usb_composite_dev {
 	/* protects deactivations and delayed_status counts*/
 	spinlock_t			lock;
 
-	/* public: */
-	unsigned int			setup_pending:1;
-	unsigned int			os_desc_pending:1;
+	unsigned			setup_pending:1;
+	unsigned			os_desc_pending:1;
 };
 
 extern int usb_string_id(struct usb_composite_dev *c);

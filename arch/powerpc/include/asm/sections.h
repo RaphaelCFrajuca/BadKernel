@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_POWERPC_SECTIONS_H
 #define _ASM_POWERPC_SECTIONS_H
 #ifdef __KERNEL__
@@ -6,8 +5,6 @@
 #include <linux/elf.h>
 #include <linux/uaccess.h>
 #include <asm-generic/sections.h>
-
-extern char __head_end[];
 
 #ifdef __powerpc64__
 
@@ -23,18 +20,6 @@ static inline int in_kernel_text(unsigned long addr)
 		return 1;
 
 	return 0;
-}
-
-static inline unsigned long kernel_toc_addr(void)
-{
-	/* Defined by the linker, see vmlinux.lds.S */
-	extern unsigned long __toc_start;
-
-	/*
-	 * The TOC register (r2) points 32kB into the TOC, so that 64kB of
-	 * the TOC can be addressed using a single machine instruction.
-	 */
-	return (unsigned long)(&__toc_start) + 0x8000UL;
 }
 
 static inline int overlaps_interrupt_vector_text(unsigned long start,
@@ -65,10 +50,7 @@ static inline int overlaps_kvm_tmp(unsigned long start, unsigned long end)
 #endif
 }
 
-#ifdef PPC64_ELF_ABI_v1
-
-#define HAVE_DEREFERENCE_FUNCTION_DESCRIPTOR 1
-
+#if !defined(_CALL_ELF) || _CALL_ELF != 2
 #undef dereference_function_descriptor
 static inline void *dereference_function_descriptor(void *ptr)
 {
@@ -79,16 +61,7 @@ static inline void *dereference_function_descriptor(void *ptr)
 		ptr = p;
 	return ptr;
 }
-
-#undef dereference_kernel_function_descriptor
-static inline void *dereference_kernel_function_descriptor(void *ptr)
-{
-	if (ptr < (void *)__start_opd || ptr >= (void *)__end_opd)
-		return ptr;
-
-	return dereference_function_descriptor(ptr);
-}
-#endif /* PPC64_ELF_ABI_v1 */
+#endif
 
 #endif
 

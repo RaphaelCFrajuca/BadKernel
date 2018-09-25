@@ -1,7 +1,7 @@
 /* 
    3w-xxxx.c -- 3ware Storage Controller device driver for Linux.
 
-   Written By: Adam Radford <aradford@gmail.com>
+   Written By: Adam Radford <linuxraid@lsi.com>
    Modifications By: Joel Jacobson <linux@3ware.com>
    		     Arnaldo Carvalho de Melo <acme@conectiva.com.br>
                      Brad Strand <linux@3ware.com>
@@ -47,9 +47,10 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA 
 
    Bugs/Comments/Suggestions should be mailed to:                            
+   linuxraid@lsi.com
 
-   aradford@gmail.com
-
+   For more information, goto:
+   http://www.lsi.com
 
    History
    -------
@@ -210,7 +211,7 @@
 #include <linux/mutex.h>
 #include <asm/io.h>
 #include <asm/irq.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <scsi/scsi.h>
 #include <scsi/scsi_host.h>
 #include <scsi/scsi_tcq.h>
@@ -1047,9 +1048,6 @@ static int tw_chrdev_open(struct inode *inode, struct file *file)
 static const struct file_operations tw_fops = {
 	.owner		= THIS_MODULE,
 	.unlocked_ioctl	= tw_chrdev_ioctl,
-#ifdef CONFIG_COMPAT
-	.compat_ioctl   = tw_chrdev_ioctl,
-#endif
 	.open		= tw_chrdev_open,
 	.release	= NULL,
 	.llseek		= noop_llseek,

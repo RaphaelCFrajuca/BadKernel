@@ -15,6 +15,11 @@
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+ *  02111-1307  USA
  */
 
 #include <linux/init.h>
@@ -32,6 +37,7 @@
 #include "cx18-driver.h"
 #include "cx18-version.h"
 #include "cx18-alsa.h"
+#include "cx18-alsa-mixer.h"
 #include "cx18-alsa-pcm.h"
 
 int cx18_alsa_debug;
@@ -211,8 +217,8 @@ static int cx18_alsa_load(struct cx18 *cx)
 
 	s = &cx->streams[CX18_ENC_STREAM_TYPE_PCM];
 	if (s->video_dev.v4l2_dev == NULL) {
-		CX18_DEBUG_ALSA_INFO("%s: PCM stream for card is disabled - skipping\n",
-				     __func__);
+		CX18_DEBUG_ALSA_INFO("%s: PCM stream for card is disabled - "
+				     "skipping\n", __func__);
 		return 0;
 	}
 
@@ -226,8 +232,8 @@ static int cx18_alsa_load(struct cx18 *cx)
 		CX18_ALSA_ERR("%s: failed to create struct snd_cx18_card\n",
 			      __func__);
 	} else {
-		CX18_DEBUG_ALSA_INFO("%s: created cx18 ALSA interface instance\n",
-				     __func__);
+		CX18_DEBUG_ALSA_INFO("%s: created cx18 ALSA interface instance "
+				     "\n", __func__);
 	}
 	return 0;
 }

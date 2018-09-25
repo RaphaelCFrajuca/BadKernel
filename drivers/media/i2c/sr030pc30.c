@@ -24,7 +24,7 @@
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-mediabus.h>
 #include <media/v4l2-ctrls.h>
-#include <media/i2c/sr030pc30.h>
+#include <media/sr030pc30.h>
 
 static int debug;
 module_param(debug, int, 0644);
@@ -511,16 +511,13 @@ static int sr030pc30_get_fmt(struct v4l2_subdev *sd,
 static const struct sr030pc30_format *try_fmt(struct v4l2_subdev *sd,
 					      struct v4l2_mbus_framefmt *mf)
 {
-	int i;
+	int i = ARRAY_SIZE(sr030pc30_formats);
 
 	sr030pc30_try_frame_size(mf);
 
-	for (i = 0; i < ARRAY_SIZE(sr030pc30_formats); i++) {
+	while (i--)
 		if (mf->code == sr030pc30_formats[i].code)
 			break;
-	}
-	if (i == ARRAY_SIZE(sr030pc30_formats))
-		i = 0;
 
 	mf->code = sr030pc30_formats[i].code;
 

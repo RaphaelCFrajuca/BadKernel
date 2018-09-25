@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/ceph/ceph_debug.h>
 
 #include <linux/err.h>
@@ -6,7 +5,6 @@
 #include <linux/types.h>
 #include <linux/vmalloc.h>
 
-#include <linux/ceph/messenger.h>
 #include <linux/ceph/msgpool.h>
 
 static void *msgpool_alloc(gfp_t gfp_mask, void *arg)

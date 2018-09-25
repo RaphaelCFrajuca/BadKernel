@@ -14,9 +14,6 @@
  */
 #include <linux/module.h>
 #include <linux/signal.h>
-#include <linux/sched/signal.h>
-#include <linux/sched/debug.h>
-#include <linux/sched/task_stack.h>
 #include <linux/spinlock.h>
 #include <linux/personality.h>
 #include <linux/kallsyms.h>
@@ -298,6 +295,7 @@ void abort(void)
 	/* if that doesn't kill us, halt */
 	panic("Oops failed to kill thread");
 }
+EXPORT_SYMBOL(abort);
 
 void __init trap_init(void)
 {

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NVKM_INSTMEM_H__
 #define __NVKM_INSTMEM_H__
 #include <core/subdev.h>
@@ -10,7 +9,6 @@ struct nvkm_instmem {
 
 	spinlock_t lock;
 	struct list_head list;
-	struct list_head boot;
 	u32 reserved;
 
 	struct nvkm_memory *vbios;

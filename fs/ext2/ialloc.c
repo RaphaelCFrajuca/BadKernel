@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  linux/fs/ext2/ialloc.c
  *
@@ -145,7 +144,7 @@ void ext2_free_inode (struct inode * inode)
 	else
 		ext2_release_inode(sb, block_group, is_directory);
 	mark_buffer_dirty(bitmap_bh);
-	if (sb->s_flags & SB_SYNCHRONOUS)
+	if (sb->s_flags & MS_SYNCHRONOUS)
 		sync_dirty_buffer(bitmap_bh);
 
 	brelse(bitmap_bh);
@@ -466,11 +465,6 @@ struct inode *ext2_new_inode(struct inode *dir, umode_t mode,
 
 	for (i = 0; i < sbi->s_groups_count; i++) {
 		gdp = ext2_get_group_desc(sb, group, &bh2);
-		if (!gdp) {
-			if (++group == sbi->s_groups_count)
-				group = 0;
-			continue;
-		}
 		brelse(bitmap_bh);
 		bitmap_bh = read_inode_bitmap(sb, group);
 		if (!bitmap_bh) {
@@ -517,7 +511,7 @@ repeat_in_this_group:
 	goto fail;
 got:
 	mark_buffer_dirty(bitmap_bh);
-	if (sb->s_flags & SB_SYNCHRONOUS)
+	if (sb->s_flags & MS_SYNCHRONOUS)
 		sync_dirty_buffer(bitmap_bh);
 	brelse(bitmap_bh);
 
@@ -557,7 +551,7 @@ got:
 
 	inode->i_ino = ino;
 	inode->i_blocks = 0;
-	inode->i_mtime = inode->i_atime = inode->i_ctime = current_time(inode);
+	inode->i_mtime = inode->i_atime = inode->i_ctime = CURRENT_TIME_SEC;
 	memset(ei->i_data, 0, sizeof(ei->i_data));
 	ei->i_flags =
 		ext2_mask_flags(mode, EXT2_I(dir)->i_flags & EXT2_FL_INHERITED);

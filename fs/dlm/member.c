@@ -217,7 +217,8 @@ int dlm_slots_assign(struct dlm_ls *ls, int *num_slots, int *slots_size,
 	}
 
 	array_size = max + need;
-	array = kcalloc(array_size, sizeof(*array), GFP_NOFS);
+
+	array = kzalloc(array_size * sizeof(struct dlm_slot), GFP_NOFS);
 	if (!array)
 		return -ENOMEM;
 
@@ -318,7 +319,7 @@ static int dlm_add_member(struct dlm_ls *ls, struct dlm_config_node *node)
 	struct dlm_member *memb;
 	int error;
 
-	memb = kzalloc(sizeof(*memb), GFP_NOFS);
+	memb = kzalloc(sizeof(struct dlm_member), GFP_NOFS);
 	if (!memb)
 		return -ENOMEM;
 
@@ -404,7 +405,8 @@ static void make_member_array(struct dlm_ls *ls)
 	}
 
 	ls->ls_total_weight = total;
-	array = kmalloc_array(total, sizeof(*array), GFP_NOFS);
+
+	array = kmalloc(sizeof(int) * total, GFP_NOFS);
 	if (!array)
 		return;
 
@@ -490,7 +492,8 @@ void dlm_lsop_recover_done(struct dlm_ls *ls)
 		return;
 
 	num = ls->ls_num_nodes;
-	slots = kcalloc(num, sizeof(*slots), GFP_KERNEL);
+
+	slots = kzalloc(num * sizeof(struct dlm_slot), GFP_KERNEL);
 	if (!slots)
 		return;
 
@@ -670,11 +673,11 @@ int dlm_ls_stop(struct dlm_ls *ls)
 
 int dlm_ls_start(struct dlm_ls *ls)
 {
-	struct dlm_recover *rv, *rv_old;
+	struct dlm_recover *rv = NULL, *rv_old;
 	struct dlm_config_node *nodes;
 	int error, count;
 
-	rv = kzalloc(sizeof(*rv), GFP_NOFS);
+	rv = kzalloc(sizeof(struct dlm_recover), GFP_NOFS);
 	if (!rv)
 		return -ENOMEM;
 

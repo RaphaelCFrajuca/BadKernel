@@ -12,7 +12,7 @@
  * warranty of any kind, whether express or implied.
  */
 
-#include <linux/init.h>
+#include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
@@ -587,6 +587,7 @@ static const struct of_device_id sun8i_a83t_pinctrl_match[] = {
 	{ .compatible = "allwinner,sun8i-a83t-pinctrl", },
 	{}
 };
+MODULE_DEVICE_TABLE(of, sun8i_a83t_pinctrl_match);
 
 static struct platform_driver sun8i_a83t_pinctrl_driver = {
 	.probe	= sun8i_a83t_pinctrl_probe,
@@ -595,4 +596,8 @@ static struct platform_driver sun8i_a83t_pinctrl_driver = {
 		.of_match_table	= sun8i_a83t_pinctrl_match,
 	},
 };
-builtin_platform_driver(sun8i_a83t_pinctrl_driver);
+module_platform_driver(sun8i_a83t_pinctrl_driver);
+
+MODULE_AUTHOR("Vishnu Patekar <vishnupatekar0510@gmail.com>");
+MODULE_DESCRIPTION("Allwinner a83t pinctrl driver");
+MODULE_LICENSE("GPL");

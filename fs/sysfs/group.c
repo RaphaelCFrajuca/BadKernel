@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * fs/sysfs/group.c - Operations for adding/removing multiple files at once.
  *
@@ -6,6 +5,9 @@
  * Copyright (c) 2003 Open Source Development Lab
  * Copyright (c) 2013 Greg Kroah-Hartman
  * Copyright (c) 2013 The Linux Foundation
+ *
+ * This file is released undert the GPL v2.
+ *
  */
 
 #include <linux/kobject.h>
@@ -231,8 +233,8 @@ void sysfs_remove_group(struct kobject *kobj,
 		kn = kernfs_find_and_get(parent, grp->name);
 		if (!kn) {
 			WARN(!kn, KERN_WARNING
-			     "sysfs group '%s' not found for kobject '%s'\n",
-			     grp->name, kobject_name(kobj));
+			     "sysfs group %p not found for kobject '%s'\n",
+			     grp, kobject_name(kobj));
 			return;
 		}
 	} else {
@@ -404,6 +406,6 @@ int __compat_only_sysfs_link_entry_to_kobj(struct kobject *kobj,
 
 	kernfs_put(entry);
 	kernfs_put(target);
-	return PTR_ERR_OR_ZERO(link);
+	return IS_ERR(link) ? PTR_ERR(link) : 0;
 }
 EXPORT_SYMBOL_GPL(__compat_only_sysfs_link_entry_to_kobj);

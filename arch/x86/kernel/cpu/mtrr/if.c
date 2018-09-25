@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/capability.h>
 #include <linux/seq_file.h>
 #include <linux/uaccess.h>
 #include <linux/proc_fs.h>
+#include <linux/module.h>
 #include <linux/ctype.h>
 #include <linux/string.h>
 #include <linux/slab.h>
@@ -43,7 +43,7 @@ mtrr_file_add(unsigned long base, unsigned long size,
 
 	max = num_var_ranges;
 	if (fcount == NULL) {
-		fcount = kcalloc(max, sizeof(*fcount), GFP_KERNEL);
+		fcount = kzalloc(max * sizeof *fcount, GFP_KERNEL);
 		if (!fcount)
 			return -ENOMEM;
 		FILE_FCOUNT(file) = fcount;
@@ -106,9 +106,17 @@ mtrr_write(struct file *file, const char __user *buf, size_t len, loff_t * ppos)
 
 	memset(line, 0, LINE_SIZE);
 
-	length = strncpy_from_user(line, buf, LINE_SIZE - 1);
+	length = len;
+	length--;
+
+	if (length > LINE_SIZE - 1)
+		length = LINE_SIZE - 1;
+
 	if (length < 0)
-		return length;
+		return -EINVAL;
+
+	if (copy_from_user(line, buf, length))
+		return -EFAULT;
 
 	linelen = strlen(line);
 	ptr = line + linelen - 1;
@@ -141,16 +149,17 @@ mtrr_write(struct file *file, const char __user *buf, size_t len, loff_t * ppos)
 		return -EINVAL;
 	ptr = skip_spaces(ptr + 5);
 
-	i = match_string(mtrr_strings, MTRR_NUM_TYPES, ptr);
-	if (i < 0)
-		return i;
-
-	base >>= PAGE_SHIFT;
-	size >>= PAGE_SHIFT;
-	err = mtrr_add_page((unsigned long)base, (unsigned long)size, i, true);
-	if (err < 0)
-		return err;
-	return len;
+	for (i = 0; i < MTRR_NUM_TYPES; ++i) {
+		if (strcmp(ptr, mtrr_strings[i]))
+			continue;
+		base >>= PAGE_SHIFT;
+		size >>= PAGE_SHIFT;
+		err = mtrr_add_page((unsigned long)base, (unsigned long)size, i, true);
+		if (err < 0)
+			return err;
+		return len;
+	}
+	return -EINVAL;
 }
 
 static long

@@ -637,6 +637,8 @@ static int bu21013_remove(struct i2c_client *client)
 
 	kfree(bu21013_data);
 
+	device_init_wakeup(&client->dev, false);
+
 	return 0;
 }
 

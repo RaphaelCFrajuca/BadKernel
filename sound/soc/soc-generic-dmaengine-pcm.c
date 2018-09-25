@@ -33,13 +33,13 @@
 struct dmaengine_pcm {
 	struct dma_chan *chan[SNDRV_PCM_STREAM_LAST + 1];
 	const struct snd_dmaengine_pcm_config *config;
-	struct snd_soc_component component;
+	struct snd_soc_platform platform;
 	unsigned int flags;
 };
 
-static struct dmaengine_pcm *soc_component_to_pcm(struct snd_soc_component *p)
+static struct dmaengine_pcm *soc_platform_to_pcm(struct snd_soc_platform *p)
 {
-	return container_of(p, struct dmaengine_pcm, component);
+	return container_of(p, struct dmaengine_pcm, platform);
 }
 
 static struct device *dmaengine_dma_dev(struct dmaengine_pcm *pcm,
@@ -88,9 +88,7 @@ static int dmaengine_pcm_hw_params(struct snd_pcm_substream *substream,
 	struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_component *component =
-		snd_soc_rtdcom_lookup(rtd, SND_DMAENGINE_PCM_DRV_NAME);
-	struct dmaengine_pcm *pcm = soc_component_to_pcm(component);
+	struct dmaengine_pcm *pcm = soc_platform_to_pcm(rtd->platform);
 	struct dma_chan *chan = snd_dmaengine_pcm_get_chan(substream);
 	int (*prepare_slave_config)(struct snd_pcm_substream *substream,
 			struct snd_pcm_hw_params *params,
@@ -121,9 +119,7 @@ static int dmaengine_pcm_hw_params(struct snd_pcm_substream *substream,
 static int dmaengine_pcm_set_runtime_hwparams(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_component *component =
-		snd_soc_rtdcom_lookup(rtd, SND_DMAENGINE_PCM_DRV_NAME);
-	struct dmaengine_pcm *pcm = soc_component_to_pcm(component);
+	struct dmaengine_pcm *pcm = soc_platform_to_pcm(rtd->platform);
 	struct device *dma_dev = dmaengine_dma_dev(pcm, substream);
 	struct dma_chan *chan = pcm->chan[substream->stream];
 	struct snd_dmaengine_dai_dma_data *dma_data;
@@ -132,8 +128,7 @@ static int dmaengine_pcm_set_runtime_hwparams(struct snd_pcm_substream *substrea
 	u32 addr_widths = BIT(DMA_SLAVE_BUSWIDTH_1_BYTE) |
 			  BIT(DMA_SLAVE_BUSWIDTH_2_BYTES) |
 			  BIT(DMA_SLAVE_BUSWIDTH_4_BYTES);
-	snd_pcm_format_t i;
-	int ret;
+	int i, ret;
 
 	if (pcm->config && pcm->config->pcm_hardware)
 		return snd_soc_set_runtime_hwparams(substream,
@@ -168,42 +163,31 @@ static int dmaengine_pcm_set_runtime_hwparams(struct snd_pcm_substream *substrea
 	}
 
 	/*
-	 * If SND_DMAENGINE_PCM_DAI_FLAG_PACK is set keep
-	 * hw.formats set to 0, meaning no restrictions are in place.
-	 * In this case it's the responsibility of the DAI driver to
-	 * provide the supported format information.
+	 * Prepare formats mask for valid/allowed sample types. If the dma does
+	 * not have support for the given physical word size, it needs to be
+	 * masked out so user space can not use the format which produces
+	 * corrupted audio.
+	 * In case the dma driver does not implement the slave_caps the default
+	 * assumption is that it supports 1, 2 and 4 bytes widths.
 	 */
-	if (!(dma_data->flags & SND_DMAENGINE_PCM_DAI_FLAG_PACK))
-		/*
-		 * Prepare formats mask for valid/allowed sample types. If the
-		 * dma does not have support for the given physical word size,
-		 * it needs to be masked out so user space can not use the
-		 * format which produces corrupted audio.
-		 * In case the dma driver does not implement the slave_caps the
-		 * default assumption is that it supports 1, 2 and 4 bytes
-		 * widths.
-		 */
-		for (i = SNDRV_PCM_FORMAT_FIRST; i <= SNDRV_PCM_FORMAT_LAST; i++) {
-			int bits = snd_pcm_format_physical_width(i);
+	for (i = 0; i <= SNDRV_PCM_FORMAT_LAST; i++) {
+		int bits = snd_pcm_format_physical_width(i);
 
-			/*
-			 * Enable only samples with DMA supported physical
-			 * widths
-			 */
-			switch (bits) {
-			case 8:
-			case 16:
-			case 24:
-			case 32:
-			case 64:
-				if (addr_widths & (1 << (bits / 8)))
-					hw.formats |= (1LL << i);
-				break;
-			default:
-				/* Unsupported types */
-				break;
-			}
+		/* Enable only samples with DMA supported physical widths */
+		switch (bits) {
+		case 8:
+		case 16:
+		case 24:
+		case 32:
+		case 64:
+			if (addr_widths & (1 << (bits / 8)))
+				hw.formats |= (1LL << i);
+			break;
+		default:
+			/* Unsupported types */
+			break;
 		}
+	}
 
 	return snd_soc_set_runtime_hwparams(substream, &hw);
 }
@@ -211,9 +195,7 @@ static int dmaengine_pcm_set_runtime_hwparams(struct snd_pcm_substream *substrea
 static int dmaengine_pcm_open(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_component *component =
-		snd_soc_rtdcom_lookup(rtd, SND_DMAENGINE_PCM_DRV_NAME);
-	struct dmaengine_pcm *pcm = soc_component_to_pcm(component);
+	struct dmaengine_pcm *pcm = soc_platform_to_pcm(rtd->platform);
 	struct dma_chan *chan = pcm->chan[substream->stream];
 	int ret;
 
@@ -228,9 +210,7 @@ static struct dma_chan *dmaengine_pcm_compat_request_channel(
 	struct snd_soc_pcm_runtime *rtd,
 	struct snd_pcm_substream *substream)
 {
-	struct snd_soc_component *component =
-		snd_soc_rtdcom_lookup(rtd, SND_DMAENGINE_PCM_DRV_NAME);
-	struct dmaengine_pcm *pcm = soc_component_to_pcm(component);
+	struct dmaengine_pcm *pcm = soc_platform_to_pcm(rtd->platform);
 	struct snd_dmaengine_dai_dma_data *dma_data;
 	dma_filter_fn fn = NULL;
 
@@ -269,11 +249,9 @@ static bool dmaengine_pcm_can_report_residue(struct device *dev,
 
 static int dmaengine_pcm_new(struct snd_soc_pcm_runtime *rtd)
 {
-	struct snd_soc_component *component =
-		snd_soc_rtdcom_lookup(rtd, SND_DMAENGINE_PCM_DRV_NAME);
-	struct dmaengine_pcm *pcm = soc_component_to_pcm(component);
+	struct dmaengine_pcm *pcm = soc_platform_to_pcm(rtd->platform);
 	const struct snd_dmaengine_pcm_config *config = pcm->config;
-	struct device *dev = component->dev;
+	struct device *dev = rtd->platform->dev;
 	struct snd_dmaengine_dai_dma_data *dma_data;
 	struct snd_pcm_substream *substream;
 	size_t prealloc_buffer_size;
@@ -288,6 +266,7 @@ static int dmaengine_pcm_new(struct snd_soc_pcm_runtime *rtd)
 		prealloc_buffer_size = 512 * 1024;
 		max_buffer_size = SIZE_MAX;
 	}
+
 
 	for (i = SNDRV_PCM_STREAM_PLAYBACK; i <= SNDRV_PCM_STREAM_CAPTURE; i++) {
 		substream = rtd->pcm->streams[i].substream;
@@ -307,7 +286,7 @@ static int dmaengine_pcm_new(struct snd_soc_pcm_runtime *rtd)
 		}
 
 		if (!pcm->chan[i]) {
-			dev_err(component->dev,
+			dev_err(rtd->platform->dev,
 				"Missing dma channel for stream: %d\n", i);
 			return -EINVAL;
 		}
@@ -331,49 +310,12 @@ static snd_pcm_uframes_t dmaengine_pcm_pointer(
 	struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_component *component =
-		snd_soc_rtdcom_lookup(rtd, SND_DMAENGINE_PCM_DRV_NAME);
-	struct dmaengine_pcm *pcm = soc_component_to_pcm(component);
+	struct dmaengine_pcm *pcm = soc_platform_to_pcm(rtd->platform);
 
 	if (pcm->flags & SND_DMAENGINE_PCM_FLAG_NO_RESIDUE)
 		return snd_dmaengine_pcm_pointer_no_residue(substream);
 	else
 		return snd_dmaengine_pcm_pointer(substream);
-}
-
-static int dmaengine_copy_user(struct snd_pcm_substream *substream,
-			       int channel, unsigned long hwoff,
-			       void *buf, unsigned long bytes)
-{
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_component *component =
-		snd_soc_rtdcom_lookup(rtd, SND_DMAENGINE_PCM_DRV_NAME);
-	struct snd_pcm_runtime *runtime = substream->runtime;
-	struct dmaengine_pcm *pcm = soc_component_to_pcm(component);
-	int (*process)(struct snd_pcm_substream *substream,
-		       int channel, unsigned long hwoff,
-		       void *buf, unsigned long bytes) = pcm->config->process;
-	bool is_playback = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
-	void *dma_ptr = runtime->dma_area + hwoff +
-			channel * (runtime->dma_bytes / runtime->channels);
-	int ret;
-
-	if (is_playback)
-		if (copy_from_user(dma_ptr, (void __user *)buf, bytes))
-			return -EFAULT;
-
-	if (process) {
-		ret = process(substream, channel, hwoff,
-			      (void __user *)buf, bytes);
-		if (ret < 0)
-			return ret;
-	}
-
-	if (!is_playback)
-		if (copy_to_user((void __user *)buf, dma_ptr, bytes))
-			return -EFAULT;
-
-	return 0;
 }
 
 static const struct snd_pcm_ops dmaengine_pcm_ops = {
@@ -386,28 +328,11 @@ static const struct snd_pcm_ops dmaengine_pcm_ops = {
 	.pointer	= dmaengine_pcm_pointer,
 };
 
-static const struct snd_pcm_ops dmaengine_pcm_process_ops = {
-	.open		= dmaengine_pcm_open,
-	.close		= snd_dmaengine_pcm_close,
-	.ioctl		= snd_pcm_lib_ioctl,
-	.hw_params	= dmaengine_pcm_hw_params,
-	.hw_free	= snd_pcm_lib_free_pages,
-	.trigger	= snd_dmaengine_pcm_trigger,
-	.pointer	= dmaengine_pcm_pointer,
-	.copy_user	= dmaengine_copy_user,
-};
-
-static const struct snd_soc_component_driver dmaengine_pcm_component = {
-	.name		= SND_DMAENGINE_PCM_DRV_NAME,
-	.probe_order	= SND_SOC_COMP_ORDER_LATE,
+static const struct snd_soc_platform_driver dmaengine_pcm_platform = {
+	.component_driver = {
+		.probe_order = SND_SOC_COMP_ORDER_LATE,
+	},
 	.ops		= &dmaengine_pcm_ops,
-	.pcm_new	= dmaengine_pcm_new,
-};
-
-static const struct snd_soc_component_driver dmaengine_pcm_component_process = {
-	.name		= SND_DMAENGINE_PCM_DRV_NAME,
-	.probe_order	= SND_SOC_COMP_ORDER_LATE,
-	.ops		= &dmaengine_pcm_process_ops,
 	.pcm_new	= dmaengine_pcm_new,
 };
 
@@ -496,9 +421,6 @@ int snd_dmaengine_pcm_register(struct device *dev,
 	if (!pcm)
 		return -ENOMEM;
 
-#ifdef CONFIG_DEBUG_FS
-	pcm->component.debugfs_prefix = "dma";
-#endif
 	pcm->config = config;
 	pcm->flags = flags;
 
@@ -506,13 +428,8 @@ int snd_dmaengine_pcm_register(struct device *dev,
 	if (ret)
 		goto err_free_dma;
 
-	if (config && config->process)
-		ret = snd_soc_add_component(dev, &pcm->component,
-					    &dmaengine_pcm_component_process,
-					    NULL, 0);
-	else
-		ret = snd_soc_add_component(dev, &pcm->component,
-					    &dmaengine_pcm_component, NULL, 0);
+	ret = snd_soc_add_platform(dev, &pcm->platform,
+		&dmaengine_pcm_platform);
 	if (ret)
 		goto err_free_dma;
 
@@ -534,16 +451,16 @@ EXPORT_SYMBOL_GPL(snd_dmaengine_pcm_register);
  */
 void snd_dmaengine_pcm_unregister(struct device *dev)
 {
-	struct snd_soc_component *component;
+	struct snd_soc_platform *platform;
 	struct dmaengine_pcm *pcm;
 
-	component = snd_soc_lookup_component(dev, SND_DMAENGINE_PCM_DRV_NAME);
-	if (!component)
+	platform = snd_soc_lookup_platform(dev);
+	if (!platform)
 		return;
 
-	pcm = soc_component_to_pcm(component);
+	pcm = soc_platform_to_pcm(platform);
 
-	snd_soc_unregister_component(dev);
+	snd_soc_remove_platform(platform);
 	dmaengine_pcm_release_chan(pcm);
 	kfree(pcm);
 }

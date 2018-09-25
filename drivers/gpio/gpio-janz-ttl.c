@@ -16,9 +16,8 @@
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/io.h>
-#include <linux/gpio/driver.h>
+#include <linux/gpio.h>
 #include <linux/slab.h>
-#include <linux/bitops.h>
 
 #include <linux/mfd/janz.h>
 
@@ -34,9 +33,9 @@
 #define MASTER_INT_CTL		0x00
 #define MASTER_CONF_CTL		0x01
 
-#define CONF_PAE		BIT(2)
-#define CONF_PBE		BIT(7)
-#define CONF_PCE		BIT(4)
+#define CONF_PAE		(1 << 2)
+#define CONF_PBE		(1 << 7)
+#define CONF_PCE		(1 << 4)
 
 struct ttl_control_regs {
 	__be16 portc;
@@ -60,7 +59,7 @@ struct ttl_module {
 
 static int ttl_get_value(struct gpio_chip *gpio, unsigned offset)
 {
-	struct ttl_module *mod = dev_get_drvdata(gpio->parent);
+	struct ttl_module *mod = dev_get_drvdata(gpio->dev);
 	u8 *shadow;
 	int ret;
 
@@ -75,14 +74,14 @@ static int ttl_get_value(struct gpio_chip *gpio, unsigned offset)
 	}
 
 	spin_lock(&mod->lock);
-	ret = *shadow & BIT(offset);
+	ret = *shadow & (1 << offset);
 	spin_unlock(&mod->lock);
-	return !!ret;
+	return ret;
 }
 
 static void ttl_set_value(struct gpio_chip *gpio, unsigned offset, int value)
 {
-	struct ttl_module *mod = dev_get_drvdata(gpio->parent);
+	struct ttl_module *mod = dev_get_drvdata(gpio->dev);
 	void __iomem *port;
 	u8 *shadow;
 
@@ -101,9 +100,9 @@ static void ttl_set_value(struct gpio_chip *gpio, unsigned offset, int value)
 
 	spin_lock(&mod->lock);
 	if (value)
-		*shadow |= BIT(offset);
+		*shadow |= (1 << offset);
 	else
-		*shadow &= ~BIT(offset);
+		*shadow &= ~(1 << offset);
 
 	iowrite16be(*shadow, port);
 	spin_unlock(&mod->lock);
@@ -173,7 +172,7 @@ static int ttl_probe(struct platform_device *pdev)
 
 	/* Initialize the GPIO data structures */
 	gpio = &mod->gpio;
-	gpio->parent = &pdev->dev;
+	gpio->dev = &pdev->dev;
 	gpio->label = pdev->name;
 	gpio->get = ttl_get_value;
 	gpio->set = ttl_set_value;
@@ -183,11 +182,20 @@ static int ttl_probe(struct platform_device *pdev)
 	gpio->base = -1;
 	gpio->ngpio = 20;
 
-	ret = devm_gpiochip_add_data(dev, gpio, NULL);
+	ret = gpiochip_add(gpio);
 	if (ret) {
 		dev_err(dev, "unable to add GPIO chip\n");
 		return ret;
 	}
+
+	return 0;
+}
+
+static int ttl_remove(struct platform_device *pdev)
+{
+	struct ttl_module *mod = platform_get_drvdata(pdev);
+
+	gpiochip_remove(&mod->gpio);
 
 	return 0;
 }
@@ -197,6 +205,7 @@ static struct platform_driver ttl_driver = {
 		.name	= DRV_NAME,
 	},
 	.probe		= ttl_probe,
+	.remove		= ttl_remove,
 };
 
 module_platform_driver(ttl_driver);

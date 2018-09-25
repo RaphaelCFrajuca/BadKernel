@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_HEXAGON_FUTEX_H
 #define _ASM_HEXAGON_FUTEX_H
 

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 menuconfig PPC_82xx
 	bool "82xx-based boards (PQ II)"
 	depends on 6xx
@@ -31,8 +30,8 @@ config EP8248E
 	select 8272
 	select 8260
 	select FSL_SOC
-	select PHYLIB if NETDEVICES
-	select MDIO_BITBANG if PHYLIB
+	select PHYLIB
+	select MDIO_BITBANG
 	help
 	  This enables support for the Embedded Planet EP8248E board.
 

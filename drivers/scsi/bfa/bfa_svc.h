@@ -1,10 +1,9 @@
 /*
- * Copyright (c) 2005-2014 Brocade Communications Systems, Inc.
- * Copyright (c) 2014- QLogic Corporation.
+ * Copyright (c) 2005-2010 Brocade Communications Systems, Inc.
  * All rights reserved
- * www.qlogic.com
+ * www.brocade.com
  *
- * Linux driver for QLogic BR-series Fibre Channel Host Bus Adapter.
+ * Linux driver for Brocade Fibre Channel Host Bus Adapter.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License (GPL) Version 2 as
@@ -505,7 +504,7 @@ struct bfa_fcport_s {
 	struct list_head	stats_pending_q;
 	struct list_head	statsclr_pending_q;
 	bfa_boolean_t		stats_qfull;
-	time64_t		stats_reset_time; /*  stats reset time stamp */
+	u32		stats_reset_time; /*  stats reset time stamp */
 	bfa_boolean_t		diag_busy; /*  diag busy status */
 	bfa_boolean_t		beacon; /*  port beacon status */
 	bfa_boolean_t		link_e2e_beacon; /*  link beacon status */

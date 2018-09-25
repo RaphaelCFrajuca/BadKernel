@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Arturo Borrero Gonzalez <arturo@debian.org>
+ * Copyright (c) 2014 Arturo Borrero Gonzalez <arturo.borrero.glez@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -47,6 +47,10 @@ int nft_redir_init(const struct nft_ctx *ctx,
 	unsigned int plen;
 	int err;
 
+	err = nft_redir_validate(ctx, expr, NULL);
+	if (err < 0)
+		return err;
+
 	plen = FIELD_SIZEOF(struct nf_nat_range, min_addr.all);
 	if (tb[NFTA_REDIR_REG_PROTO_MIN]) {
 		priv->sreg_proto_min =
@@ -75,7 +79,7 @@ int nft_redir_init(const struct nft_ctx *ctx,
 			return -EINVAL;
 	}
 
-	return nf_ct_netns_get(ctx->net, ctx->family);
+	return 0;
 }
 EXPORT_SYMBOL_GPL(nft_redir_init);
 
@@ -104,4 +108,4 @@ nla_put_failure:
 EXPORT_SYMBOL_GPL(nft_redir_dump);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Arturo Borrero Gonzalez <arturo@debian.org>");
+MODULE_AUTHOR("Arturo Borrero Gonzalez <arturo.borrero.glez@gmail.com>");

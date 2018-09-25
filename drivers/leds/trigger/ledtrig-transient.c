@@ -1,15 +1,22 @@
-// SPDX-License-Identifier: GPL-2.0
-//
-// LED Kernel Transient Trigger
-//
-// Transient trigger allows one shot timer activation. Please refer to
-// Documentation/leds/ledtrig-transient.txt for details
-// Copyright (C) 2012 Shuah Khan <shuahkhan@gmail.com>
-//
-// Based on Richard Purdie's ledtrig-timer.c and Atsushi Nemoto's
-// ledtrig-heartbeat.c
-// Design and use-case input from Jonas Bonn <jonas@southpole.se> and
-// Neil Brown <neilb@suse.de>
+/*
+ * LED Kernel Transient Trigger
+ *
+ * Copyright (C) 2012 Shuah Khan <shuahkhan@gmail.com>
+ *
+ * Based on Richard Purdie's ledtrig-timer.c and Atsushi Nemoto's
+ * ledtrig-heartbeat.c
+ * Design and use-case input from Jonas Bonn <jonas@southpole.se> and
+ * Neil Brown <neilb@suse.de>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ */
+/*
+ * Transient trigger allows one shot timer activation. Please refer to
+ * Documentation/leds/ledtrig-transient.txt for details
+*/
 
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -26,17 +33,15 @@ struct transient_trig_data {
 	int restore_state;
 	unsigned long duration;
 	struct timer_list timer;
-	struct led_classdev *led_cdev;
 };
 
-static void transient_timer_function(struct timer_list *t)
+static void transient_timer_function(unsigned long data)
 {
-	struct transient_trig_data *transient_data =
-		from_timer(transient_data, t, timer);
-	struct led_classdev *led_cdev = transient_data->led_cdev;
+	struct led_classdev *led_cdev = (struct led_classdev *) data;
+	struct transient_trig_data *transient_data = led_cdev->trigger_data;
 
 	transient_data->activate = 0;
-	led_set_brightness_nosleep(led_cdev, transient_data->restore_state);
+	led_set_brightness_async(led_cdev, transient_data->restore_state);
 }
 
 static ssize_t transient_activate_show(struct device *dev,
@@ -67,7 +72,7 @@ static ssize_t transient_activate_store(struct device *dev,
 	if (state == 0 && transient_data->activate == 1) {
 		del_timer(&transient_data->timer);
 		transient_data->activate = state;
-		led_set_brightness_nosleep(led_cdev,
+		led_set_brightness_async(led_cdev,
 					transient_data->restore_state);
 		return size;
 	}
@@ -76,11 +81,11 @@ static ssize_t transient_activate_store(struct device *dev,
 	if (state == 1 && transient_data->activate == 0 &&
 	    transient_data->duration != 0) {
 		transient_data->activate = state;
-		led_set_brightness_nosleep(led_cdev, transient_data->state);
+		led_set_brightness_async(led_cdev, transient_data->state);
 		transient_data->restore_state =
 		    (transient_data->state == LED_FULL) ? LED_OFF : LED_FULL;
 		mod_timer(&transient_data->timer,
-			  jiffies + msecs_to_jiffies(transient_data->duration));
+			  jiffies + transient_data->duration);
 	}
 
 	/* state == 0 && transient_data->activate == 0
@@ -164,7 +169,6 @@ static void transient_trig_activate(struct led_classdev *led_cdev)
 		return;
 	}
 	led_cdev->trigger_data = tdata;
-	tdata->led_cdev = led_cdev;
 
 	rc = device_create_file(led_cdev->dev, &dev_attr_activate);
 	if (rc)
@@ -178,7 +182,8 @@ static void transient_trig_activate(struct led_classdev *led_cdev)
 	if (rc)
 		goto err_out_state;
 
-	timer_setup(&tdata->timer, transient_timer_function, 0);
+	setup_timer(&tdata->timer, transient_timer_function,
+		    (unsigned long) led_cdev);
 	led_cdev->activated = true;
 
 	return;
@@ -199,7 +204,7 @@ static void transient_trig_deactivate(struct led_classdev *led_cdev)
 
 	if (led_cdev->activated) {
 		del_timer_sync(&transient_data->timer);
-		led_set_brightness_nosleep(led_cdev,
+		led_set_brightness_async(led_cdev,
 					transient_data->restore_state);
 		device_remove_file(led_cdev->dev, &dev_attr_activate);
 		device_remove_file(led_cdev->dev, &dev_attr_duration);
@@ -231,4 +236,4 @@ module_exit(transient_trig_exit);
 
 MODULE_AUTHOR("Shuah Khan <shuahkhan@gmail.com>");
 MODULE_DESCRIPTION("Transient LED trigger");
-MODULE_LICENSE("GPL v2");
+MODULE_LICENSE("GPL");

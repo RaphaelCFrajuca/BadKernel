@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __TOOLS_KALLSYMS_H_
 #define __TOOLS_KALLSYMS_H_ 1
 
@@ -19,8 +18,6 @@ static inline u8 kallsyms2elf_binding(char type)
 }
 
 u8 kallsyms2elf_type(char type);
-
-bool kallsyms__is_function(char symbol_type);
 
 int kallsyms__parse(const char *filename, void *arg,
 		    int (*process_symbol)(void *arg, const char *name,

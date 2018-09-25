@@ -24,8 +24,7 @@
 #include <linux/tracepoint.h>
 #include <linux/err.h>
 #include <linux/slab.h>
-#include <linux/sched/signal.h>
-#include <linux/sched/task.h>
+#include <linux/sched.h>
 #include <linux/static_key.h>
 
 extern struct tracepoint * const __start___tracepoints_ptrs[];
@@ -195,13 +194,9 @@ static int tracepoint_add_func(struct tracepoint *tp,
 			       struct tracepoint_func *func, int prio)
 {
 	struct tracepoint_func *old, *tp_funcs;
-	int ret;
 
-	if (tp->regfunc && !static_key_enabled(&tp->key)) {
-		ret = tp->regfunc();
-		if (ret < 0)
-			return ret;
-	}
+	if (tp->regfunc && !static_key_enabled(&tp->key))
+		tp->regfunc();
 
 	tp_funcs = rcu_dereference_protected(tp->funcs,
 			lockdep_is_held(&tracepoints_mutex));
@@ -212,10 +207,11 @@ static int tracepoint_add_func(struct tracepoint *tp,
 	}
 
 	/*
-	 * rcu_assign_pointer has as smp_store_release() which makes sure
-	 * that the new probe callbacks array is consistent before setting
-	 * a pointer to it.  This array is referenced by __DO_TRACE from
-	 * include/linux/tracepoint.h using rcu_dereference_sched().
+	 * rcu_assign_pointer has a smp_wmb() which makes sure that the new
+	 * probe callbacks array is consistent before setting a pointer to it.
+	 * This array is referenced by __DO_TRACE from
+	 * include/linux/tracepoints.h. A matching smp_read_barrier_depends()
+	 * is used.
 	 */
 	rcu_assign_pointer(tp->funcs, tp_funcs);
 	if (!static_key_enabled(&tp->key))
@@ -257,7 +253,7 @@ static int tracepoint_remove_func(struct tracepoint *tp,
 }
 
 /**
- * tracepoint_probe_register_prio -  Connect a probe to a tracepoint with priority
+ * tracepoint_probe_register -  Connect a probe to a tracepoint
  * @tp: tracepoint
  * @probe: probe handler
  * @data: tracepoint data
@@ -290,6 +286,7 @@ EXPORT_SYMBOL_GPL(tracepoint_probe_register_prio);
  * @tp: tracepoint
  * @probe: probe handler
  * @data: tracepoint data
+ * @prio: priority of this function over other registered functions
  *
  * Returns 0 if ok, error value on error.
  * Note: if @tp is within a module, the caller is responsible for
@@ -494,7 +491,7 @@ static __init int init_tracepoints(void)
 
 	ret = register_module_notifier(&tracepoint_module_nb);
 	if (ret)
-		pr_warn("Failed to register tracepoint module enter notifier\n");
+		pr_warning("Failed to register tracepoint module enter notifier\n");
 
 	return ret;
 }
@@ -532,7 +529,7 @@ EXPORT_SYMBOL_GPL(for_each_kernel_tracepoint);
 /* NB: reg/unreg are called while guarded with the tracepoints_mutex */
 static int sys_tracepoint_refcount;
 
-int syscall_regfunc(void)
+void syscall_regfunc(void)
 {
 	struct task_struct *p, *t;
 
@@ -544,8 +541,6 @@ int syscall_regfunc(void)
 		read_unlock(&tasklist_lock);
 	}
 	sys_tracepoint_refcount++;
-
-	return 0;
 }
 
 void syscall_unregfunc(void)

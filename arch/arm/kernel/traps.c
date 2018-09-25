@@ -25,9 +25,7 @@
 #include <linux/bug.h>
 #include <linux/delay.h>
 #include <linux/init.h>
-#include <linux/sched/signal.h>
-#include <linux/sched/debug.h>
-#include <linux/sched/task_stack.h>
+#include <linux/sched.h>
 #include <linux/irq.h>
 
 #include <linux/atomic.h>
@@ -73,28 +71,8 @@ void dump_backtrace_entry(unsigned long where, unsigned long from, unsigned long
 	printk("Function entered at [<%08lx>] from [<%08lx>]\n", where, from);
 #endif
 
-	if (in_entry_text(from))
+	if (in_exception_text(where))
 		dump_mem("", "Exception stack", frame + 4, frame + 4 + sizeof(struct pt_regs));
-}
-
-void dump_backtrace_stm(u32 *stack, u32 instruction)
-{
-	char str[80], *p;
-	unsigned int x;
-	int reg;
-
-	for (reg = 10, x = 0, p = str; reg >= 0; reg--) {
-		if (instruction & BIT(reg)) {
-			p += sprintf(p, " r%d:%08x", reg, *stack--);
-			if (++x == 6) {
-				x = 0;
-				p = str;
-				printk("%s\n", str);
-			}
-		}
-	}
-	if (p != str)
-		printk("%s\n", str);
 }
 
 #ifndef CONFIG_ARM_UNWIND
@@ -435,13 +413,12 @@ int call_undef_hook(struct pt_regs *regs, unsigned int instr)
 	return fn ? fn(regs, instr) : 1;
 }
 
-asmlinkage void do_undefinstr(struct pt_regs *regs)
+asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 {
 	unsigned int instr;
 	siginfo_t info;
 	void __user *pc;
 
-	clear_siginfo(&info);
 	pc = (void __user *)instruction_pointer(regs);
 
 	if (processor_mode(regs) == SVC_MODE) {
@@ -541,7 +518,6 @@ static int bad_syscall(int n, struct pt_regs *regs)
 {
 	siginfo_t info;
 
-	clear_siginfo(&info);
 	if ((current->personality & PER_MASK) != PER_LINUX) {
 		send_sig(SIGSEGV, current, 1);
 		return regs->ARM_r0;
@@ -609,7 +585,6 @@ asmlinkage int arm_syscall(int no, struct pt_regs *regs)
 {
 	siginfo_t info;
 
-	clear_siginfo(&info);
 	if ((no >> 16) != (__ARM_NR_BASE>> 16))
 		return bad_syscall(no, regs);
 
@@ -660,9 +635,6 @@ asmlinkage int arm_syscall(int no, struct pt_regs *regs)
 	case NR(set_tls):
 		set_tls(regs->ARM_r0);
 		return 0;
-
-	case NR(get_tls):
-		return current_thread_info()->tp_value[0];
 
 	default:
 		/* Calls 9f00xx..9f07ff are defined to return -ENOSYS
@@ -746,8 +718,6 @@ baddataabort(int code, unsigned long instr, struct pt_regs *regs)
 	unsigned long addr = instruction_pointer(regs);
 	siginfo_t info;
 
-	clear_siginfo(&info);
-
 #ifdef CONFIG_DEBUG_USER
 	if (user_debug & UDBG_BADABORT) {
 		pr_err("[%d] %s: bad data abort: code %d instr 0x%08lx\n",
@@ -801,6 +771,7 @@ void abort(void)
 	/* if that doesn't kill us, halt */
 	panic("Oops failed to kill thread");
 }
+EXPORT_SYMBOL(abort);
 
 void __init trap_init(void)
 {

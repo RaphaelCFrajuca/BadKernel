@@ -19,6 +19,10 @@
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *    GNU General Public License for more details.
  *
+ *    You should have received a copy of the GNU General Public License
+ *    along with this program; if not, write to the Free Software
+ *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *
 */
 
 /*
@@ -38,8 +42,8 @@
 #include <linux/slab.h>
 #include <asm/byteorder.h>
 
-#include <media/dvb_math.h>
-#include <media/dvb_frontend.h>
+#include "dvb_math.h"
+#include "dvb_frontend.h"
 #include "or51132.h"
 
 static int debug;
@@ -133,7 +137,7 @@ static int or51132_load_firmware (struct dvb_frontend* fe, const struct firmware
 	u32 firmwareAsize, firmwareBsize;
 	int i,ret;
 
-	dprintk("Firmware is %zd bytes\n",fw->size);
+	dprintk("Firmware is %Zd bytes\n",fw->size);
 
 	/* Get size of firmware A and B */
 	firmwareAsize = le32_to_cpu(*((__le32*)fw->data));
@@ -338,13 +342,15 @@ static int or51132_set_parameters(struct dvb_frontend *fe)
 		       fwname);
 		ret = request_firmware(&fw, fwname, state->i2c->dev.parent);
 		if (ret) {
-			printk(KERN_WARNING "or51132: No firmware uploaded(timeout or file not found?)\n");
+			printk(KERN_WARNING "or51132: No firmware up"
+			       "loaded(timeout or file not found?)\n");
 			return ret;
 		}
 		ret = or51132_load_firmware(fe, fw);
 		release_firmware(fw);
 		if (ret) {
-			printk(KERN_WARNING "or51132: Writing firmware to device failed!\n");
+			printk(KERN_WARNING "or51132: Writing firmware to "
+			       "device failed!\n");
 			return ret;
 		}
 		printk("or51132: Firmware upload complete.\n");
@@ -369,9 +375,9 @@ static int or51132_set_parameters(struct dvb_frontend *fe)
 	return 0;
 }
 
-static int or51132_get_parameters(struct dvb_frontend* fe,
-				  struct dtv_frontend_properties *p)
+static int or51132_get_parameters(struct dvb_frontend* fe)
 {
+	struct dtv_frontend_properties *p = &fe->dtv_property_cache;
 	struct or51132_state* state = fe->demodulator_priv;
 	int status;
 	int retry = 1;
@@ -493,8 +499,8 @@ start:
 	switch (reg&0xff) {
 	case 0x06:
 		if (reg & 0x1000) usK = 3 << 24;
-		/* fall through */
-	case 0x43: /* QAM64 */
+		/* Fall through to QAM64 case */
+	case 0x43:
 		c = 150204167;
 		break;
 	case 0x45:
@@ -555,7 +561,7 @@ static void or51132_release(struct dvb_frontend* fe)
 	kfree(state);
 }
 
-static const struct dvb_frontend_ops or51132_ops;
+static struct dvb_frontend_ops or51132_ops;
 
 struct dvb_frontend* or51132_attach(const struct or51132_config* config,
 				    struct i2c_adapter* i2c)
@@ -579,7 +585,7 @@ struct dvb_frontend* or51132_attach(const struct or51132_config* config,
 	return &state->frontend;
 }
 
-static const struct dvb_frontend_ops or51132_ops = {
+static struct dvb_frontend_ops or51132_ops = {
 	.delsys = { SYS_ATSC, SYS_DVBC_ANNEX_B },
 	.info = {
 		.name			= "Oren OR51132 VSB/QAM Frontend",

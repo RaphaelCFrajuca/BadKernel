@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* net/atm/resources.c - Statically allocated resources */
 
 /* Written 1995-2000 by Werner Almesberger, EPFL LRC/ICA */
@@ -110,7 +109,7 @@ struct atm_dev *atm_dev_register(const char *type, struct device *parent,
 	else
 		memset(&dev->flags, 0, sizeof(dev->flags));
 	memset(&dev->stats, 0, sizeof(dev->stats));
-	refcount_set(&dev->refcnt, 1);
+	atomic_set(&dev->refcnt, 1);
 
 	if (atm_proc_dev_register(dev) < 0) {
 		pr_err("atm_proc_dev_register failed for dev %s\n", type);

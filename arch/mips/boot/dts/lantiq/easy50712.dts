@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /dts-v1/;
 
 /include/ "danube.dtsi"
@@ -53,7 +52,7 @@
 		};
 
 		gpio: pinmux@E100B10 {
-			compatible = "lantiq,danube-pinctrl";
+			compatible = "lantiq,pinctrl-xway";
 			pinctrl-names = "default";
 			pinctrl-0 = <&state_default>;
 

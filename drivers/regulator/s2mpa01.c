@@ -26,7 +26,6 @@
 #define S2MPA01_REGULATOR_CNT ARRAY_SIZE(regulators)
 
 struct s2mpa01_info {
-	struct of_regulator_match rdata[S2MPA01_REGULATOR_MAX];
 	int ramp_delay24;
 	int ramp_delay3;
 	int ramp_delay5;
@@ -213,7 +212,7 @@ ramp_disable:
 				  1 << enable_shift, 0);
 }
 
-static const struct regulator_ops s2mpa01_ldo_ops = {
+static struct regulator_ops s2mpa01_ldo_ops = {
 	.list_voltage		= regulator_list_voltage_linear,
 	.map_voltage		= regulator_map_voltage_linear,
 	.is_enabled		= regulator_is_enabled_regmap,
@@ -224,7 +223,7 @@ static const struct regulator_ops s2mpa01_ldo_ops = {
 	.set_voltage_time_sel	= regulator_set_voltage_time_sel,
 };
 
-static const struct regulator_ops s2mpa01_buck_ops = {
+static struct regulator_ops s2mpa01_buck_ops = {
 	.list_voltage		= regulator_list_voltage_linear,
 	.map_voltage		= regulator_map_voltage_linear,
 	.is_enabled		= regulator_is_enabled_regmap,
@@ -342,9 +341,9 @@ static int s2mpa01_pmic_probe(struct platform_device *pdev)
 {
 	struct sec_pmic_dev *iodev = dev_get_drvdata(pdev->dev.parent);
 	struct sec_platform_data *pdata = dev_get_platdata(iodev->dev);
+	struct of_regulator_match rdata[S2MPA01_REGULATOR_MAX] = { };
 	struct device_node *reg_np = NULL;
 	struct regulator_config config = { };
-	struct of_regulator_match *rdata;
 	struct s2mpa01_info *s2mpa01;
 	int i;
 
@@ -352,18 +351,17 @@ static int s2mpa01_pmic_probe(struct platform_device *pdev)
 	if (!s2mpa01)
 		return -ENOMEM;
 
-	rdata = s2mpa01->rdata;
 	for (i = 0; i < S2MPA01_REGULATOR_CNT; i++)
 		rdata[i].name = regulators[i].name;
 
 	if (iodev->dev->of_node) {
 		reg_np = of_get_child_by_name(iodev->dev->of_node,
 							"regulators");
-		if (!reg_np) {
-			dev_err(&pdev->dev,
-				"could not find regulators sub-node\n");
-			return -EINVAL;
-		}
+			if (!reg_np) {
+				dev_err(&pdev->dev,
+					"could not find regulators sub-node\n");
+				return -EINVAL;
+			}
 
 		of_regulator_match(&pdev->dev, reg_np, rdata,
 						S2MPA01_REGULATOR_MAX);

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NET_NEXTHOP_H
 #define __NET_NEXTHOP_H
 

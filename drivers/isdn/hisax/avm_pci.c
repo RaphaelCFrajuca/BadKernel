@@ -378,9 +378,8 @@ HDLC_irq(struct BCState *bcs, u_int stat) {
 					if (!(skb = dev_alloc_skb(bcs->hw.hdlc.rcvidx)))
 						printk(KERN_WARNING "HDLC: receive out of memory\n");
 					else {
-						skb_put_data(skb,
-							     bcs->hw.hdlc.rcvbuf,
-							     bcs->hw.hdlc.rcvidx);
+						memcpy(skb_put(skb, bcs->hw.hdlc.rcvidx),
+						       bcs->hw.hdlc.rcvbuf, bcs->hw.hdlc.rcvidx);
 						skb_queue_tail(&bcs->rqueue, skb);
 					}
 					bcs->hw.hdlc.rcvidx = 0;
@@ -805,7 +804,7 @@ static int avm_pnp_setup(struct IsdnCardState *cs)
 			cs->hw.avm.cfg_reg =
 				pnp_port_start(pnp_avm_d, 0);
 			cs->irq = pnp_irq(pnp_avm_d, 0);
-			if (cs->irq == -1) {
+			if (!cs->irq) {
 				printk(KERN_ERR "FritzPnP:No IRQ\n");
 				return (0);
 			}

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * NFS-private data for each "struct net".  Accessed with net_generic().
  */
@@ -30,12 +29,12 @@ struct nfs_net {
 	int cb_users[NFS4_MAX_MINOR_VERSION + 1];
 #endif
 	spinlock_t nfs_client_lock;
-	ktime_t boot_time;
+	struct timespec boot_time;
 #ifdef CONFIG_PROC_FS
 	struct proc_dir_entry *proc_nfsfs;
 #endif
 };
 
-extern unsigned int nfs_net_id;
+extern int nfs_net_id;
 
 #endif

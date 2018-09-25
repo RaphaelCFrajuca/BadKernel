@@ -1886,7 +1886,7 @@ static u16 atl1_alloc_rx_buffers(struct atl1_adapter *adapter)
 		buffer_info->skb = skb;
 		buffer_info->length = (u16) adapter->rx_buffer_len;
 		page = virt_to_page(skb->data);
-		offset = offset_in_page(skb->data);
+		offset = (unsigned long)skb->data & ~PAGE_MASK;
 		buffer_info->dma = pci_map_page(pdev, page, offset,
 						adapter->rx_buffer_len,
 						PCI_DMA_FROMDEVICE);
@@ -2230,7 +2230,7 @@ static void atl1_tx_map(struct atl1_adapter *adapter, struct sk_buff *skb,
 		hdr_len = skb_transport_offset(skb) + tcp_hdrlen(skb);
 		buffer_info->length = hdr_len;
 		page = virt_to_page(skb->data);
-		offset = offset_in_page(skb->data);
+		offset = (unsigned long)skb->data & ~PAGE_MASK;
 		buffer_info->dma = pci_map_page(adapter->pdev, page,
 						offset, hdr_len,
 						PCI_DMA_TODEVICE);
@@ -2254,8 +2254,9 @@ static void atl1_tx_map(struct atl1_adapter *adapter, struct sk_buff *skb,
 				data_len -= buffer_info->length;
 				page = virt_to_page(skb->data +
 					(hdr_len + i * ATL1_MAX_TX_BUF_LEN));
-				offset = offset_in_page(skb->data +
-					(hdr_len + i * ATL1_MAX_TX_BUF_LEN));
+				offset = (unsigned long)(skb->data +
+					(hdr_len + i * ATL1_MAX_TX_BUF_LEN)) &
+					~PAGE_MASK;
 				buffer_info->dma = pci_map_page(adapter->pdev,
 					page, offset, buffer_info->length,
 					PCI_DMA_TODEVICE);
@@ -2267,7 +2268,7 @@ static void atl1_tx_map(struct atl1_adapter *adapter, struct sk_buff *skb,
 		/* not TSO */
 		buffer_info->length = buf_len;
 		page = virt_to_page(skb->data);
-		offset = offset_in_page(skb->data);
+		offset = (unsigned long)skb->data & ~PAGE_MASK;
 		buffer_info->dma = pci_map_page(adapter->pdev, page,
 			offset, buf_len, PCI_DMA_TODEVICE);
 		if (++next_to_use == tpd_ring->count)
@@ -2456,7 +2457,7 @@ static int atl1_rings_clean(struct napi_struct *napi, int budget)
 	if (work_done >= budget)
 		return work_done;
 
-	napi_complete_done(napi, work_done);
+	napi_complete(napi);
 	/* re-enable Interrupt */
 	if (likely(adapter->int_enabled))
 		atlx_imr_set(adapter, IMR_NORMAL_MASK);
@@ -2575,10 +2576,9 @@ static irqreturn_t atl1_intr(int irq, void *data)
  * atl1_phy_config - Timer Call-back
  * @data: pointer to netdev cast into an unsigned long
  */
-static void atl1_phy_config(struct timer_list *t)
+static void atl1_phy_config(unsigned long data)
 {
-	struct atl1_adapter *adapter = from_timer(adapter, t,
-						  phy_config_timer);
+	struct atl1_adapter *adapter = (struct atl1_adapter *)data;
 	struct atl1_hw *hw = &adapter->hw;
 	unsigned long flags;
 
@@ -2701,7 +2701,15 @@ static void atl1_reset_dev_task(struct work_struct *work)
 static int atl1_change_mtu(struct net_device *netdev, int new_mtu)
 {
 	struct atl1_adapter *adapter = netdev_priv(netdev);
+	int old_mtu = netdev->mtu;
 	int max_frame = new_mtu + ETH_HLEN + ETH_FCS_LEN + VLAN_HLEN;
+
+	if ((max_frame < ETH_ZLEN + ETH_FCS_LEN) ||
+	    (max_frame > MAX_JUMBO_FRAME_SIZE)) {
+		if (netif_msg_link(adapter))
+			dev_warn(&adapter->pdev->dev, "invalid MTU setting\n");
+		return -EINVAL;
+	}
 
 	adapter->hw.max_frame_size = max_frame;
 	adapter->hw.tx_jumbo_task_th = (max_frame + 7) >> 3;
@@ -2709,7 +2717,7 @@ static int atl1_change_mtu(struct net_device *netdev, int new_mtu)
 	adapter->hw.rx_jumbo_th = adapter->rx_buffer_len / 8;
 
 	netdev->mtu = new_mtu;
-	if (netif_running(netdev)) {
+	if ((old_mtu != new_mtu) && netif_running(netdev)) {
 		atl1_down(adapter);
 		atl1_up(adapter);
 	}
@@ -3023,11 +3031,6 @@ static int atl1_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	/* is this valid? see atl1_setup_mac_ctrl() */
 	netdev->features |= NETIF_F_RXCSUM;
 
-	/* MTU range: 42 - 10218 */
-	netdev->min_mtu = ETH_ZLEN - (ETH_HLEN + VLAN_HLEN);
-	netdev->max_mtu = MAX_JUMBO_FRAME_SIZE -
-			  (ETH_HLEN + ETH_FCS_LEN + VLAN_HLEN);
-
 	/*
 	 * patch for some L1 of old version,
 	 * the final version of L1 may not need these
@@ -3072,7 +3075,8 @@ static int atl1_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	/* assume we have no link for now */
 	netif_carrier_off(netdev);
 
-	timer_setup(&adapter->phy_config_timer, atl1_phy_config, 0);
+	setup_timer(&adapter->phy_config_timer, atl1_phy_config,
+		    (unsigned long)adapter);
 	adapter->phy_timer_pending = false;
 
 	INIT_WORK(&adapter->reset_dev_task, atl1_reset_dev_task);
@@ -3213,72 +3217,66 @@ static int atl1_get_sset_count(struct net_device *netdev, int sset)
 	}
 }
 
-static int atl1_get_link_ksettings(struct net_device *netdev,
-				   struct ethtool_link_ksettings *cmd)
+static int atl1_get_settings(struct net_device *netdev,
+	struct ethtool_cmd *ecmd)
 {
 	struct atl1_adapter *adapter = netdev_priv(netdev);
 	struct atl1_hw *hw = &adapter->hw;
-	u32 supported, advertising;
 
-	supported = (SUPPORTED_10baseT_Half |
+	ecmd->supported = (SUPPORTED_10baseT_Half |
 			   SUPPORTED_10baseT_Full |
 			   SUPPORTED_100baseT_Half |
 			   SUPPORTED_100baseT_Full |
 			   SUPPORTED_1000baseT_Full |
 			   SUPPORTED_Autoneg | SUPPORTED_TP);
-	advertising = ADVERTISED_TP;
+	ecmd->advertising = ADVERTISED_TP;
 	if (hw->media_type == MEDIA_TYPE_AUTO_SENSOR ||
 	    hw->media_type == MEDIA_TYPE_1000M_FULL) {
-		advertising |= ADVERTISED_Autoneg;
+		ecmd->advertising |= ADVERTISED_Autoneg;
 		if (hw->media_type == MEDIA_TYPE_AUTO_SENSOR) {
-			advertising |= ADVERTISED_Autoneg;
-			advertising |=
+			ecmd->advertising |= ADVERTISED_Autoneg;
+			ecmd->advertising |=
 			    (ADVERTISED_10baseT_Half |
 			     ADVERTISED_10baseT_Full |
 			     ADVERTISED_100baseT_Half |
 			     ADVERTISED_100baseT_Full |
 			     ADVERTISED_1000baseT_Full);
 		} else
-			advertising |= (ADVERTISED_1000baseT_Full);
+			ecmd->advertising |= (ADVERTISED_1000baseT_Full);
 	}
-	cmd->base.port = PORT_TP;
-	cmd->base.phy_address = 0;
+	ecmd->port = PORT_TP;
+	ecmd->phy_address = 0;
+	ecmd->transceiver = XCVR_INTERNAL;
 
 	if (netif_carrier_ok(adapter->netdev)) {
 		u16 link_speed, link_duplex;
 		atl1_get_speed_and_duplex(hw, &link_speed, &link_duplex);
-		cmd->base.speed = link_speed;
+		ethtool_cmd_speed_set(ecmd, link_speed);
 		if (link_duplex == FULL_DUPLEX)
-			cmd->base.duplex = DUPLEX_FULL;
+			ecmd->duplex = DUPLEX_FULL;
 		else
-			cmd->base.duplex = DUPLEX_HALF;
+			ecmd->duplex = DUPLEX_HALF;
 	} else {
-		cmd->base.speed = SPEED_UNKNOWN;
-		cmd->base.duplex = DUPLEX_UNKNOWN;
+		ethtool_cmd_speed_set(ecmd, SPEED_UNKNOWN);
+		ecmd->duplex = DUPLEX_UNKNOWN;
 	}
 	if (hw->media_type == MEDIA_TYPE_AUTO_SENSOR ||
 	    hw->media_type == MEDIA_TYPE_1000M_FULL)
-		cmd->base.autoneg = AUTONEG_ENABLE;
+		ecmd->autoneg = AUTONEG_ENABLE;
 	else
-		cmd->base.autoneg = AUTONEG_DISABLE;
-
-	ethtool_convert_legacy_u32_to_link_mode(cmd->link_modes.supported,
-						supported);
-	ethtool_convert_legacy_u32_to_link_mode(cmd->link_modes.advertising,
-						advertising);
+		ecmd->autoneg = AUTONEG_DISABLE;
 
 	return 0;
 }
 
-static int atl1_set_link_ksettings(struct net_device *netdev,
-				   const struct ethtool_link_ksettings *cmd)
+static int atl1_set_settings(struct net_device *netdev,
+	struct ethtool_cmd *ecmd)
 {
 	struct atl1_adapter *adapter = netdev_priv(netdev);
 	struct atl1_hw *hw = &adapter->hw;
 	u16 phy_data;
 	int ret_val = 0;
 	u16 old_media_type = hw->media_type;
-	u32 advertising;
 
 	if (netif_running(adapter->netdev)) {
 		if (netif_msg_link(adapter))
@@ -3287,12 +3285,12 @@ static int atl1_set_link_ksettings(struct net_device *netdev,
 		atl1_down(adapter);
 	}
 
-	if (cmd->base.autoneg == AUTONEG_ENABLE)
+	if (ecmd->autoneg == AUTONEG_ENABLE)
 		hw->media_type = MEDIA_TYPE_AUTO_SENSOR;
 	else {
-		u32 speed = cmd->base.speed;
+		u32 speed = ethtool_cmd_speed(ecmd);
 		if (speed == SPEED_1000) {
-			if (cmd->base.duplex != DUPLEX_FULL) {
+			if (ecmd->duplex != DUPLEX_FULL) {
 				if (netif_msg_link(adapter))
 					dev_warn(&adapter->pdev->dev,
 						"1000M half is invalid\n");
@@ -3301,12 +3299,12 @@ static int atl1_set_link_ksettings(struct net_device *netdev,
 			}
 			hw->media_type = MEDIA_TYPE_1000M_FULL;
 		} else if (speed == SPEED_100) {
-			if (cmd->base.duplex == DUPLEX_FULL)
+			if (ecmd->duplex == DUPLEX_FULL)
 				hw->media_type = MEDIA_TYPE_100M_FULL;
 			else
 				hw->media_type = MEDIA_TYPE_100M_HALF;
 		} else {
-			if (cmd->base.duplex == DUPLEX_FULL)
+			if (ecmd->duplex == DUPLEX_FULL)
 				hw->media_type = MEDIA_TYPE_10M_FULL;
 			else
 				hw->media_type = MEDIA_TYPE_10M_HALF;
@@ -3314,7 +3312,7 @@ static int atl1_set_link_ksettings(struct net_device *netdev,
 	}
 	switch (hw->media_type) {
 	case MEDIA_TYPE_AUTO_SENSOR:
-		advertising =
+		ecmd->advertising =
 		    ADVERTISED_10baseT_Half |
 		    ADVERTISED_10baseT_Full |
 		    ADVERTISED_100baseT_Half |
@@ -3323,12 +3321,12 @@ static int atl1_set_link_ksettings(struct net_device *netdev,
 		    ADVERTISED_Autoneg | ADVERTISED_TP;
 		break;
 	case MEDIA_TYPE_1000M_FULL:
-		advertising =
+		ecmd->advertising =
 		    ADVERTISED_1000baseT_Full |
 		    ADVERTISED_Autoneg | ADVERTISED_TP;
 		break;
 	default:
-		advertising = 0;
+		ecmd->advertising = 0;
 		break;
 	}
 	if (atl1_phy_setup_autoneg_adv(hw)) {
@@ -3668,6 +3666,8 @@ static int atl1_nway_reset(struct net_device *netdev)
 }
 
 static const struct ethtool_ops atl1_ethtool_ops = {
+	.get_settings		= atl1_get_settings,
+	.set_settings		= atl1_set_settings,
 	.get_drvinfo		= atl1_get_drvinfo,
 	.get_wol		= atl1_get_wol,
 	.set_wol		= atl1_set_wol,
@@ -3684,8 +3684,6 @@ static const struct ethtool_ops atl1_ethtool_ops = {
 	.nway_reset		= atl1_nway_reset,
 	.get_ethtool_stats	= atl1_get_ethtool_stats,
 	.get_sset_count		= atl1_get_sset_count,
-	.get_link_ksettings	= atl1_get_link_ksettings,
-	.set_link_ksettings	= atl1_set_link_ksettings,
 };
 
 module_pci_driver(atl1_driver);

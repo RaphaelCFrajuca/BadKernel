@@ -1,10 +1,7 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 #ifndef _XT_POLICY_H
 #define _XT_POLICY_H
 
 #include <linux/types.h>
-#include <linux/in.h>
-#include <linux/in6.h>
 
 #define XT_POLICY_MAX_ELEM	4
 

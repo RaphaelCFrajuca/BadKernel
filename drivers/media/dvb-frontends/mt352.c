@@ -24,6 +24,10 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *
  *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.=
  */
 
 #include <linux/kernel.h>
@@ -33,7 +37,7 @@
 #include <linux/string.h>
 #include <linux/slab.h>
 
-#include <media/dvb_frontend.h>
+#include "dvb_frontend.h"
 #include "mt352_priv.h"
 #include "mt352.h"
 
@@ -211,7 +215,6 @@ static int mt352_set_parameters(struct dvb_frontend *fe)
 			if (op->hierarchy == HIERARCHY_AUTO ||
 			    op->hierarchy == HIERARCHY_NONE)
 				break;
-			/* fall through */
 		default:
 			return -EINVAL;
 	}
@@ -308,9 +311,9 @@ static int mt352_set_parameters(struct dvb_frontend *fe)
 	return 0;
 }
 
-static int mt352_get_parameters(struct dvb_frontend* fe,
-				struct dtv_frontend_properties *op)
+static int mt352_get_parameters(struct dvb_frontend* fe)
 {
+	struct dtv_frontend_properties *op = &fe->dtv_property_cache;
 	struct mt352_state* state = fe->demodulator_priv;
 	u16 tps;
 	u16 div;
@@ -535,7 +538,7 @@ static void mt352_release(struct dvb_frontend* fe)
 	kfree(state);
 }
 
-static const struct dvb_frontend_ops mt352_ops;
+static struct dvb_frontend_ops mt352_ops;
 
 struct dvb_frontend* mt352_attach(const struct mt352_config* config,
 				  struct i2c_adapter* i2c)
@@ -563,7 +566,7 @@ error:
 	return NULL;
 }
 
-static const struct dvb_frontend_ops mt352_ops = {
+static struct dvb_frontend_ops mt352_ops = {
 	.delsys = { SYS_DVBT },
 	.info = {
 		.name			= "Zarlink MT352 DVB-T",

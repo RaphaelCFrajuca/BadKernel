@@ -258,8 +258,10 @@ error:
 
 int rsc_mgr_uninit(struct rsc_mgr *mgr)
 {
-	kfree(mgr->rscs);
-	mgr->rscs = NULL;
+	if (NULL != mgr->rscs) {
+		kfree(mgr->rscs);
+		mgr->rscs = NULL;
+	}
 
 	if ((NULL != mgr->hw) && (NULL != mgr->ctrl_blk)) {
 		switch (mgr->type) {

@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 r8188eu-y :=				\
 		core/rtw_ap.o		\
 		core/rtw_cmd.o		\
@@ -54,4 +53,4 @@ r8188eu-y :=				\
 
 obj-$(CONFIG_R8188EU)	:= r8188eu.o
 
-ccflags-y += -I$(srctree)/$(src)/include
+ccflags-y += -D__CHECK_ENDIAN__ -I$(src)/include

@@ -47,9 +47,9 @@
 #include "rk3288.dtsi"
 
 / {
-	memory@0 {
+	memory {
 		device_type = "memory";
-		reg = <0x0 0x0 0x0 0x80000000>;
+		reg = <0x0 0x80000000>;
 	};
 
 	gpio_keys: gpio-keys {
@@ -61,16 +61,16 @@
 		pinctrl-0 = <&pwr_key_l>;
 		power {
 			label = "Power";
-			gpios = <&gpio0 RK_PA5 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
 			linux,code = <KEY_POWER>;
 			debounce-interval = <100>;
-			wakeup-source;
+			gpio-key,wakeup;
 		};
 	};
 
 	gpio-restart {
 		compatible = "gpio-restart";
-		gpios = <&gpio0 RK_PB5 GPIO_ACTIVE_HIGH>;
+		gpios = <&gpio0 13 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&ap_warm_reset_h>;
 		priority = <200>;
@@ -80,7 +80,20 @@
 		compatible = "mmc-pwrseq-emmc";
 		pinctrl-0 = <&emmc_reset>;
 		pinctrl-names = "default";
-		reset-gpios = <&gpio2 RK_PB1 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio2 9 GPIO_ACTIVE_HIGH>;
+	};
+
+	io_domains: io-domains {
+		compatible = "rockchip,rk3288-io-voltage-domain";
+		rockchip,grf = <&grf>;
+
+		bb-supply = <&vcc33_io>;
+		dvp-supply = <&vcc_18>;
+		flash0-supply = <&vcc18_flashio>;
+		gpio1830-supply = <&vcc33_io>;
+		gpio30-supply = <&vcc33_io>;
+		lcdc-supply = <&vcc33_lcd>;
+		wifi-supply = <&vcc18_wl>;
 	};
 
 	sdio_pwrseq: sdio-pwrseq {
@@ -96,7 +109,7 @@
 		 * - SDIO_RESET_L_WL_REG_ON
 		 * - PDN (power down when low)
 		 */
-		reset-gpios = <&gpio4 RK_PD4 GPIO_ACTIVE_LOW>;
+		reset-gpios = <&gpio4 28 GPIO_ACTIVE_LOW>;
 	};
 
 	vcc_5v: vcc-5v {
@@ -128,27 +141,12 @@
 
 &cpu0 {
 	cpu0-supply = <&vdd_cpu>;
-	operating-points = <
-		/* KHz    uV */
-		1800000 1400000
-		1704000 1350000
-		1608000 1300000
-		1512000 1250000
-		1416000 1200000
-		1200000 1100000
-		1008000 1050000
-		 816000 1000000
-		 696000  950000
-		 600000  900000
-		 408000  900000
-		 216000  900000
-		 126000  900000
-	>;
 };
 
 &emmc {
 	status = "okay";
 
+	broken-cd;
 	bus-width = <8>;
 	cap-mmc-highspeed;
 	rockchip,default-sample-phase = <158>;
@@ -156,13 +154,9 @@
 	mmc-hs200-1_8v;
 	mmc-pwrseq = <&emmc_pwrseq>;
 	non-removable;
+	num-slots = <1>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_bus8>;
-};
-
-&gpu {
-	mali-supply = <&vdd_gpu>;
-	status = "okay";
 };
 
 &hdmi {
@@ -182,7 +176,7 @@
 		reg = <0x1b>;
 		clock-output-names = "xin32k", "wifibt_32kin";
 		interrupt-parent = <&gpio0>;
-		interrupts = <RK_PA4 IRQ_TYPE_LEVEL_LOW>;
+		interrupts = <4 IRQ_TYPE_LEVEL_LOW>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pmic_int_l>;
 		rockchip,system-power-controller;
@@ -346,18 +340,6 @@
 	i2c-scl-rising-time-ns = <1000>;
 };
 
-&io_domains {
-	status = "okay";
-
-	bb-supply = <&vcc33_io>;
-	dvp-supply = <&vcc_18>;
-	flash0-supply = <&vcc18_flashio>;
-	gpio1830-supply = <&vcc33_io>;
-	gpio30-supply = <&vcc33_io>;
-	lcdc-supply = <&vcc33_lcd>;
-	wifi-supply = <&vcc18_wl>;
-};
-
 &pwm1 {
 	status = "okay";
 };
@@ -365,12 +347,14 @@
 &sdio0 {
 	status = "okay";
 
+	broken-cd;
 	bus-width = <4>;
 	cap-sd-highspeed;
 	cap-sdio-irq;
 	keep-power-in-suspend;
 	mmc-pwrseq = <&sdio_pwrseq>;
 	non-removable;
+	num-slots = <1>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdio0_clk &sdio0_cmd &sdio0_bus4>;
 	sd-uhs-sdr12;
@@ -385,12 +369,6 @@
 	status = "okay";
 
 	rx-sample-delay-ns = <12>;
-
-	flash@0 {
-		compatible = "jedec,spi-nor";
-		spi-max-frequency = <50000000>;
-		reg = <0>;
-	};
 };
 
 &tsadc {
@@ -438,7 +416,7 @@
 	status = "okay";
 
 	assigned-clocks = <&cru SCLK_USBPHY480M_SRC>;
-	assigned-clock-parents = <&usbphy0>;
+	assigned-clock-parents = <&cru SCLK_OTGPHY0>;
 	dr_mode = "host";
 };
 

@@ -32,7 +32,6 @@
 #include "futextest.h"
 #include "logging.h"
 
-#define TEST_NAME "futex-requeue-pi-signal-restart"
 #define DELAY_US 100
 
 futex_t f1 = FUTEX_INITIALIZER;
@@ -143,10 +142,9 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	ksft_print_header();
-	ksft_print_msg("%s: Test signal handling during requeue_pi\n",
+	printf("%s: Test signal handling during requeue_pi\n",
 	       basename(argv[0]));
-	ksft_print_msg("\tArguments: <none>\n");
+	printf("\tArguments: <none>\n");
 
 	sa.sa_handler = handle_signal;
 	sigemptyset(&sa.sa_mask);
@@ -220,6 +218,6 @@ int main(int argc, char *argv[])
 	if (ret == RET_PASS && waiter_ret)
 		ret = waiter_ret;
 
-	print_result(TEST_NAME, ret);
+	print_result(ret);
 	return ret;
 }

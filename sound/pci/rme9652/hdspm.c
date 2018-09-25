@@ -1522,7 +1522,7 @@ static void hdspm_silence_playback(struct hdspm *hdspm)
 	int n = hdspm->period_bytes;
 	void *buf = hdspm->playback_buffer;
 
-	if (!buf)
+	if (buf == NULL)
 		return;
 
 	for (i = 0; i < HDSPM_MAX_CHANNELS; i++) {
@@ -1667,7 +1667,7 @@ static int hdspm_set_rate(struct hdspm * hdspm, int rate, int called_internally)
 			    HDSPM_AUTOSYNC_FROM_NONE) {
 
 				dev_warn(hdspm->card->dev,
-					 "Detected no External Sync\n");
+					 "Detected no Externel Sync\n");
 				not_set = 1;
 
 			} else if (rate != external_freq) {
@@ -1947,9 +1947,9 @@ snd_hdspm_midi_input_trigger(struct snd_rawmidi_substream *substream, int up)
 	spin_unlock_irqrestore (&hdspm->lock, flags);
 }
 
-static void snd_hdspm_midi_output_timer(struct timer_list *t)
+static void snd_hdspm_midi_output_timer(unsigned long data)
 {
-	struct hdspm_midi *hmidi = from_timer(hmidi, t, timer);
+	struct hdspm_midi *hmidi = (struct hdspm_midi *) data;
 	unsigned long flags;
 
 	snd_hdspm_midi_output_write(hmidi);
@@ -1977,8 +1977,8 @@ snd_hdspm_midi_output_trigger(struct snd_rawmidi_substream *substream, int up)
 	spin_lock_irqsave (&hmidi->lock, flags);
 	if (up) {
 		if (!hmidi->istimer) {
-			timer_setup(&hmidi->timer,
-				    snd_hdspm_midi_output_timer, 0);
+			setup_timer(&hmidi->timer, snd_hdspm_midi_output_timer,
+				    (unsigned long) hmidi);
 			mod_timer(&hmidi->timer, 1 + jiffies);
 			hmidi->istimer++;
 		}
@@ -2044,14 +2044,14 @@ static int snd_hdspm_midi_output_close(struct snd_rawmidi_substream *substream)
 	return 0;
 }
 
-static const struct snd_rawmidi_ops snd_hdspm_midi_output =
+static struct snd_rawmidi_ops snd_hdspm_midi_output =
 {
 	.open =		snd_hdspm_midi_output_open,
 	.close =	snd_hdspm_midi_output_close,
 	.trigger =	snd_hdspm_midi_output_trigger,
 };
 
-static const struct snd_rawmidi_ops snd_hdspm_midi_input =
+static struct snd_rawmidi_ops snd_hdspm_midi_input =
 {
 	.open =		snd_hdspm_midi_input_open,
 	.close =	snd_hdspm_midi_input_close,
@@ -2062,7 +2062,7 @@ static int snd_hdspm_create_midi(struct snd_card *card,
 				 struct hdspm *hdspm, int id)
 {
 	int err;
-	char buf[64];
+	char buf[32];
 
 	hdspm->midi[id].id = id;
 	hdspm->midi[id].hdspm = hdspm;
@@ -2121,23 +2121,19 @@ static int snd_hdspm_create_midi(struct snd_card *card,
 	if ((id < 2) || ((2 == id) && ((MADI == hdspm->io_type) ||
 					(MADIface == hdspm->io_type)))) {
 		if ((id == 0) && (MADIface == hdspm->io_type)) {
-			snprintf(buf, sizeof(buf), "%s MIDIoverMADI",
-				 card->shortname);
+			sprintf(buf, "%s MIDIoverMADI", card->shortname);
 		} else if ((id == 2) && (MADI == hdspm->io_type)) {
-			snprintf(buf, sizeof(buf), "%s MIDIoverMADI",
-				 card->shortname);
+			sprintf(buf, "%s MIDIoverMADI", card->shortname);
 		} else {
-			snprintf(buf, sizeof(buf), "%s MIDI %d",
-				 card->shortname, id+1);
+			sprintf(buf, "%s MIDI %d", card->shortname, id+1);
 		}
 		err = snd_rawmidi_new(card, buf, id, 1, 1,
 				&hdspm->midi[id].rmidi);
 		if (err < 0)
 			return err;
 
-		snprintf(hdspm->midi[id].rmidi->name,
-			 sizeof(hdspm->midi[id].rmidi->name),
-			 "%s MIDI %d", card->id, id+1);
+		sprintf(hdspm->midi[id].rmidi->name, "%s MIDI %d",
+				card->id, id+1);
 		hdspm->midi[id].rmidi->private_data = &hdspm->midi[id];
 
 		snd_rawmidi_set_ops(hdspm->midi[id].rmidi,
@@ -2153,16 +2149,14 @@ static int snd_hdspm_create_midi(struct snd_card *card,
 			SNDRV_RAWMIDI_INFO_DUPLEX;
 	} else {
 		/* TCO MTC, read only */
-		snprintf(buf, sizeof(buf), "%s MTC %d",
-			 card->shortname, id+1);
+		sprintf(buf, "%s MTC %d", card->shortname, id+1);
 		err = snd_rawmidi_new(card, buf, id, 1, 1,
 				&hdspm->midi[id].rmidi);
 		if (err < 0)
 			return err;
 
-		snprintf(hdspm->midi[id].rmidi->name,
-			 sizeof(hdspm->midi[id].rmidi->name),
-			 "%s MTC %d", card->id, id+1);
+		sprintf(hdspm->midi[id].rmidi->name,
+				"%s MTC %d", card->id, id+1);
 		hdspm->midi[id].rmidi->private_data = &hdspm->midi[id];
 
 		snd_rawmidi_set_ops(hdspm->midi[id].rmidi,
@@ -4707,7 +4701,7 @@ static int snd_hdspm_create_controls(struct snd_card *card,
 		break;
 	}
 
-	if (list) {
+	if (NULL != list) {
 		for (idx = 0; idx < limit; idx++) {
 			err = snd_ctl_add(card,
 					snd_ctl_new1(&list[idx], hdspm));
@@ -6050,11 +6044,11 @@ static int snd_hdspm_hw_rule_out_channels(struct snd_pcm_hw_params *params,
 }
 
 
-static const unsigned int hdspm_aes32_sample_rates[] = {
+static unsigned int hdspm_aes32_sample_rates[] = {
 	32000, 44100, 48000, 64000, 88200, 96000, 128000, 176400, 192000
 };
 
-static const struct snd_pcm_hw_constraint_list
+static struct snd_pcm_hw_constraint_list
 hdspm_hw_constraints_aes32_sample_rates = {
 	.count = ARRAY_SIZE(hdspm_aes32_sample_rates),
 	.list = hdspm_aes32_sample_rates,
@@ -6073,13 +6067,13 @@ static int snd_hdspm_open(struct snd_pcm_substream *substream)
 		snd_hdspm_capture_subinfo;
 
 	if (playback) {
-		if (!hdspm->capture_substream)
+		if (hdspm->capture_substream == NULL)
 			hdspm_stop_audio(hdspm);
 
 		hdspm->playback_pid = current->pid;
 		hdspm->playback_substream = substream;
 	} else {
-		if (!hdspm->playback_substream)
+		if (hdspm->playback_substream == NULL)
 			hdspm_stop_audio(hdspm);
 
 		hdspm->capture_pid = current->pid;
@@ -6225,7 +6219,7 @@ static int snd_hdspm_hwdep_ioctl(struct snd_hwdep *hw, struct file *file,
 		}
 		levels->status2 = hdspm_read(hdspm, HDSPM_statusRegister2);
 
-		s = copy_to_user(argp, levels, sizeof(*levels));
+		s = copy_to_user(argp, levels, sizeof(struct hdspm_peak_rms));
 		if (0 != s) {
 			/* dev_err(hdspm->card->dev, "copy_to_user(.., .., %lu): %lu
 			 [Levels]\n", sizeof(struct hdspm_peak_rms), s);
@@ -6270,7 +6264,7 @@ static int snd_hdspm_hwdep_ioctl(struct snd_hwdep *hw, struct file *file,
 			ltc.input_format = no_video;
 		}
 
-		s = copy_to_user(argp, &ltc, sizeof(ltc));
+		s = copy_to_user(argp, &ltc, sizeof(struct hdspm_ltc));
 		if (0 != s) {
 			/*
 			  dev_err(hdspm->card->dev, "copy_to_user(.., .., %lu): %lu [LTC]\n", sizeof(struct hdspm_ltc), s); */
@@ -6361,7 +6355,7 @@ static int snd_hdspm_hwdep_ioctl(struct snd_hwdep *hw, struct file *file,
 		if (copy_from_user(&mixer, argp, sizeof(mixer)))
 			return -EFAULT;
 		if (copy_to_user((void __user *)mixer.mixer, hdspm->mixer,
-				 sizeof(*mixer.mixer)))
+					sizeof(struct hdspm_mixer)))
 			return -EFAULT;
 		break;
 
@@ -6371,7 +6365,7 @@ static int snd_hdspm_hwdep_ioctl(struct snd_hwdep *hw, struct file *file,
 	return 0;
 }
 
-static const struct snd_pcm_ops snd_hdspm_ops = {
+static struct snd_pcm_ops snd_hdspm_ops = {
 	.open = snd_hdspm_open,
 	.close = snd_hdspm_release,
 	.ioctl = snd_hdspm_ioctl,
@@ -6640,10 +6634,14 @@ static int snd_hdspm_create(struct snd_card *card,
 	hdspm->irq = pci->irq;
 
 	dev_dbg(card->dev, "kmalloc Mixer memory of %zd Bytes\n",
-		sizeof(*hdspm->mixer));
-	hdspm->mixer = kzalloc(sizeof(*hdspm->mixer), GFP_KERNEL);
-	if (!hdspm->mixer)
+			sizeof(struct hdspm_mixer));
+	hdspm->mixer = kzalloc(sizeof(struct hdspm_mixer), GFP_KERNEL);
+	if (!hdspm->mixer) {
+		dev_err(card->dev,
+			"unable to kmalloc Mixer memory of %d Bytes\n",
+				(int)sizeof(struct hdspm_mixer));
 		return -ENOMEM;
+	}
 
 	hdspm->port_names_in = NULL;
 	hdspm->port_names_out = NULL;
@@ -6778,10 +6776,11 @@ static int snd_hdspm_create(struct snd_card *card,
 		if (hdspm_read(hdspm, HDSPM_statusRegister2) &
 				HDSPM_s2_tco_detect) {
 			hdspm->midiPorts++;
-			hdspm->tco = kzalloc(sizeof(*hdspm->tco), GFP_KERNEL);
-			if (hdspm->tco)
+			hdspm->tco = kzalloc(sizeof(struct hdspm_tco),
+					GFP_KERNEL);
+			if (NULL != hdspm->tco) {
 				hdspm_tco_write(hdspm);
-
+			}
 			dev_info(card->dev, "AIO/RayDAT TCO module found\n");
 		} else {
 			hdspm->tco = NULL;
@@ -6792,10 +6791,11 @@ static int snd_hdspm_create(struct snd_card *card,
 	case AES32:
 		if (hdspm_read(hdspm, HDSPM_statusRegister) & HDSPM_tco_detect) {
 			hdspm->midiPorts++;
-			hdspm->tco = kzalloc(sizeof(*hdspm->tco), GFP_KERNEL);
-			if (hdspm->tco)
+			hdspm->tco = kzalloc(sizeof(struct hdspm_tco),
+					GFP_KERNEL);
+			if (NULL != hdspm->tco) {
 				hdspm_tco_write(hdspm);
-
+			}
 			dev_info(card->dev, "MADI/AES TCO module found\n");
 		} else {
 			hdspm->tco = NULL;
@@ -6872,9 +6872,8 @@ static int snd_hdspm_create(struct snd_card *card,
 		 * this case, we don't set card->id to avoid collisions
 		 * when running with multiple cards.
 		 */
-		if (!id[hdspm->dev] && hdspm->serial != 0xFFFFFF) {
-			snprintf(card->id, sizeof(card->id),
-				 "HDSPMx%06x", hdspm->serial);
+		if (NULL == id[hdspm->dev] && hdspm->serial != 0xFFFFFF) {
+			sprintf(card->id, "HDSPMx%06x", hdspm->serial);
 			snd_card_set_id(card, card->id);
 		}
 	}
@@ -6943,7 +6942,7 @@ static int snd_hdspm_probe(struct pci_dev *pci,
 	}
 
 	err = snd_card_new(&pci->dev, index[dev], id[dev],
-			   THIS_MODULE, sizeof(*hdspm), &card);
+			   THIS_MODULE, sizeof(struct hdspm), &card);
 	if (err < 0)
 		return err;
 
@@ -6953,36 +6952,35 @@ static int snd_hdspm_probe(struct pci_dev *pci,
 	hdspm->pci = pci;
 
 	err = snd_hdspm_create(card, hdspm);
-	if (err < 0)
-		goto free_card;
+	if (err < 0) {
+		snd_card_free(card);
+		return err;
+	}
 
 	if (hdspm->io_type != MADIface) {
-		snprintf(card->shortname, sizeof(card->shortname), "%s_%x",
-			hdspm->card_name, hdspm->serial);
-		snprintf(card->longname, sizeof(card->longname),
-			 "%s S/N 0x%x at 0x%lx, irq %d",
-			 hdspm->card_name, hdspm->serial,
-			 hdspm->port, hdspm->irq);
+		sprintf(card->shortname, "%s_%x",
+			hdspm->card_name,
+			hdspm->serial);
+		sprintf(card->longname, "%s S/N 0x%x at 0x%lx, irq %d",
+			hdspm->card_name,
+			hdspm->serial,
+			hdspm->port, hdspm->irq);
 	} else {
-		snprintf(card->shortname, sizeof(card->shortname), "%s",
-			 hdspm->card_name);
-		snprintf(card->longname, sizeof(card->longname),
-			 "%s at 0x%lx, irq %d",
-			 hdspm->card_name, hdspm->port, hdspm->irq);
+		sprintf(card->shortname, "%s", hdspm->card_name);
+		sprintf(card->longname, "%s at 0x%lx, irq %d",
+				hdspm->card_name, hdspm->port, hdspm->irq);
 	}
 
 	err = snd_card_register(card);
-	if (err < 0)
-		goto free_card;
+	if (err < 0) {
+		snd_card_free(card);
+		return err;
+	}
 
 	pci_set_drvdata(pci, card);
 
 	dev++;
 	return 0;
-
-free_card:
-	snd_card_free(card);
-	return err;
 }
 
 static void snd_hdspm_remove(struct pci_dev *pci)

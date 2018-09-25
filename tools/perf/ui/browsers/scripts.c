@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <elf.h>
 #include <inttypes.h>
 #include <sys/ttydefaults.h>

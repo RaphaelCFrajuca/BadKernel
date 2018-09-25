@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0+
 /*
  * High Speed Serial Ports on NXP LPC32xx SoC
  *
@@ -7,6 +6,16 @@
  *
  * Copyright (C) 2010 NXP Semiconductors
  * Copyright (C) 2012 Roland Stigge
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #include <linux/module.h>
@@ -636,7 +645,7 @@ static int serial_lpc32xx_verify_port(struct uart_port *port,
 	return ret;
 }
 
-static const struct uart_ops serial_lpc32xx_pops = {
+static struct uart_ops serial_lpc32xx_pops = {
 	.tx_empty	= serial_lpc32xx_tx_empty,
 	.set_mctrl	= serial_lpc32xx_set_mctrl,
 	.get_mctrl	= serial_lpc32xx_get_mctrl,

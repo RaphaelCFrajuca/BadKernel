@@ -188,8 +188,9 @@ static const struct net_protocol ipcomp4_protocol = {
 	.netns_ok	=	1,
 };
 
-static const struct xfrm_input_afinfo xfrm4_input_afinfo = {
+static struct xfrm_input_afinfo xfrm4_input_afinfo = {
 	.family		=	AF_INET,
+	.owner		=	THIS_MODULE,
 	.callback	=	xfrm4_rcv_cb,
 };
 

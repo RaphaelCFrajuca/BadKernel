@@ -28,7 +28,8 @@
 #include <asm/mmzone.h>
 
 static struct plat_sci_port scif0_platform_data = {
-	.scscr		= SCSCR_REIE | SCSCR_CKE1,
+	.flags		= UPF_BOOT_AUTOCONF,
+	.scscr		= SCSCR_RE | SCSCR_TE | SCSCR_REIE | SCSCR_CKE1,
 	.type		= PORT_SCIF,
 	.regtype	= SCIx_SH4_SCIF_FIFODATA_REGTYPE,
 };
@@ -55,7 +56,8 @@ static struct platform_device scif0_device = {
  * The rest of these all have multiplexed IRQs
  */
 static struct plat_sci_port scif1_platform_data = {
-	.scscr		= SCSCR_REIE | SCSCR_CKE1,
+	.flags		= UPF_BOOT_AUTOCONF,
+	.scscr		= SCSCR_RE | SCSCR_TE | SCSCR_REIE | SCSCR_CKE1,
 	.type		= PORT_SCIF,
 	.regtype	= SCIx_SH4_SCIF_FIFODATA_REGTYPE,
 };
@@ -85,7 +87,8 @@ static struct platform_device scif1_device = {
 };
 
 static struct plat_sci_port scif2_platform_data = {
-	.scscr		= SCSCR_REIE | SCSCR_CKE1,
+	.flags		= UPF_BOOT_AUTOCONF,
+	.scscr		= SCSCR_RE | SCSCR_TE | SCSCR_REIE | SCSCR_CKE1,
 	.type		= PORT_SCIF,
 	.regtype	= SCIx_SH4_SCIF_FIFODATA_REGTYPE,
 };
@@ -106,7 +109,8 @@ static struct platform_device scif2_device = {
 };
 
 static struct plat_sci_port scif3_platform_data = {
-	.scscr		= SCSCR_REIE | SCSCR_CKE1,
+	.flags		= UPF_BOOT_AUTOCONF,
+	.scscr		= SCSCR_RE | SCSCR_TE | SCSCR_REIE | SCSCR_CKE1,
 	.type		= PORT_SCIF,
 	.regtype	= SCIx_SH4_SCIF_FIFODATA_REGTYPE,
 };
@@ -127,7 +131,8 @@ static struct platform_device scif3_device = {
 };
 
 static struct plat_sci_port scif4_platform_data = {
-	.scscr		= SCSCR_REIE | SCSCR_CKE1,
+	.flags		= UPF_BOOT_AUTOCONF,
+	.scscr		= SCSCR_RE | SCSCR_TE | SCSCR_REIE | SCSCR_CKE1,
 	.type		= PORT_SCIF,
 	.regtype	= SCIx_SH4_SCIF_FIFODATA_REGTYPE,
 };
@@ -148,7 +153,8 @@ static struct platform_device scif4_device = {
 };
 
 static struct plat_sci_port scif5_platform_data = {
-	.scscr		= SCSCR_REIE | SCSCR_CKE1,
+	.flags		= UPF_BOOT_AUTOCONF,
+	.scscr		= SCSCR_RE | SCSCR_TE | SCSCR_REIE | SCSCR_CKE1,
 	.type		= PORT_SCIF,
 	.regtype	= SCIx_SH4_SCIF_FIFODATA_REGTYPE,
 };

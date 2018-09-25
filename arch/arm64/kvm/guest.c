@@ -25,25 +25,16 @@
 #include <linux/module.h>
 #include <linux/vmalloc.h>
 #include <linux/fs.h>
-#include <kvm/arm_psci.h>
 #include <asm/cputype.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/kvm.h>
+#include <asm/kvm_asm.h>
 #include <asm/kvm_emulate.h>
 #include <asm/kvm_coproc.h>
 
 #include "trace.h"
 
-#define VM_STAT(x) { #x, offsetof(struct kvm, stat.x), KVM_STAT_VM }
-#define VCPU_STAT(x) { #x, offsetof(struct kvm_vcpu, stat.x), KVM_STAT_VCPU }
-
 struct kvm_stats_debugfs_item debugfs_entries[] = {
-	VCPU_STAT(hvc_exit_stat),
-	VCPU_STAT(wfe_exit_stat),
-	VCPU_STAT(wfi_exit_stat),
-	VCPU_STAT(mmio_exit_user),
-	VCPU_STAT(mmio_exit_kernel),
-	VCPU_STAT(exits),
 	{ NULL }
 };
 
@@ -206,13 +197,13 @@ static int get_timer_reg(struct kvm_vcpu *vcpu, const struct kvm_one_reg *reg)
 unsigned long kvm_arm_num_regs(struct kvm_vcpu *vcpu)
 {
 	return num_core_regs() + kvm_arm_num_sys_reg_descs(vcpu)
-		+ kvm_arm_get_fw_num_regs(vcpu)	+ NUM_TIMER_REGS;
+                + NUM_TIMER_REGS;
 }
 
 /**
  * kvm_arm_copy_reg_indices - get indices of all registers.
  *
- * We do core registers right here, then we append system regs.
+ * We do core registers right here, then we apppend system regs.
  */
 int kvm_arm_copy_reg_indices(struct kvm_vcpu *vcpu, u64 __user *uindices)
 {
@@ -225,11 +216,6 @@ int kvm_arm_copy_reg_indices(struct kvm_vcpu *vcpu, u64 __user *uindices)
 			return -EFAULT;
 		uindices++;
 	}
-
-	ret = kvm_arm_copy_fw_reg_indices(vcpu, uindices);
-	if (ret)
-		return ret;
-	uindices += kvm_arm_get_fw_num_regs(vcpu);
 
 	ret = copy_timer_indices(vcpu, uindices);
 	if (ret)
@@ -249,9 +235,6 @@ int kvm_arm_get_reg(struct kvm_vcpu *vcpu, const struct kvm_one_reg *reg)
 	if ((reg->id & KVM_REG_ARM_COPROC_MASK) == KVM_REG_ARM_CORE)
 		return get_core_reg(vcpu, reg);
 
-	if ((reg->id & KVM_REG_ARM_COPROC_MASK) == KVM_REG_ARM_FW)
-		return kvm_arm_get_fw_reg(vcpu, reg);
-
 	if (is_timer_reg(reg->id))
 		return get_timer_reg(vcpu, reg);
 
@@ -267,9 +250,6 @@ int kvm_arm_set_reg(struct kvm_vcpu *vcpu, const struct kvm_one_reg *reg)
 	/* Register group 16 means we set a core register. */
 	if ((reg->id & KVM_REG_ARM_COPROC_MASK) == KVM_REG_ARM_CORE)
 		return set_core_reg(vcpu, reg);
-
-	if ((reg->id & KVM_REG_ARM_COPROC_MASK) == KVM_REG_ARM_FW)
-		return kvm_arm_set_fw_reg(vcpu, reg);
 
 	if (is_timer_reg(reg->id))
 		return set_timer_reg(vcpu, reg);
@@ -373,14 +353,10 @@ int kvm_arch_vcpu_ioctl_translate(struct kvm_vcpu *vcpu,
 int kvm_arch_vcpu_ioctl_set_guest_debug(struct kvm_vcpu *vcpu,
 					struct kvm_guest_debug *dbg)
 {
-	int ret = 0;
-
 	trace_kvm_set_guest_debug(vcpu, dbg->control);
 
-	if (dbg->control & ~KVM_GUESTDBG_VALID_MASK) {
-		ret = -EINVAL;
-		goto out;
-	}
+	if (dbg->control & ~KVM_GUESTDBG_VALID_MASK)
+		return -EINVAL;
 
 	if (dbg->control & KVM_GUESTDBG_ENABLE) {
 		vcpu->guest_debug = dbg->control;
@@ -394,67 +370,5 @@ int kvm_arch_vcpu_ioctl_set_guest_debug(struct kvm_vcpu *vcpu,
 		/* If not enabled clear all flags */
 		vcpu->guest_debug = 0;
 	}
-
-out:
-	return ret;
-}
-
-int kvm_arm_vcpu_arch_set_attr(struct kvm_vcpu *vcpu,
-			       struct kvm_device_attr *attr)
-{
-	int ret;
-
-	switch (attr->group) {
-	case KVM_ARM_VCPU_PMU_V3_CTRL:
-		ret = kvm_arm_pmu_v3_set_attr(vcpu, attr);
-		break;
-	case KVM_ARM_VCPU_TIMER_CTRL:
-		ret = kvm_arm_timer_set_attr(vcpu, attr);
-		break;
-	default:
-		ret = -ENXIO;
-		break;
-	}
-
-	return ret;
-}
-
-int kvm_arm_vcpu_arch_get_attr(struct kvm_vcpu *vcpu,
-			       struct kvm_device_attr *attr)
-{
-	int ret;
-
-	switch (attr->group) {
-	case KVM_ARM_VCPU_PMU_V3_CTRL:
-		ret = kvm_arm_pmu_v3_get_attr(vcpu, attr);
-		break;
-	case KVM_ARM_VCPU_TIMER_CTRL:
-		ret = kvm_arm_timer_get_attr(vcpu, attr);
-		break;
-	default:
-		ret = -ENXIO;
-		break;
-	}
-
-	return ret;
-}
-
-int kvm_arm_vcpu_arch_has_attr(struct kvm_vcpu *vcpu,
-			       struct kvm_device_attr *attr)
-{
-	int ret;
-
-	switch (attr->group) {
-	case KVM_ARM_VCPU_PMU_V3_CTRL:
-		ret = kvm_arm_pmu_v3_has_attr(vcpu, attr);
-		break;
-	case KVM_ARM_VCPU_TIMER_CTRL:
-		ret = kvm_arm_timer_has_attr(vcpu, attr);
-		break;
-	default:
-		ret = -ENXIO;
-		break;
-	}
-
-	return ret;
+	return 0;
 }

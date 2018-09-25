@@ -17,7 +17,6 @@
 #include <linux/hash.h>
 #include <linux/types.h>
 #include <linux/rculist.h>
-#include <linux/completion.h>
 
 #include "vmci_resource.h"
 #include "vmci_driver.h"

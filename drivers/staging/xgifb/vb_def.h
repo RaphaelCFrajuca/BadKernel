@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _VB_DEF_
 #define _VB_DEF_
 #include "../../video/fbdev/sis/initdef.h"
@@ -228,6 +227,7 @@
 #define RES1280x960x75       0x45
 #define RES1280x960x85       0x46
 #define RES1280x960x120      0x47
+
 
 #define XG27_CR8F 0x0C
 #define XG27_SR36 0x30

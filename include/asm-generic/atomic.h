@@ -2,6 +2,8 @@
  * Generic C implementation of atomic counter operations. Usable on
  * UP systems only. Do not include in machine independent code.
  *
+ * Originally implemented for MN10300.
+ *
  * Copyright (C) 2007 Red Hat, Inc. All Rights Reserved.
  * Written by David Howells (dhowells@redhat.com)
  *
@@ -59,18 +61,6 @@ static inline int atomic_##op##_return(int i, atomic_t *v)		\
 	return c c_op i;						\
 }
 
-#define ATOMIC_FETCH_OP(op, c_op)					\
-static inline int atomic_fetch_##op(int i, atomic_t *v)			\
-{									\
-	int c, old;							\
-									\
-	c = v->counter;							\
-	while ((old = cmpxchg(&v->counter, c, c c_op i)) != c)		\
-		c = old;						\
-									\
-	return c;							\
-}
-
 #else
 
 #include <linux/irqflags.h>
@@ -98,20 +88,6 @@ static inline int atomic_##op##_return(int i, atomic_t *v)		\
 	return ret;							\
 }
 
-#define ATOMIC_FETCH_OP(op, c_op)					\
-static inline int atomic_fetch_##op(int i, atomic_t *v)			\
-{									\
-	unsigned long flags;						\
-	int ret;							\
-									\
-	raw_local_irq_save(flags);					\
-	ret = v->counter;						\
-	v->counter = v->counter c_op i;					\
-	raw_local_irq_restore(flags);					\
-									\
-	return ret;							\
-}
-
 #endif /* CONFIG_SMP */
 
 #ifndef atomic_add_return
@@ -120,26 +96,6 @@ ATOMIC_OP_RETURN(add, +)
 
 #ifndef atomic_sub_return
 ATOMIC_OP_RETURN(sub, -)
-#endif
-
-#ifndef atomic_fetch_add
-ATOMIC_FETCH_OP(add, +)
-#endif
-
-#ifndef atomic_fetch_sub
-ATOMIC_FETCH_OP(sub, -)
-#endif
-
-#ifndef atomic_fetch_and
-ATOMIC_FETCH_OP(and, &)
-#endif
-
-#ifndef atomic_fetch_or
-ATOMIC_FETCH_OP(or, |)
-#endif
-
-#ifndef atomic_fetch_xor
-ATOMIC_FETCH_OP(xor, ^)
 #endif
 
 #ifndef atomic_and
@@ -154,7 +110,6 @@ ATOMIC_OP(or, |)
 ATOMIC_OP(xor, ^)
 #endif
 
-#undef ATOMIC_FETCH_OP
 #undef ATOMIC_OP_RETURN
 #undef ATOMIC_OP
 
@@ -221,7 +176,6 @@ static inline void atomic_dec(atomic_t *v)
 #define atomic_xchg(ptr, v)		(xchg(&(ptr)->counter, (v)))
 #define atomic_cmpxchg(v, old, new)	(cmpxchg(&((v)->counter), (old), (new)))
 
-#ifndef __atomic_add_unless
 static inline int __atomic_add_unless(atomic_t *v, int a, int u)
 {
 	int c, old;
@@ -230,6 +184,5 @@ static inline int __atomic_add_unless(atomic_t *v, int a, int u)
 		c = old;
 	return c;
 }
-#endif
 
 #endif /* __ASM_GENERIC_ATOMIC_H */

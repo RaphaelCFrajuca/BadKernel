@@ -301,7 +301,7 @@ exit:
 	return ret;
 }
 
-static const struct rtc_class_ops mtk_rtc_ops = {
+static struct rtc_class_ops mtk_rtc_ops = {
 	.read_time  = mtk_rtc_read_time,
 	.set_time   = mtk_rtc_set_time,
 	.read_alarm = mtk_rtc_read_alarm,
@@ -322,9 +322,10 @@ static int mtk_rtc_probe(struct platform_device *pdev)
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	rtc->addr_base = res->start;
 
-	rtc->irq = platform_get_irq(pdev, 0);
-	if (rtc->irq < 0)
-		return rtc->irq;
+	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+	rtc->irq = irq_create_mapping(mt6397_chip->irq_domain, res->start);
+	if (rtc->irq <= 0)
+		return -EINVAL;
 
 	rtc->regmap = mt6397_chip->regmap;
 	rtc->dev = &pdev->dev;
@@ -418,3 +419,4 @@ module_platform_driver(mtk_rtc_driver);
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Tianping Fang <tianping.fang@mediatek.com>");
 MODULE_DESCRIPTION("RTC Driver for MediaTek MT6397 PMIC");
+MODULE_ALIAS("platform:mt6397-rtc");

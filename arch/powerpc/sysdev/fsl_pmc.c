@@ -85,4 +85,8 @@ static struct platform_driver pmc_driver = {
 	.probe = pmc_probe,
 };
 
-builtin_platform_driver(pmc_driver);
+static int __init pmc_init(void)
+{
+	return platform_driver_register(&pmc_driver);
+}
+device_initcall(pmc_init);

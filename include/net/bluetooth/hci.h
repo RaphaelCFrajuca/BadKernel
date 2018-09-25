@@ -61,12 +61,9 @@
 #define HCI_RS232	4
 #define HCI_PCI		5
 #define HCI_SDIO	6
-#define HCI_SPI		7
-#define HCI_I2C		8
-#define HCI_SMD		9
 
 /* HCI controller types */
-#define HCI_PRIMARY	0x00
+#define HCI_BREDR	0x00
 #define HCI_AMP		0x01
 
 /* First BR/EDR Controller shall have ID = 0 */
@@ -208,11 +205,7 @@ enum {
 	HCI_MGMT_INDEX_EVENTS,
 	HCI_MGMT_UNCONF_INDEX_EVENTS,
 	HCI_MGMT_EXT_INDEX_EVENTS,
-	HCI_MGMT_EXT_INFO_EVENTS,
-	HCI_MGMT_OPTION_EVENTS,
-	HCI_MGMT_SETTING_EVENTS,
-	HCI_MGMT_DEV_CLASS_EVENTS,
-	HCI_MGMT_LOCAL_NAME_EVENTS,
+	HCI_MGMT_GENERIC_EVENTS,
 	HCI_MGMT_OOB_DATA_EVENTS,
 };
 
@@ -240,13 +233,13 @@ enum {
 	HCI_SC_ENABLED,
 	HCI_SC_ONLY,
 	HCI_PRIVACY,
-	HCI_LIMITED_PRIVACY,
 	HCI_RPA_EXPIRED,
 	HCI_RPA_RESOLVING,
 	HCI_HS_ENABLED,
 	HCI_LE_ENABLED,
 	HCI_ADVERTISING,
 	HCI_ADVERTISING_CONNECTABLE,
+	HCI_ADVERTISING_INSTANCE,
 	HCI_CONNECTABLE,
 	HCI_DISCOVERABLE,
 	HCI_LIMITED_DISCOVERABLE,
@@ -273,7 +266,7 @@ enum {
 #define HCI_AUTO_OFF_TIMEOUT	msecs_to_jiffies(2000)	/* 2 seconds */
 #define HCI_POWER_OFF_TIMEOUT	msecs_to_jiffies(5000)	/* 5 seconds */
 #define HCI_LE_CONN_TIMEOUT	msecs_to_jiffies(20000)	/* 20 seconds */
-#define HCI_LE_AUTOCONN_TIMEOUT	msecs_to_jiffies(4000)	/* 4 seconds */
+#define HCI_LE_AUTOCONN_TIMEOUT	msecs_to_jiffies(2000)	/* 2 seconds */
 
 /* HCI data types */
 #define HCI_COMMAND_PKT		0x01
@@ -399,7 +392,6 @@ enum {
 #define HCI_LE_PING			0x10
 #define HCI_LE_DATA_LEN_EXT		0x20
 #define HCI_LE_EXT_SCAN_POLICY		0x80
-#define HCI_LE_CHAN_SEL_ALG2		0x40
 
 /* Connection modes */
 #define HCI_CM_ACTIVE	0x0000
@@ -451,7 +443,6 @@ enum {
 /* ---- HCI Error Codes ---- */
 #define HCI_ERROR_UNKNOWN_CONN_ID	0x02
 #define HCI_ERROR_AUTH_FAILURE		0x05
-#define HCI_ERROR_PIN_OR_KEY_MISSING	0x06
 #define HCI_ERROR_MEMORY_EXCEEDED	0x07
 #define HCI_ERROR_CONNECTION_TIMEOUT	0x08
 #define HCI_ERROR_REJ_LIMITED_RESOURCES	0x0d
@@ -461,8 +452,7 @@ enum {
 #define HCI_ERROR_REMOTE_POWER_OFF	0x15
 #define HCI_ERROR_LOCAL_HOST_TERM	0x16
 #define HCI_ERROR_PAIRING_NOT_ALLOWED	0x18
-#define HCI_ERROR_INVALID_LL_PARAMS	0x1e
-#define HCI_ERROR_UNSPECIFIED		0x1f
+#define HCI_ERROR_INVALID_LL_PARAMS	0x1E
 #define HCI_ERROR_ADVERTISING_TIMEOUT	0x3c
 
 /* Flow control modes */
@@ -1497,13 +1487,6 @@ struct hci_rp_le_read_max_data_len {
 	__le16	tx_time;
 	__le16	rx_len;
 	__le16	rx_time;
-} __packed;
-
-#define HCI_OP_LE_SET_DEFAULT_PHY	0x2031
-struct hci_cp_le_set_default_phy {
-	__u8    all_phys;
-	__u8    tx_phys;
-	__u8    rx_phys;
 } __packed;
 
 /* ---- HCI Events ---- */

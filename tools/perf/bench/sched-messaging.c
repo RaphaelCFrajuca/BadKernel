@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *
  * sched-messaging.c
@@ -12,7 +11,7 @@
 
 #include "../perf.h"
 #include "../util/util.h"
-#include <subcmd/parse-options.h>
+#include "../util/parse-options.h"
 #include "../builtin.h"
 #include "bench.h"
 
@@ -30,7 +29,6 @@
 #include <poll.h>
 #include <limits.h>
 #include <err.h>
-#include <linux/time64.h>
 
 #define DATASIZE 100
 
@@ -261,7 +259,8 @@ static const char * const bench_sched_message_usage[] = {
 	NULL
 };
 
-int bench_sched_messaging(int argc, const char **argv)
+int bench_sched_messaging(int argc, const char **argv,
+		    const char *prefix __maybe_unused)
 {
 	unsigned int i, total_children;
 	struct timeval start, stop, diff;
@@ -313,11 +312,11 @@ int bench_sched_messaging(int argc, const char **argv)
 		       thread_mode ? "threads" : "processes");
 		printf(" %14s: %lu.%03lu [sec]\n", "Total time",
 		       diff.tv_sec,
-		       (unsigned long) (diff.tv_usec / USEC_PER_MSEC));
+		       (unsigned long) (diff.tv_usec/1000));
 		break;
 	case BENCH_FORMAT_SIMPLE:
 		printf("%lu.%03lu\n", diff.tv_sec,
-		       (unsigned long) (diff.tv_usec / USEC_PER_MSEC));
+		       (unsigned long) (diff.tv_usec/1000));
 		break;
 	default:
 		/* reaching here is something disaster */

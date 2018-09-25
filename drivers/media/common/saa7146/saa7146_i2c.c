@@ -1,7 +1,6 @@
-// SPDX-License-Identifier: GPL-2.0
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
-#include <media/drv-intf/saa7146_vv.h>
+#include <media/saa7146_vv.h>
 
 static u32 saa7146_i2c_func(struct i2c_adapter *adapter)
 {
@@ -308,7 +307,7 @@ static int saa7146_i2c_transfer(struct saa7146_dev *dev, const struct i2c_msg *m
 	/* prepare the message(s), get number of u32s to transfer */
 	count = saa7146_i2c_msg_prepare(msgs, num, buffer);
 	if ( 0 > count ) {
-		err = -EIO;
+		err = -1;
 		goto out;
 	}
 
@@ -360,7 +359,7 @@ static int saa7146_i2c_transfer(struct saa7146_dev *dev, const struct i2c_msg *m
 	/* if any things had to be read, get the results */
 	if ( 0 != saa7146_i2c_msg_cleanup(msgs, num, buffer)) {
 		DEB_I2C("could not cleanup i2c-message\n");
-		err = -EIO;
+		err = -1;
 		goto out;
 	}
 
@@ -396,7 +395,7 @@ static int saa7146_i2c_xfer(struct i2c_adapter* adapter, struct i2c_msg *msg, in
 /* i2c-adapter helper functions                                              */
 
 /* exported algorithm data */
-static const struct i2c_algorithm saa7146_algo = {
+static struct i2c_algorithm saa7146_algo = {
 	.master_xfer	= saa7146_i2c_xfer,
 	.functionality	= saa7146_i2c_func,
 };

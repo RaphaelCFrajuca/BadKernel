@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef UDLFB_H
 #define UDLFB_H
 
@@ -19,7 +18,7 @@ struct dloarea {
 
 struct urb_node {
 	struct list_head entry;
-	struct dlfb_data *dlfb;
+	struct dlfb_data *dev;
 	struct delayed_work release_urb_work;
 	struct urb *urb;
 };
@@ -35,6 +34,7 @@ struct urb_list {
 
 struct dlfb_data {
 	struct usb_device *udev;
+	struct device *gdev; /* &udev->dev */
 	struct fb_info *info;
 	struct urb_list urbs;
 	struct kref kref;
@@ -92,6 +92,6 @@ struct dlfb_data {
 
 /* remove these once align.h patch is taken into kernel */
 #define DL_ALIGN_UP(x, a) ALIGN(x, a)
-#define DL_ALIGN_DOWN(x, a) ALIGN_DOWN(x, a)
+#define DL_ALIGN_DOWN(x, a) ALIGN(x-(a-1), a)
 
 #endif

@@ -32,6 +32,7 @@ static int pata_of_platform_probe(struct platform_device *ofdev)
 	unsigned int reg_shift = 0;
 	int pio_mode = 0;
 	int pio_mask;
+	const u32 *prop;
 
 	ret = of_address_to_resource(dn, 0, &io_res);
 	if (ret) {
@@ -49,9 +50,13 @@ static int pata_of_platform_probe(struct platform_device *ofdev)
 
 	irq_res = platform_get_resource(ofdev, IORESOURCE_IRQ, 0);
 
-	of_property_read_u32(dn, "reg-shift", &reg_shift);
+	prop = of_get_property(dn, "reg-shift", NULL);
+	if (prop)
+		reg_shift = be32_to_cpup(prop);
 
-	if (!of_property_read_u32(dn, "pio-mode", &pio_mode)) {
+	prop = of_get_property(dn, "pio-mode", NULL);
+	if (prop) {
+		pio_mode = be32_to_cpup(prop);
 		if (pio_mode > 6) {
 			dev_err(&ofdev->dev, "invalid pio-mode\n");
 			return -EINVAL;
@@ -67,7 +72,7 @@ static int pata_of_platform_probe(struct platform_device *ofdev)
 				     reg_shift, pio_mask, &pata_platform_sht);
 }
 
-static const struct of_device_id pata_of_platform_match[] = {
+static struct of_device_id pata_of_platform_match[] = {
 	{ .compatible = "ata-generic", },
 	{ },
 };

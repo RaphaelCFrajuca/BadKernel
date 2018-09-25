@@ -148,7 +148,7 @@ static inline void bfchg_mem_change_bit(int nr, volatile unsigned long *vaddr)
 #define __change_bit(nr, vaddr)	change_bit(nr, vaddr)
 
 
-static inline int test_bit(int nr, const volatile unsigned long *vaddr)
+static inline int test_bit(int nr, const unsigned long *vaddr)
 {
 	return (vaddr[nr >> 5] & (1UL << (nr & 31))) != 0;
 }
@@ -311,6 +311,7 @@ static inline int bfchg_mem_test_and_change_bit(int nr,
  *	functions.
  */
 #if defined(CONFIG_CPU_HAS_NO_BITFIELDS)
+#include <asm-generic/bitops/find.h>
 #include <asm-generic/bitops/ffz.h>
 #else
 
@@ -439,8 +440,6 @@ static inline unsigned long ffz(unsigned long word)
 }
 
 #endif
-
-#include <asm-generic/bitops/find.h>
 
 #ifdef __KERNEL__
 

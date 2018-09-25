@@ -119,7 +119,7 @@ static void rtas_teardown_msi_irqs(struct pci_dev *pdev)
 	struct msi_desc *entry;
 
 	for_each_pci_msi_entry(entry, pdev) {
-		if (!entry->irq)
+		if (entry->irq == NO_IRQ)
 			continue;
 
 		irq_set_msi_desc(entry->irq, NULL);
@@ -132,14 +132,19 @@ static void rtas_teardown_msi_irqs(struct pci_dev *pdev)
 static int check_req(struct pci_dev *pdev, int nvec, char *prop_name)
 {
 	struct device_node *dn;
+	struct pci_dn *pdn;
 	const __be32 *p;
 	u32 req_msi;
 
-	dn = pci_device_to_OF_node(pdev);
+	pdn = pci_get_pdn(pdev);
+	if (!pdn)
+		return -ENODEV;
+
+	dn = pdn->node;
 
 	p = of_get_property(dn, prop_name, NULL);
 	if (!p) {
-		pr_debug("rtas_msi: No %s on %pOF\n", prop_name, dn);
+		pr_debug("rtas_msi: No %s on %s\n", prop_name, dn->full_name);
 		return -ENOENT;
 	}
 
@@ -177,8 +182,8 @@ static struct device_node *find_pe_total_msi(struct pci_dev *dev, int *total)
 	while (dn) {
 		p = of_get_property(dn, "ibm,pe-total-#msi", NULL);
 		if (p) {
-			pr_debug("rtas_msi: found prop on dn %pOF\n",
-				dn);
+			pr_debug("rtas_msi: found prop on dn %s\n",
+				dn->full_name);
 			*total = be32_to_cpup(p);
 			return dn;
 		}
@@ -192,6 +197,7 @@ static struct device_node *find_pe_total_msi(struct pci_dev *dev, int *total)
 static struct device_node *find_pe_dn(struct pci_dev *dev, int *total)
 {
 	struct device_node *dn;
+	struct pci_dn *pdn;
 	struct eeh_dev *edev;
 
 	/* Found our PE and assume 8 at that point. */
@@ -204,7 +210,8 @@ static struct device_node *find_pe_dn(struct pci_dev *dev, int *total)
 	edev = pdn_to_eeh_dev(PCI_DN(dn));
 	if (edev->pe)
 		edev = list_first_entry(&edev->pe->edevs, struct eeh_dev, list);
-	dn = pci_device_to_OF_node(edev->pdev);
+	pdn = eeh_dev_to_pdn(edev);
+	dn = pdn ? pdn->node : NULL;
 	if (!dn)
 		return NULL;
 
@@ -215,7 +222,7 @@ static struct device_node *find_pe_dn(struct pci_dev *dev, int *total)
 
 	/* Hardcode of 8 for old firmwares */
 	*total = 8;
-	pr_debug("rtas_msi: using PE dn %pOF\n", dn);
+	pr_debug("rtas_msi: using PE dn %s\n", dn->full_name);
 
 	return dn;
 }
@@ -235,7 +242,7 @@ static void *count_non_bridge_devices(struct device_node *dn, void *data)
 	const __be32 *p;
 	u32 class;
 
-	pr_debug("rtas_msi: counting %pOF\n", dn);
+	pr_debug("rtas_msi: counting %s\n", dn->full_name);
 
 	p = of_get_property(dn, "class-code", NULL);
 	class = p ? be32_to_cpup(p) : 0;
@@ -293,12 +300,12 @@ static int msi_quota_for_device(struct pci_dev *dev, int request)
 		goto out;
 	}
 
-	pr_debug("rtas_msi: found PE %pOF\n", pe_dn);
+	pr_debug("rtas_msi: found PE %s\n", pe_dn->full_name);
 
 	memset(&counts, 0, sizeof(struct msi_counts));
 
 	/* Work out how many devices we have below this PE */
-	pci_traverse_device_nodes(pe_dn, count_non_bridge_devices, &counts);
+	traverse_pci_devices(pe_dn, count_non_bridge_devices, &counts);
 
 	if (counts.num_devices == 0) {
 		pr_err("rtas_msi: found 0 devices under PE for %s\n",
@@ -313,7 +320,7 @@ static int msi_quota_for_device(struct pci_dev *dev, int request)
 	/* else, we have some more calculating to do */
 	counts.requestor = pci_device_to_OF_node(dev);
 	counts.request = request;
-	pci_traverse_device_nodes(pe_dn, count_spare_msis, &counts);
+	traverse_pci_devices(pe_dn, count_spare_msis, &counts);
 
 	/* If the quota isn't an integer multiple of the total, we can
 	 * use the remainder as spare MSIs for anyone that wants them. */
@@ -464,7 +471,7 @@ again:
 
 		virq = irq_create_mapping(NULL, hwirq);
 
-		if (!virq) {
+		if (virq == NO_IRQ) {
 			pr_debug("rtas_msi: Failed mapping hwirq %d\n", hwirq);
 			return -ENOSPC;
 		}
@@ -483,7 +490,7 @@ again:
 static void rtas_msi_pci_irq_fixup(struct pci_dev *pdev)
 {
 	/* No LSI -> leave MSIs (if any) configured */
-	if (!pdev->irq) {
+	if (pdev->irq == NO_IRQ) {
 		dev_dbg(&pdev->dev, "rtas_msi: no LSI, nothing to do.\n");
 		return;
 	}

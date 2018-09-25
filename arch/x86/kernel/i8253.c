@@ -1,10 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * 8253/PIT functions
  *
  */
 #include <linux/clockchips.h>
-#include <linux/init.h>
+#include <linux/module.h>
 #include <linux/timex.h>
 #include <linux/i8253.h>
 

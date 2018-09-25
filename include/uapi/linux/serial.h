@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-1.0+ WITH Linux-syscall-note */
 /*
  * include/linux/serial.h
  *
@@ -70,7 +69,6 @@ struct serial_struct {
 #define SERIAL_IO_AU	  4
 #define SERIAL_IO_TSI	  5
 #define SERIAL_IO_MEM32BE 6
-#define SERIAL_IO_MEM16	7
 
 #define UART_CLEAR_FIFO		0x01
 #define UART_USE_FIFO		0x02
@@ -123,9 +121,6 @@ struct serial_rs485 {
 #define SER_RS485_RTS_AFTER_SEND	(1 << 2)	/* Logical level for
 							   RTS pin after sent*/
 #define SER_RS485_RX_DURING_TX		(1 << 4)
-#define SER_RS485_TERMINATE_BUS		(1 << 5)	/* Enable bus
-							   termination
-							   (if supported) */
 	__u32	delay_rts_before_send;	/* Delay before send (milliseconds) */
 	__u32	delay_rts_after_send;	/* Delay after send (milliseconds) */
 	__u32	padding[5];		/* Memory is cheap, new structs

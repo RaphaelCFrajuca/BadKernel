@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef	_I386_HW_BREAKPOINT_H
 #define	_I386_HW_BREAKPOINT_H
 

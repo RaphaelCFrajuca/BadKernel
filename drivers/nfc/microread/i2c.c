@@ -50,6 +50,8 @@ struct microread_i2c_phy {
 	struct i2c_client *i2c_dev;
 	struct nfc_hci_dev *hdev;
 
+	int irq;
+
 	int hard_fault;		/*
 				 * < 0 if hardware error occured (e.g. i2c err)
 				 * and prevents normal operation.
@@ -70,12 +72,12 @@ static void microread_i2c_add_len_crc(struct sk_buff *skb)
 	int len;
 
 	len = skb->len;
-	*(u8 *)skb_push(skb, 1) = len;
+	*skb_push(skb, 1) = len;
 
 	for (i = 0; i < skb->len; i++)
 		crc = crc ^ skb->data[i];
 
-	skb_put_u8(skb, crc);
+	*skb_put(skb, 1) = crc;
 }
 
 static void microread_i2c_remove_len_crc(struct sk_buff *skb)
@@ -173,7 +175,7 @@ static int microread_i2c_read(struct microread_i2c_phy *phy,
 		goto flush;
 	}
 
-	skb_put_u8(*skb, len);
+	*skb_put(*skb, 1) = len;
 
 	r = i2c_master_recv(client, skb_put(*skb, len), len);
 	if (r != len) {
@@ -246,9 +248,17 @@ static int microread_i2c_probe(struct i2c_client *client,
 			       const struct i2c_device_id *id)
 {
 	struct microread_i2c_phy *phy;
+	struct microread_nfc_platform_data *pdata =
+		dev_get_platdata(&client->dev);
 	int r;
 
 	dev_dbg(&client->dev, "client %p\n", client);
+
+	if (!pdata) {
+		nfc_err(&client->dev, "client %p: missing platform data\n",
+			client);
+		return -EINVAL;
+	}
 
 	phy = devm_kzalloc(&client->dev, sizeof(struct microread_i2c_phy),
 			   GFP_KERNEL);
@@ -294,7 +304,7 @@ static int microread_i2c_remove(struct i2c_client *client)
 	return 0;
 }
 
-static const struct i2c_device_id microread_i2c_id[] = {
+static struct i2c_device_id microread_i2c_id[] = {
 	{ MICROREAD_I2C_DRIVER_NAME, 0},
 	{ }
 };

@@ -20,6 +20,7 @@
 #include <net/nfc/nci_core.h>
 
 #include "st-nci.h"
+#include "ndlc.h"
 
 #define NDLC_TIMER_T1		100
 #define NDLC_TIMER_T1_WAIT	400
@@ -87,7 +88,7 @@ int ndlc_send(struct llt_ndlc *ndlc, struct sk_buff *skb)
 	u8 pcb = PCB_TYPE_DATAFRAME | PCB_DATAFRAME_RETRANSMIT_NO |
 		PCB_FRAME_CRC_INFO_NOTPRESENT;
 
-	*(u8 *)skb_push(skb, 1) = pcb;
+	*skb_push(skb, 1) = pcb;
 	skb_queue_tail(&ndlc->send_q, skb);
 
 	schedule_work(&ndlc->sm_work);
@@ -246,18 +247,18 @@ void ndlc_recv(struct llt_ndlc *ndlc, struct sk_buff *skb)
 }
 EXPORT_SYMBOL(ndlc_recv);
 
-static void ndlc_t1_timeout(struct timer_list *t)
+static void ndlc_t1_timeout(unsigned long data)
 {
-	struct llt_ndlc *ndlc = from_timer(ndlc, t, t1_timer);
+	struct llt_ndlc *ndlc = (struct llt_ndlc *)data;
 
 	pr_debug("\n");
 
 	schedule_work(&ndlc->sm_work);
 }
 
-static void ndlc_t2_timeout(struct timer_list *t)
+static void ndlc_t2_timeout(unsigned long data)
 {
-	struct llt_ndlc *ndlc = from_timer(ndlc, t, t2_timer);
+	struct llt_ndlc *ndlc = (struct llt_ndlc *)data;
 
 	pr_debug("\n");
 
@@ -282,8 +283,13 @@ int ndlc_probe(void *phy_id, struct nfc_phy_ops *phy_ops, struct device *dev,
 	*ndlc_id = ndlc;
 
 	/* initialize timers */
-	timer_setup(&ndlc->t1_timer, ndlc_t1_timeout, 0);
-	timer_setup(&ndlc->t2_timer, ndlc_t2_timeout, 0);
+	init_timer(&ndlc->t1_timer);
+	ndlc->t1_timer.data = (unsigned long)ndlc;
+	ndlc->t1_timer.function = ndlc_t1_timeout;
+
+	init_timer(&ndlc->t2_timer);
+	ndlc->t2_timer.data = (unsigned long)ndlc;
+	ndlc->t2_timer.function = ndlc_t2_timeout;
 
 	skb_queue_head_init(&ndlc->rcv_q);
 	skb_queue_head_init(&ndlc->send_q);

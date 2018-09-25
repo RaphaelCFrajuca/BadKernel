@@ -1,5 +1,4 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-2.0
 # description: ftrace - function graph filters
 
 # Make sure that function graph filtering works
@@ -18,7 +17,7 @@ do_reset() {
 fail() { # msg
     do_reset
     echo $1
-    exit_fail
+    exit $FAIL
 }
 
 disable_tracing

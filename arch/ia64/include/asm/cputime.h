@@ -18,7 +18,11 @@
 #ifndef __IA64_CPUTIME_H
 #define __IA64_CPUTIME_H
 
-#ifdef CONFIG_VIRT_CPU_ACCOUNTING_NATIVE
+#ifndef CONFIG_VIRT_CPU_ACCOUNTING_NATIVE
+# include <asm-generic/cputime.h>
+#else
+# include <asm/processor.h>
+# include <asm-generic/cputime_nsecs.h>
 extern void arch_vtime_task_switch(struct task_struct *tsk);
 #endif /* CONFIG_VIRT_CPU_ACCOUNTING_NATIVE */
 

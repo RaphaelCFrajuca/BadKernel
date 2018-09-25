@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 # Makefile for the AVM ISDN device drivers
 
 # Each configuration option enables a list of files.

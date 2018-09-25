@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __CODA_PSDEV_H
 #define __CODA_PSDEV_H
 
@@ -16,6 +15,7 @@ struct venus_comm {
 	struct list_head    vc_processing;
 	int                 vc_inuse;
 	struct super_block *vc_sb;
+	struct backing_dev_info bdi;
 	struct mutex	    vc_mutex;
 };
 

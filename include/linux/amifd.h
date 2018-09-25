@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _AMIFD_H
 #define _AMIFD_H
 

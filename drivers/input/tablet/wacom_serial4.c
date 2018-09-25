@@ -594,7 +594,7 @@ free_device:
 	return err;
 }
 
-static const struct serio_device_id wacom_serio_ids[] = {
+static struct serio_device_id wacom_serio_ids[] = {
 	{
 		.type	= SERIO_RS232,
 		.proto	= SERIO_WACOM_IV,

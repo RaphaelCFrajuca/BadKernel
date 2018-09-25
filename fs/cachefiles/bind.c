@@ -20,7 +20,6 @@
 #include <linux/mount.h>
 #include <linux/statfs.h>
 #include <linux/ctype.h>
-#include <linux/xattr.h>
 #include "internal.h"
 
 static int cachefiles_daemon_add_cache(struct cachefiles_cache *caches);
@@ -127,13 +126,14 @@ static int cachefiles_daemon_add_cache(struct cachefiles_cache *cache)
 	if (d_is_negative(root) ||
 	    !d_backing_inode(root)->i_op->lookup ||
 	    !d_backing_inode(root)->i_op->mkdir ||
-	    !(d_backing_inode(root)->i_opflags & IOP_XATTR) ||
+	    !d_backing_inode(root)->i_op->setxattr ||
+	    !d_backing_inode(root)->i_op->getxattr ||
 	    !root->d_sb->s_op->statfs ||
 	    !root->d_sb->s_op->sync_fs)
 		goto error_unsupported;
 
 	ret = -EROFS;
-	if (sb_rdonly(root->d_sb))
+	if (root->d_sb->s_flags & MS_RDONLY)
 		goto error_unsupported;
 
 	/* determine the security of the on-disk cache as this governs

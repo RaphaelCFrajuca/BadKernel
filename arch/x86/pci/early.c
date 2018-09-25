@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/kernel.h>
 #include <linux/pci.h>
 #include <asm/pci-direct.h>
@@ -59,15 +58,24 @@ int early_pci_allowed(void)
 
 void early_dump_pci_device(u8 bus, u8 slot, u8 func)
 {
-	u32 value[256 / 4];
 	int i;
+	int j;
+	u32 val;
 
-	pr_info("pci 0000:%02x:%02x.%d config space:\n", bus, slot, func);
+	printk(KERN_INFO "pci 0000:%02x:%02x.%d config space:",
+	       bus, slot, func);
 
-	for (i = 0; i < 256; i += 4)
-		value[i / 4] = read_pci_config(bus, slot, func, i);
+	for (i = 0; i < 256; i += 4) {
+		if (!(i & 0x0f))
+			printk("\n  %02x:",i);
 
-	print_hex_dump(KERN_INFO, "", DUMP_PREFIX_OFFSET, 16, 1, value, 256, false);
+		val = read_pci_config(bus, slot, func, i);
+		for (j = 0; j < 4; j++) {
+			printk(" %02x", val & 0xff);
+			val >>= 8;
+		}
+	}
+	printk("\n");
 }
 
 void early_dump_pci_devices(void)

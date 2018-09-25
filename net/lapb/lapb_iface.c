@@ -33,7 +33,7 @@
 #include <linux/skbuff.h>
 #include <linux/slab.h>
 #include <net/sock.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <linux/fcntl.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
@@ -54,12 +54,12 @@ static void lapb_free_cb(struct lapb_cb *lapb)
 
 static __inline__ void lapb_hold(struct lapb_cb *lapb)
 {
-	refcount_inc(&lapb->refcnt);
+	atomic_inc(&lapb->refcnt);
 }
 
 static __inline__ void lapb_put(struct lapb_cb *lapb)
 {
-	if (refcount_dec_and_test(&lapb->refcnt))
+	if (atomic_dec_and_test(&lapb->refcnt))
 		lapb_free_cb(lapb);
 }
 
@@ -127,8 +127,8 @@ static struct lapb_cb *lapb_create_cb(void)
 	skb_queue_head_init(&lapb->write_queue);
 	skb_queue_head_init(&lapb->ack_queue);
 
-	timer_setup(&lapb->t1timer, NULL, 0);
-	timer_setup(&lapb->t2timer, NULL, 0);
+	init_timer(&lapb->t1timer);
+	init_timer(&lapb->t2timer);
 
 	lapb->t1      = LAPB_DEFAULT_T1;
 	lapb->t2      = LAPB_DEFAULT_T2;
@@ -136,7 +136,7 @@ static struct lapb_cb *lapb_create_cb(void)
 	lapb->mode    = LAPB_DEFAULT_MODE;
 	lapb->window  = LAPB_DEFAULT_WINDOW;
 	lapb->state   = LAPB_STATE_0;
-	refcount_set(&lapb->refcnt, 1);
+	atomic_set(&lapb->refcnt, 1);
 out:
 	return lapb;
 }

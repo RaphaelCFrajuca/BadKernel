@@ -31,7 +31,6 @@
 #include <linux/types.h>
 #include <linux/vmalloc.h>
 #include <linux/init.h>
-#include <linux/mm_types.h>
 
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
@@ -127,7 +126,7 @@ void __iomem *ioremap(phys_addr_t addr, unsigned long size)
 }
 EXPORT_SYMBOL(ioremap);
 
-void iounmap(volatile void __iomem *addr)
+void iounmap(void __iomem *addr)
 {
 	if ((__force void *)addr > high_memory &&
 					(unsigned long) addr < ioremap_bot)
@@ -235,12 +234,13 @@ unsigned long iopa(unsigned long addr)
 	return pa;
 }
 
-__ref pte_t *pte_alloc_one_kernel(struct mm_struct *mm,
+__init_refok pte_t *pte_alloc_one_kernel(struct mm_struct *mm,
 		unsigned long address)
 {
 	pte_t *pte;
 	if (mem_init_done) {
-		pte = (pte_t *)__get_free_page(GFP_KERNEL | __GFP_ZERO);
+		pte = (pte_t *)__get_free_page(GFP_KERNEL |
+					__GFP_REPEAT | __GFP_ZERO);
 	} else {
 		pte = (pte_t *)early_get_page();
 		if (pte)

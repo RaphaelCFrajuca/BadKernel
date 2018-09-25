@@ -3,14 +3,13 @@
  *
  *  This file contains the SELinux security data structures for kernel objects.
  *
- *  Author(s):  Stephen Smalley, <sds@tycho.nsa.gov>
+ *  Author(s):  Stephen Smalley, <sds@epoch.ncsc.mil>
  *		Chris Vance, <cvance@nai.com>
  *		Wayne Salamon, <wsalamon@nai.com>
  *		James Morris <jmorris@redhat.com>
  *
  *  Copyright (C) 2001,2002 Networks Associates Technology, Inc.
  *  Copyright (C) 2003 Red Hat, Inc., James Morris <jmorris@redhat.com>
- *  Copyright (C) 2016 Mellanox Technologies
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License version 2,
@@ -41,22 +40,6 @@ struct task_security_struct {
 #endif
 };
 
-/*
- * get the subjective security ID of the current task
- */
-static inline u32 current_sid(void)
-{
-	const struct task_security_struct *tsec = current_security();
-
-	return tsec->sid;
-}
-
-enum label_initialized {
-	LABEL_INVALID,		/* invalid or not initialized */
-	LABEL_INITIALIZED,	/* initialized */
-	LABEL_PENDING
-};
-
 struct inode_security_struct {
 	struct inode *inode;	/* back pointer to inode object */
 	union {
@@ -67,7 +50,7 @@ struct inode_security_struct {
 	u32 sid;		/* SID of this object */
 	u16 sclass;		/* security class of this object */
 	unsigned char initialized;	/* initialization flag */
-	spinlock_t lock;
+	struct mutex lock;
 };
 
 struct file_security_struct {
@@ -133,10 +116,6 @@ struct sk_security_struct {
 	u32 sid;			/* SID of this object */
 	u32 peer_sid;			/* SID of peer */
 	u16 sclass;			/* sock security class */
-	enum {				/* SCTP association state */
-		SCTP_ASSOC_UNSET = 0,
-		SCTP_ASSOC_SET,
-	} sctp_assoc_state;
 };
 
 struct tun_security_struct {
@@ -147,18 +126,6 @@ struct key_security_struct {
 	u32 sid;	/* SID of key */
 };
 
-struct ib_security_struct {
-	u32 sid;        /* SID of the queue pair or MAD agent */
-};
-
-struct pkey_security_struct {
-	u64	subnet_prefix; /* Port subnet prefix */
-	u16	pkey;	/* PKey number */
-	u32	sid;	/* SID of pkey */
-};
-
-struct bpf_security_struct {
-	u32 sid;  /*SID of bpf obj creater*/
-};
+extern unsigned int selinux_checkreqprot;
 
 #endif /* _SELINUX_OBJSEC_H_ */

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM spi
 
@@ -8,37 +7,37 @@
 #include <linux/ktime.h>
 #include <linux/tracepoint.h>
 
-DECLARE_EVENT_CLASS(spi_controller,
+DECLARE_EVENT_CLASS(spi_master,
 
-	TP_PROTO(struct spi_controller *controller),
+	TP_PROTO(struct spi_master *master),
 
-	TP_ARGS(controller),
+	TP_ARGS(master),
 
 	TP_STRUCT__entry(
 		__field(        int,           bus_num             )
 	),
 
 	TP_fast_assign(
-		__entry->bus_num = controller->bus_num;
+		__entry->bus_num = master->bus_num;
 	),
 
 	TP_printk("spi%d", (int)__entry->bus_num)
 
 );
 
-DEFINE_EVENT(spi_controller, spi_controller_idle,
+DEFINE_EVENT(spi_master, spi_master_idle,
 
-	TP_PROTO(struct spi_controller *controller),
+	TP_PROTO(struct spi_master *master),
 
-	TP_ARGS(controller)
+	TP_ARGS(master)
 
 );
 
-DEFINE_EVENT(spi_controller, spi_controller_busy,
+DEFINE_EVENT(spi_master, spi_master_busy,
 
-	TP_PROTO(struct spi_controller *controller),
+	TP_PROTO(struct spi_master *master),
 
-	TP_ARGS(controller)
+	TP_ARGS(master)
 
 );
 
@@ -55,7 +54,7 @@ DECLARE_EVENT_CLASS(spi_message,
 	),
 
 	TP_fast_assign(
-		__entry->bus_num = msg->spi->controller->bus_num;
+		__entry->bus_num = msg->spi->master->bus_num;
 		__entry->chip_select = msg->spi->chip_select;
 		__entry->msg = msg;
 	),
@@ -96,7 +95,7 @@ TRACE_EVENT(spi_message_done,
 	),
 
 	TP_fast_assign(
-		__entry->bus_num = msg->spi->controller->bus_num;
+		__entry->bus_num = msg->spi->master->bus_num;
 		__entry->chip_select = msg->spi->chip_select;
 		__entry->msg = msg;
 		__entry->frame = msg->frame_length;
@@ -123,7 +122,7 @@ DECLARE_EVENT_CLASS(spi_transfer,
 	),
 
 	TP_fast_assign(
-		__entry->bus_num = msg->spi->controller->bus_num;
+		__entry->bus_num = msg->spi->master->bus_num;
 		__entry->chip_select = msg->spi->chip_select;
 		__entry->xfer = xfer;
 		__entry->len = xfer->len;

@@ -48,6 +48,7 @@ struct loop_device {
 
 	struct file *	lo_backing_file;
 	struct block_device *lo_device;
+	unsigned	lo_blocksize;
 	void		*key_data; 
 
 	gfp_t		old_gfp_mask;
@@ -67,12 +68,10 @@ struct loop_device {
 
 struct loop_cmd {
 	struct kthread_work work;
-	bool use_aio; /* use AIO interface to handle I/O */
-	atomic_t ref; /* only for aio */
-	long ret;
+	struct request *rq;
+	struct list_head list;
+	bool use_aio;           /* use AIO interface to handle I/O */
 	struct kiocb iocb;
-	struct bio_vec *bvec;
-	struct cgroup_subsys_state *css;
 };
 
 /* Support for loadable transfer modules */

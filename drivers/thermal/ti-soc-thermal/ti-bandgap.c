@@ -1010,7 +1010,7 @@ ti_bandgap_force_single_read(struct ti_bandgap *bgp, int id)
 }
 
 /**
- * ti_bandgap_set_continuous_mode() - One time enabling of continuous mode
+ * ti_bandgap_set_continous_mode() - One time enabling of continuous mode
  * @bgp: pointer to struct ti_bandgap
  *
  * Call this function only if HAS(MODE_CONFIG) is set. As this driver may
@@ -1214,18 +1214,22 @@ static struct ti_bandgap *ti_bandgap_build(struct platform_device *pdev)
 	}
 
 	bgp = devm_kzalloc(&pdev->dev, sizeof(*bgp), GFP_KERNEL);
-	if (!bgp)
+	if (!bgp) {
+		dev_err(&pdev->dev, "Unable to allocate mem for driver ref\n");
 		return ERR_PTR(-ENOMEM);
+	}
 
 	of_id = of_match_device(of_ti_bandgap_match, &pdev->dev);
 	if (of_id)
 		bgp->conf = of_id->data;
 
 	/* register shadow for context save and restore */
-	bgp->regval = devm_kcalloc(&pdev->dev, bgp->conf->sensor_count,
-				   sizeof(*bgp->regval), GFP_KERNEL);
-	if (!bgp->regval)
+	bgp->regval = devm_kzalloc(&pdev->dev, sizeof(*bgp->regval) *
+				   bgp->conf->sensor_count, GFP_KERNEL);
+	if (!bgp->regval) {
+		dev_err(&pdev->dev, "Unable to allocate mem for driver ref\n");
 		return ERR_PTR(-ENOMEM);
+	}
 
 	i = 0;
 	do {
@@ -1261,7 +1265,7 @@ static
 int ti_bandgap_probe(struct platform_device *pdev)
 {
 	struct ti_bandgap *bgp;
-	int clk_rate, ret, i;
+	int clk_rate, ret = 0, i;
 
 	bgp = ti_bandgap_build(pdev);
 	if (IS_ERR(bgp)) {
@@ -1284,17 +1288,19 @@ int ti_bandgap_probe(struct platform_device *pdev)
 	}
 
 	bgp->fclock = clk_get(NULL, bgp->conf->fclock_name);
-	if (IS_ERR(bgp->fclock)) {
+	ret = IS_ERR(bgp->fclock);
+	if (ret) {
 		dev_err(&pdev->dev, "failed to request fclock reference\n");
 		ret = PTR_ERR(bgp->fclock);
 		goto free_irqs;
 	}
 
 	bgp->div_clk = clk_get(NULL, bgp->conf->div_ck_name);
-	if (IS_ERR(bgp->div_clk)) {
+	ret = IS_ERR(bgp->div_clk);
+	if (ret) {
 		dev_err(&pdev->dev, "failed to request div_ts_ck clock ref\n");
 		ret = PTR_ERR(bgp->div_clk);
-		goto put_fclock;
+		goto free_irqs;
 	}
 
 	for (i = 0; i < bgp->conf->sensor_count; i++) {
@@ -1308,7 +1314,7 @@ int ti_bandgap_probe(struct platform_device *pdev)
 		 * may not be accurate
 		 */
 		val = ti_bandgap_readl(bgp, tsr->bgap_efuse);
-		if (!val)
+		if (ret || !val)
 			dev_info(&pdev->dev,
 				 "Non-trimmed BGAP, Temp not accurate\n");
 	}
@@ -1426,9 +1432,8 @@ disable_clk:
 	if (TI_BANDGAP_HAS(bgp, CLK_CTRL))
 		clk_disable_unprepare(bgp->fclock);
 put_clks:
-	clk_put(bgp->div_clk);
-put_fclock:
 	clk_put(bgp->fclock);
+	clk_put(bgp->div_clk);
 free_irqs:
 	if (TI_BANDGAP_HAS(bgp, TSHUT)) {
 		free_irq(gpio_to_irq(bgp->tshut_gpio), NULL);

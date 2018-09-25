@@ -125,7 +125,7 @@ static const struct atp_info geyser4_info = {
  *  According to Info.plist Geyser IV is the same as Geyser III.)
  */
 
-static const struct usb_device_id atp_table[] = {
+static struct usb_device_id atp_table[] = {
 	/* PowerBooks Feb 2005, iBooks G4 */
 	ATP_DEVICE(0x020e, fountain_info),	/* FOUNTAIN ANSI */
 	ATP_DEVICE(0x020f, fountain_info),	/* FOUNTAIN ISO */
@@ -587,7 +587,7 @@ static void atp_complete_geyser_1_2(struct urb *urb)
 		/* Perform size detection, if not done already */
 		if (unlikely(!dev->size_detect_done)) {
 			atp_detect_size(dev);
-			dev->size_detect_done = true;
+			dev->size_detect_done = 1;
 			goto exit;
 		}
 	}
@@ -813,7 +813,7 @@ static int atp_open(struct input_dev *input)
 	if (usb_submit_urb(dev->urb, GFP_ATOMIC))
 		return -EIO;
 
-	dev->open = true;
+	dev->open = 1;
 	return 0;
 }
 
@@ -823,7 +823,7 @@ static void atp_close(struct input_dev *input)
 
 	usb_kill_urb(dev->urb);
 	cancel_work_sync(&dev->work);
-	dev->open = false;
+	dev->open = 0;
 }
 
 static int atp_handle_geyser(struct atp *dev)

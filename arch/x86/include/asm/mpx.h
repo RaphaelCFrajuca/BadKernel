@@ -1,10 +1,7 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_X86_MPX_H
 #define _ASM_X86_MPX_H
 
 #include <linux/types.h>
-#include <linux/mm_types.h>
-
 #include <asm/ptrace.h>
 #include <asm/insn.h>
 
@@ -62,7 +59,7 @@ siginfo_t *mpx_generate_siginfo(struct pt_regs *regs);
 int mpx_handle_bd_fault(void);
 static inline int kernel_managing_mpx_tables(struct mm_struct *mm)
 {
-	return (mm->context.bd_addr != MPX_INVALID_BOUNDS_DIR);
+	return (mm->bd_addr != MPX_INVALID_BOUNDS_DIR);
 }
 static inline void mpx_mm_init(struct mm_struct *mm)
 {
@@ -70,13 +67,10 @@ static inline void mpx_mm_init(struct mm_struct *mm)
 	 * NULL is theoretically a valid place to put the bounds
 	 * directory, so point this at an invalid address.
 	 */
-	mm->context.bd_addr = MPX_INVALID_BOUNDS_DIR;
+	mm->bd_addr = MPX_INVALID_BOUNDS_DIR;
 }
 void mpx_notify_unmap(struct mm_struct *mm, struct vm_area_struct *vma,
 		      unsigned long start, unsigned long end);
-
-unsigned long mpx_unmapped_area_check(unsigned long addr, unsigned long len,
-		unsigned long flags);
 #else
 static inline siginfo_t *mpx_generate_siginfo(struct pt_regs *regs)
 {
@@ -97,12 +91,6 @@ static inline void mpx_notify_unmap(struct mm_struct *mm,
 				    struct vm_area_struct *vma,
 				    unsigned long start, unsigned long end)
 {
-}
-
-static inline unsigned long mpx_unmapped_area_check(unsigned long addr,
-		unsigned long len, unsigned long flags)
-{
-	return addr;
 }
 #endif /* CONFIG_X86_INTEL_MPX */
 

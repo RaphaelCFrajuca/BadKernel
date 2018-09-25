@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * local apic based NMI watchdog for various CPUs.
  *
@@ -13,7 +12,7 @@
  */
 
 #include <linux/percpu.h>
-#include <linux/export.h>
+#include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/bitops.h>
 #include <linux/smp.h>

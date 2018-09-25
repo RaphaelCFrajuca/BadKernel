@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __IXP4XX_NPE_H
 #define __IXP4XX_NPE_H
 

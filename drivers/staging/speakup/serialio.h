@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _SPEAKUP_SERIAL_H
 #define _SPEAKUP_SERIAL_H
 
@@ -7,9 +6,6 @@
 #ifndef __sparc__
 #include <linux/serial.h>
 #endif
-#include <linux/serial_core.h>
-
-#include "spk_priv.h"
 
 /*
  * this is cut&paste from 8250.h. Get rid of the structure, the definitions
@@ -20,11 +16,11 @@ struct old_serial_port {
 	unsigned int baud_base;
 	unsigned int port;
 	unsigned int irq;
-	upf_t flags; /* unused */
+	unsigned int flags; /* unused */
 };
 
 /* countdown values for serial timeouts in us */
-#define SPK_SERIAL_TIMEOUT SPK_SYNTH_TIMEOUT
+#define SPK_SERIAL_TIMEOUT 100000
 /* countdown values transmitter/dsr timeouts in us */
 #define SPK_XMITR_TIMEOUT 100000
 /* countdown values cts timeouts in us */

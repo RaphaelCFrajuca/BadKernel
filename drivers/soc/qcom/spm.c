@@ -2,8 +2,6 @@
  * Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
  * Copyright (c) 2014,2015, Linaro Ltd.
  *
- * SAW power controller driver
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
  * only version 2 as published by the Free Software Foundation.
@@ -14,6 +12,7 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/io.h>
@@ -117,7 +116,7 @@ static const struct spm_reg_data spm_reg_8064_cpu = {
 
 static DEFINE_PER_CPU(struct spm_driver_data *, cpu_spm_drv);
 
-typedef int (*idle_fn)(void);
+typedef int (*idle_fn)(int);
 static DEFINE_PER_CPU(idle_fn*, qcom_idle_ops);
 
 static inline void spm_register_write(struct spm_driver_data *drv,
@@ -180,10 +179,10 @@ static int qcom_pm_collapse(unsigned long int unused)
 	return -1;
 }
 
-static int qcom_cpu_spc(void)
+static int qcom_cpu_spc(int cpu)
 {
 	int ret;
-	struct spm_driver_data *drv = __this_cpu_read(cpu_spm_drv);
+	struct spm_driver_data *drv = per_cpu(cpu_spm_drv, cpu);
 
 	spm_set_low_power_mode(drv, PM_SLEEP_MODE_SPC);
 	ret = cpu_suspend(0, qcom_pm_collapse);
@@ -198,9 +197,9 @@ static int qcom_cpu_spc(void)
 	return ret;
 }
 
-static int qcom_idle_enter(unsigned long index)
+static int qcom_idle_enter(int cpu, unsigned long index)
 {
-	return __this_cpu_read(qcom_idle_ops)[index]();
+	return per_cpu(qcom_idle_ops, cpu)[index](cpu);
 }
 
 static const struct of_device_id qcom_idle_state_match[] __initconst = {
@@ -275,7 +274,7 @@ check_spm:
 	return per_cpu(cpu_spm_drv, cpu) ? 0 : -ENXIO;
 }
 
-static const struct cpuidle_ops qcom_cpuidle_ops __initconst = {
+static struct cpuidle_ops qcom_cpuidle_ops __initdata = {
 	.suspend = qcom_idle_enter,
 	.init = qcom_cpuidle_init,
 };
@@ -379,5 +378,8 @@ static struct platform_driver spm_driver = {
 		.of_match_table = spm_match_table,
 	},
 };
+module_platform_driver(spm_driver);
 
-builtin_platform_driver(spm_driver);
+MODULE_LICENSE("GPL v2");
+MODULE_DESCRIPTION("SAW power controller driver");
+MODULE_ALIAS("platform:saw");

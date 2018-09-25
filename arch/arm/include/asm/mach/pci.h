@@ -16,17 +16,15 @@
 struct pci_sys_data;
 struct pci_ops;
 struct pci_bus;
-struct pci_host_bridge;
 struct device;
 
 struct hw_pci {
 	struct msi_controller *msi_ctrl;
 	struct pci_ops	*ops;
 	int		nr_controllers;
-	unsigned int	io_optional:1;
 	void		**private_data;
 	int		(*setup)(int nr, struct pci_sys_data *);
-	int		(*scan)(int nr, struct pci_host_bridge *);
+	struct pci_bus *(*scan)(int nr, struct pci_sys_data *);
 	void		(*preinit)(void);
 	void		(*postinit)(void);
 	u8		(*swizzle)(struct pci_dev *dev, u8 *pin);

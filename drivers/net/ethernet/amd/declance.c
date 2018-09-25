@@ -72,7 +72,7 @@
 #include <asm/dec/machtype.h>
 #include <asm/dec/system.h>
 
-static const char version[] =
+static char version[] =
 "declance.c: v0.011 by Linux MIPS DECstation task force\n";
 
 MODULE_AUTHOR("Linux MIPS DECstation task force");
@@ -260,7 +260,6 @@ struct lance_private {
 	unsigned short busmaster_regval;
 
 	struct timer_list       multicast_timer;
-	struct net_device	*dev;
 
 	/* Pointers to the ring buffers as seen from the CPU */
 	char *rx_buf_ptr_cpu[RX_RING_SIZE];
@@ -878,7 +877,7 @@ static inline int lance_reset(struct net_device *dev)
 
 	lance_init_ring(dev);
 	load_csrs(lp);
-	netif_trans_update(dev); /* prevent tx timeout */
+	dev->trans_start = jiffies; /* prevent tx timeout */
 	status = init_restart_lance(lp);
 	return status;
 }
@@ -1001,10 +1000,9 @@ static void lance_set_multicast(struct net_device *dev)
 	netif_wake_queue(dev);
 }
 
-static void lance_set_multicast_retry(struct timer_list *t)
+static void lance_set_multicast_retry(unsigned long _opaque)
 {
-	struct lance_private *lp = from_timer(lp, t, multicast_timer);
-	struct net_device *dev = lp->dev;
+	struct net_device *dev = (struct net_device *) _opaque;
 
 	lance_set_multicast(dev);
 }
@@ -1015,6 +1013,7 @@ static const struct net_device_ops lance_netdev_ops = {
 	.ndo_start_xmit		= lance_start_xmit,
 	.ndo_tx_timeout		= lance_tx_timeout,
 	.ndo_set_rx_mode	= lance_set_multicast,
+	.ndo_change_mtu		= eth_change_mtu,
 	.ndo_validate_addr	= eth_validate_addr,
 	.ndo_set_mac_address	= eth_mac_addr,
 };
@@ -1248,9 +1247,9 @@ static int dec_lance_probe(struct device *bdev, const int type)
 	 * can occur from interrupts (ex. IPv6).  So we
 	 * use a timer to try again later when necessary. -DaveM
 	 */
-	lp->dev = dev;
-	timer_setup(&lp->multicast_timer, lance_set_multicast_retry, 0);
-
+	init_timer(&lp->multicast_timer);
+	lp->multicast_timer.data = (unsigned long) dev;
+	lp->multicast_timer.function = lance_set_multicast_retry;
 
 	ret = register_netdev(dev);
 	if (ret) {
@@ -1276,6 +1275,18 @@ err_out_dev:
 
 err_out:
 	return ret;
+}
+
+static void __exit dec_lance_remove(struct device *bdev)
+{
+	struct net_device *dev = dev_get_drvdata(bdev);
+	resource_size_t start, len;
+
+	unregister_netdev(dev);
+	start = to_tc_dev(bdev)->resource.start;
+	len = to_tc_dev(bdev)->resource.end - start + 1;
+	release_mem_region(start, len);
+	free_netdev(dev);
 }
 
 /* Find all the lance cards on the system and initialize them */
@@ -1310,7 +1321,7 @@ static void __exit dec_lance_platform_remove(void)
 
 #ifdef CONFIG_TC
 static int dec_lance_tc_probe(struct device *dev);
-static int dec_lance_tc_remove(struct device *dev);
+static int __exit dec_lance_tc_remove(struct device *dev);
 
 static const struct tc_device_id dec_lance_tc_table[] = {
 	{ "DEC     ", "PMAD-AA " },
@@ -1324,7 +1335,7 @@ static struct tc_driver dec_lance_tc_driver = {
 		.name	= "declance",
 		.bus	= &tc_bus_type,
 		.probe	= dec_lance_tc_probe,
-		.remove	= dec_lance_tc_remove,
+		.remove	= __exit_p(dec_lance_tc_remove),
 	},
 };
 
@@ -1336,19 +1347,7 @@ static int dec_lance_tc_probe(struct device *dev)
         return status;
 }
 
-static void dec_lance_remove(struct device *bdev)
-{
-	struct net_device *dev = dev_get_drvdata(bdev);
-	resource_size_t start, len;
-
-	unregister_netdev(dev);
-	start = to_tc_dev(bdev)->resource.start;
-	len = to_tc_dev(bdev)->resource.end - start + 1;
-	release_mem_region(start, len);
-	free_netdev(dev);
-}
-
-static int dec_lance_tc_remove(struct device *dev)
+static int __exit dec_lance_tc_remove(struct device *dev)
 {
         put_device(dev);
         dec_lance_remove(dev);

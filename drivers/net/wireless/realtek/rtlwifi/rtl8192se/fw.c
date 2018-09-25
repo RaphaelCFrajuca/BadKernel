@@ -11,6 +11,10 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
  *
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
+ *
  * The full GNU General Public License is included in this distribution in the
  * file called LICENSE.
  *
@@ -113,7 +117,8 @@ static u8 _rtl92s_firmware_header_map_rftype(struct ieee80211_hw *hw)
 	case RF_2T2R:
 		return 0x22;
 	default:
-		pr_err("Unknown RF type(%x)\n", rtlphy->rf_type);
+		RT_TRACE(rtlpriv, COMP_INIT, DBG_EMERG, "Unknown RF type(%x)\n",
+			 rtlphy->rf_type);
 		break;
 	}
 	return 0x22;
@@ -167,7 +172,9 @@ static bool _rtl92s_firmware_downloadcode(struct ieee80211_hw *hw,
 	_rtl92s_fw_set_rqpn(hw);
 
 	if (buffer_len >= MAX_FIRMWARE_CODE_SIZE) {
-		pr_err("Size over FIRMWARE_CODE_SIZE!\n");
+		RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
+			 "Size over FIRMWARE_CODE_SIZE!\n");
+
 		return false;
 	}
 
@@ -188,9 +195,10 @@ static bool _rtl92s_firmware_downloadcode(struct ieee80211_hw *hw,
 		if (!skb)
 			return false;
 		skb_reserve(skb, extra_descoffset);
-		seg_ptr = skb_put_data(skb,
-				       code_virtual_address + frag_offset,
-				       (u32)(frag_length - extra_descoffset));
+		seg_ptr = (u8 *)skb_put(skb, (u32)(frag_length -
+					extra_descoffset));
+		memcpy(seg_ptr, code_virtual_address + frag_offset,
+		       (u32)(frag_length - extra_descoffset));
 
 		tcb_desc = (struct rtl_tcb_desc *)(skb->cb);
 		tcb_desc->queue_index = TXCMD_QUEUE;
@@ -235,8 +243,9 @@ static bool _rtl92s_firmware_checkready(struct ieee80211_hw *hw,
 		} while (pollingcnt--);
 
 		if (!(cpustatus & IMEM_CHK_RPT) || (pollingcnt <= 0)) {
-			pr_err("FW_STATUS_LOAD_IMEM FAIL CPU, Status=%x\n",
-			       cpustatus);
+			RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
+				 "FW_STATUS_LOAD_IMEM FAIL CPU, Status=%x\n",
+				 cpustatus);
 			goto status_check_fail;
 		}
 		break;
@@ -252,15 +261,17 @@ static bool _rtl92s_firmware_checkready(struct ieee80211_hw *hw,
 		} while (pollingcnt--);
 
 		if (!(cpustatus & EMEM_CHK_RPT) || (pollingcnt <= 0)) {
-			pr_err("FW_STATUS_LOAD_EMEM FAIL CPU, Status=%x\n",
-			       cpustatus);
+			RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
+				 "FW_STATUS_LOAD_EMEM FAIL CPU, Status=%x\n",
+				 cpustatus);
 			goto status_check_fail;
 		}
 
 		/* Turn On CPU */
 		rtstatus = _rtl92s_firmware_enable_cpu(hw);
 		if (!rtstatus) {
-			pr_err("Enable CPU fail!\n");
+			RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
+				 "Enable CPU fail!\n");
 			goto status_check_fail;
 		}
 		break;
@@ -275,8 +286,9 @@ static bool _rtl92s_firmware_checkready(struct ieee80211_hw *hw,
 		} while (pollingcnt--);
 
 		if (!(cpustatus & DMEM_CODE_DONE) || (pollingcnt <= 0)) {
-			pr_err("Polling DMEM code done fail ! cpustatus(%#x)\n",
-			       cpustatus);
+			RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
+				 "Polling DMEM code done fail ! cpustatus(%#x)\n",
+				 cpustatus);
 			goto status_check_fail;
 		}
 
@@ -300,8 +312,9 @@ static bool _rtl92s_firmware_checkready(struct ieee80211_hw *hw,
 
 		if (((cpustatus & LOAD_FW_READY) != LOAD_FW_READY) ||
 		    (pollingcnt <= 0)) {
-			pr_err("Polling Load Firmware ready fail ! cpustatus(%x)\n",
-			       cpustatus);
+			RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
+				 "Polling Load Firmware ready fail ! cpustatus(%x)\n",
+				 cpustatus);
 			goto status_check_fail;
 		}
 
@@ -322,7 +335,8 @@ static bool _rtl92s_firmware_checkready(struct ieee80211_hw *hw,
 		break;
 
 	default:
-		pr_err("Unknown status check!\n");
+		RT_TRACE(rtlpriv, COMP_INIT, DBG_EMERG,
+			 "Unknown status check!\n");
 		rtstatus = false;
 		break;
 	}
@@ -370,7 +384,8 @@ int rtl92s_download_fw(struct ieee80211_hw *hw)
 	/* 2. Retrieve IMEM image. */
 	if ((pfwheader->img_imem_size == 0) || (pfwheader->img_imem_size >
 	    sizeof(firmware->fw_imem))) {
-		pr_err("memory for data image is less than IMEM required\n");
+		RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
+			 "memory for data image is less than IMEM required\n");
 		goto fail;
 	} else {
 		puc_mappedfile += fwhdr_size;
@@ -382,7 +397,8 @@ int rtl92s_download_fw(struct ieee80211_hw *hw)
 
 	/* 3. Retriecve EMEM image. */
 	if (pfwheader->img_sram_size > sizeof(firmware->fw_emem)) {
-		pr_err("memory for data image is less than EMEM required\n");
+		RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
+			 "memory for data image is less than EMEM required\n");
 		goto fail;
 	} else {
 		puc_mappedfile += firmware->fw_imem_len;
@@ -416,7 +432,8 @@ int rtl92s_download_fw(struct ieee80211_hw *hw)
 					RT_8192S_FIRMWARE_HDR_EXCLUDE_PRI_SIZE;
 			break;
 		default:
-			pr_err("Unexpected Download step!!\n");
+			RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
+				 "Unexpected Download step!!\n");
 			goto fail;
 		}
 
@@ -425,14 +442,14 @@ int rtl92s_download_fw(struct ieee80211_hw *hw)
 				ul_filelength);
 
 		if (!rtstatus) {
-			pr_err("fail!\n");
+			RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG, "fail!\n");
 			goto fail;
 		}
 
 		/* <3> Check whether load FW process is ready */
 		rtstatus = _rtl92s_firmware_checkready(hw, fwstatus);
 		if (!rtstatus) {
-			pr_err("rtl8192se: firmware fail!\n");
+			RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG, "fail!\n");
 			goto fail;
 		}
 
@@ -454,7 +471,7 @@ static u32 _rtl92s_fill_h2c_cmd(struct sk_buff *skb, u32 h2cbufferlen,
 	u8 i = 0;
 
 	do {
-		/* 8 - Byte alignment */
+		/* 8 - Byte aligment */
 		len = H2C_TX_CMD_HDR_LEN + N_BYTE_ALIGMENT(pcmd_len[i], 8);
 
 		/* Buffer length is not enough */
@@ -462,7 +479,7 @@ static u32 _rtl92s_fill_h2c_cmd(struct sk_buff *skb, u32 h2cbufferlen,
 			break;
 
 		/* Clear content */
-		ph2c_buffer = skb_put(skb, (u32)len);
+		ph2c_buffer = (u8 *)skb_put(skb, (u32)len);
 		memset((ph2c_buffer + totallen + tx_desclen), 0, len);
 
 		/* CMD len */
@@ -503,7 +520,7 @@ static u32 _rtl92s_get_h2c_cmdlen(u32 h2cbufferlen, u32 cmd_num, u32 *pcmd_len)
 	u8 i = 0;
 
 	do {
-		/* 8 - Byte alignment */
+		/* 8 - Byte aligment */
 		len = H2C_TX_CMD_HDR_LEN + N_BYTE_ALIGMENT(pcmd_len[i], 8);
 
 		/* Buffer length is not enough */

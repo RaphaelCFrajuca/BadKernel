@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _CODA_INT_
 #define _CODA_INT_
 

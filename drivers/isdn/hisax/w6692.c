@@ -188,6 +188,7 @@ W6692_fill_fifo(struct IsdnCardState *cs)
 		debugl1(cs, "W6692_fill_fifo dbusytimer running");
 		del_timer(&cs->dbusytimer);
 	}
+	init_timer(&cs->dbusytimer);
 	cs->dbusytimer.expires = jiffies + ((DBUSY_TIMER_VALUE * HZ) / 1000);
 	add_timer(&cs->dbusytimer);
 	if (cs->debug & L1_DEB_ISAC_FIFO) {
@@ -308,9 +309,7 @@ W6692B_interrupt(struct IsdnCardState *cs, u_char bchan)
 				if (!(skb = dev_alloc_skb(count)))
 					printk(KERN_WARNING "W6692: Bchan receive out of memory\n");
 				else {
-					skb_put_data(skb,
-						     bcs->hw.w6692.rcvbuf,
-						     count);
+					memcpy(skb_put(skb, count), bcs->hw.w6692.rcvbuf, count);
 					skb_queue_tail(&bcs->rqueue, skb);
 				}
 			}
@@ -333,8 +332,7 @@ W6692B_interrupt(struct IsdnCardState *cs, u_char bchan)
 			if (!(skb = dev_alloc_skb(W_B_FIFO_THRESH)))
 				printk(KERN_WARNING "HiSax: receive out of memory\n");
 			else {
-				skb_put_data(skb, bcs->hw.w6692.rcvbuf,
-					     W_B_FIFO_THRESH);
+				memcpy(skb_put(skb, W_B_FIFO_THRESH), bcs->hw.w6692.rcvbuf, W_B_FIFO_THRESH);
 				skb_queue_tail(&bcs->rqueue, skb);
 			}
 			bcs->hw.w6692.rcvidx = 0;
@@ -443,7 +441,7 @@ StartW6692:
 				if (!(skb = alloc_skb(count, GFP_ATOMIC)))
 					printk(KERN_WARNING "HiSax: D receive out of memory\n");
 				else {
-					skb_put_data(skb, cs->rcvbuf, count);
+					memcpy(skb_put(skb, count), cs->rcvbuf, count);
 					skb_queue_tail(&cs->rq, skb);
 				}
 			}
@@ -683,9 +681,8 @@ DC_Close_W6692(struct IsdnCardState *cs)
 }
 
 static void
-dbusy_timer_handler(struct timer_list *t)
+dbusy_timer_handler(struct IsdnCardState *cs)
 {
-	struct IsdnCardState *cs = from_timer(cs, t, dbusytimer);
 	struct PStack *stptr;
 	int rbch, star;
 	u_long flags;
@@ -904,7 +901,9 @@ static void initW6692(struct IsdnCardState *cs, int part)
 	if (part & 1) {
 		cs->setstack_d = setstack_W6692;
 		cs->DC_Close = DC_Close_W6692;
-		timer_setup(&cs->dbusytimer, dbusy_timer_handler, 0);
+		cs->dbusytimer.function = (void *) dbusy_timer_handler;
+		cs->dbusytimer.data = (long) cs;
+		init_timer(&cs->dbusytimer);
 		resetW6692(cs);
 		ph_command(cs, W_L1CMD_RST);
 		cs->dc.w6692.ph_state = W_L1CMD_RST;

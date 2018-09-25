@@ -129,7 +129,8 @@ static struct platform_device mtu2_device = {
 };
 
 static struct plat_sci_port scif0_platform_data = {
-	.scscr		= SCSCR_REIE,
+	.flags		= UPF_BOOT_AUTOCONF,
+	.scscr		= SCSCR_RE | SCSCR_TE | SCSCR_REIE,
 	.type		= PORT_SCIF,
 };
 

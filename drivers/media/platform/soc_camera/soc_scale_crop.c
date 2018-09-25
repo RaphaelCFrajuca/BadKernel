@@ -40,30 +40,31 @@ static bool is_inside(const struct v4l2_rect *r1, const struct v4l2_rect *r2)
 /* Get and store current client crop */
 int soc_camera_client_g_rect(struct v4l2_subdev *sd, struct v4l2_rect *rect)
 {
-	struct v4l2_subdev_selection sdsel = {
-		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
-		.target = V4L2_SEL_TGT_CROP,
-	};
+	struct v4l2_crop crop;
+	struct v4l2_cropcap cap;
 	int ret;
 
-	ret = v4l2_subdev_call(sd, pad, get_selection, NULL, &sdsel);
+	crop.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+
+	ret = v4l2_subdev_call(sd, video, g_crop, &crop);
 	if (!ret) {
-		*rect = sdsel.r;
+		*rect = crop.c;
 		return ret;
 	}
 
-	sdsel.target = V4L2_SEL_TGT_CROP_DEFAULT;
-	ret = v4l2_subdev_call(sd, pad, get_selection, NULL, &sdsel);
+	/* Camera driver doesn't support .g_crop(), assume default rectangle */
+	cap.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+
+	ret = v4l2_subdev_call(sd, video, cropcap, &cap);
 	if (!ret)
-		*rect = sdsel.r;
+		*rect = cap.defrect;
 
 	return ret;
 }
 EXPORT_SYMBOL(soc_camera_client_g_rect);
 
 /* Client crop has changed, update our sub-rectangle to remain within the area */
-static void move_and_crop_subrect(struct v4l2_rect *rect,
-				  struct v4l2_rect *subrect)
+static void update_subrect(struct v4l2_rect *rect, struct v4l2_rect *subrect)
 {
 	if (rect->width < subrect->width)
 		subrect->width = rect->width;
@@ -73,14 +74,14 @@ static void move_and_crop_subrect(struct v4l2_rect *rect,
 
 	if (rect->left > subrect->left)
 		subrect->left = rect->left;
-	else if (rect->left + rect->width <
+	else if (rect->left + rect->width >
 		 subrect->left + subrect->width)
 		subrect->left = rect->left + rect->width -
 			subrect->width;
 
 	if (rect->top > subrect->top)
 		subrect->top = rect->top;
-	else if (rect->top + rect->height <
+	else if (rect->top + rect->height >
 		 subrect->top + subrect->height)
 		subrect->top = rect->top + rect->height -
 			subrect->height;
@@ -92,27 +93,17 @@ static void move_and_crop_subrect(struct v4l2_rect *rect,
  * 2. if (1) failed, try to double the client image until we get one big enough
  * 3. if (2) failed, try to request the maximum image
  */
-int soc_camera_client_s_selection(struct v4l2_subdev *sd,
-			struct v4l2_selection *sel, struct v4l2_selection *cam_sel,
+int soc_camera_client_s_crop(struct v4l2_subdev *sd,
+			struct v4l2_crop *crop, struct v4l2_crop *cam_crop,
 			struct v4l2_rect *target_rect, struct v4l2_rect *subrect)
 {
-	struct v4l2_subdev_selection sdsel = {
-		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
-		.target = sel->target,
-		.flags = sel->flags,
-		.r = sel->r,
-	};
-	struct v4l2_subdev_selection bounds = {
-		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
-		.target = V4L2_SEL_TGT_CROP_BOUNDS,
-	};
-	struct v4l2_rect *rect = &sel->r, *cam_rect = &cam_sel->r;
+	struct v4l2_rect *rect = &crop->c, *cam_rect = &cam_crop->c;
 	struct device *dev = sd->v4l2_dev->dev;
+	struct v4l2_cropcap cap;
 	int ret;
 	unsigned int width, height;
 
-	v4l2_subdev_call(sd, pad, set_selection, NULL, &sdsel);
-	sel->r = sdsel.r;
+	v4l2_subdev_call(sd, video, s_crop, crop);
 	ret = soc_camera_client_g_rect(sd, cam_rect);
 	if (ret < 0)
 		return ret;
@@ -122,29 +113,29 @@ int soc_camera_client_s_selection(struct v4l2_subdev *sd,
 	 * be within camera cropcap bounds
 	 */
 	if (!memcmp(rect, cam_rect, sizeof(*rect))) {
-		/* Even if camera S_SELECTION failed, but camera rectangle matches */
-		dev_dbg(dev, "Camera S_SELECTION successful for %dx%d@%d:%d\n",
+		/* Even if camera S_CROP failed, but camera rectangle matches */
+		dev_dbg(dev, "Camera S_CROP successful for %dx%d@%d:%d\n",
 			rect->width, rect->height, rect->left, rect->top);
 		*target_rect = *cam_rect;
 		return 0;
 	}
 
 	/* Try to fix cropping, that camera hasn't managed to set */
-	dev_geo(dev, "Fix camera S_SELECTION for %dx%d@%d:%d to %dx%d@%d:%d\n",
+	dev_geo(dev, "Fix camera S_CROP for %dx%d@%d:%d to %dx%d@%d:%d\n",
 		cam_rect->width, cam_rect->height,
 		cam_rect->left, cam_rect->top,
 		rect->width, rect->height, rect->left, rect->top);
 
 	/* We need sensor maximum rectangle */
-	ret = v4l2_subdev_call(sd, pad, get_selection, NULL, &bounds);
+	ret = v4l2_subdev_call(sd, video, cropcap, &cap);
 	if (ret < 0)
 		return ret;
 
 	/* Put user requested rectangle within sensor bounds */
-	soc_camera_limit_side(&rect->left, &rect->width, sdsel.r.left, 2,
-			      bounds.r.width);
-	soc_camera_limit_side(&rect->top, &rect->height, sdsel.r.top, 4,
-			      bounds.r.height);
+	soc_camera_limit_side(&rect->left, &rect->width, cap.bounds.left, 2,
+			      cap.bounds.width);
+	soc_camera_limit_side(&rect->top, &rect->height, cap.bounds.top, 4,
+			      cap.bounds.height);
 
 	/*
 	 * Popular special case - some cameras can only handle fixed sizes like
@@ -159,7 +150,7 @@ int soc_camera_client_s_selection(struct v4l2_subdev *sd,
 	 */
 	while (!ret && (is_smaller(cam_rect, rect) ||
 			is_inside(cam_rect, rect)) &&
-	       (bounds.r.width > width || bounds.r.height > height)) {
+	       (cap.bounds.width > width || cap.bounds.height > height)) {
 
 		width *= 2;
 		height *= 2;
@@ -177,52 +168,48 @@ int soc_camera_client_s_selection(struct v4l2_subdev *sd,
 		 * Instead we just drop to the left and top bounds.
 		 */
 		if (cam_rect->left > rect->left)
-			cam_rect->left = bounds.r.left;
+			cam_rect->left = cap.bounds.left;
 
 		if (cam_rect->left + cam_rect->width < rect->left + rect->width)
 			cam_rect->width = rect->left + rect->width -
 				cam_rect->left;
 
 		if (cam_rect->top > rect->top)
-			cam_rect->top = bounds.r.top;
+			cam_rect->top = cap.bounds.top;
 
 		if (cam_rect->top + cam_rect->height < rect->top + rect->height)
 			cam_rect->height = rect->top + rect->height -
 				cam_rect->top;
 
-		sdsel.r = *cam_rect;
-		v4l2_subdev_call(sd, pad, set_selection, NULL, &sdsel);
-		*cam_rect = sdsel.r;
+		v4l2_subdev_call(sd, video, s_crop, cam_crop);
 		ret = soc_camera_client_g_rect(sd, cam_rect);
-		dev_geo(dev, "Camera S_SELECTION %d for %dx%d@%d:%d\n", ret,
+		dev_geo(dev, "Camera S_CROP %d for %dx%d@%d:%d\n", ret,
 			cam_rect->width, cam_rect->height,
 			cam_rect->left, cam_rect->top);
 	}
 
-	/* S_SELECTION must not modify the rectangle */
+	/* S_CROP must not modify the rectangle */
 	if (is_smaller(cam_rect, rect) || is_inside(cam_rect, rect)) {
 		/*
 		 * The camera failed to configure a suitable cropping,
 		 * we cannot use the current rectangle, set to max
 		 */
-		sdsel.r = bounds.r;
-		v4l2_subdev_call(sd, pad, set_selection, NULL, &sdsel);
-		*cam_rect = sdsel.r;
-
+		*cam_rect = cap.bounds;
+		v4l2_subdev_call(sd, video, s_crop, cam_crop);
 		ret = soc_camera_client_g_rect(sd, cam_rect);
-		dev_geo(dev, "Camera S_SELECTION %d for max %dx%d@%d:%d\n", ret,
+		dev_geo(dev, "Camera S_CROP %d for max %dx%d@%d:%d\n", ret,
 			cam_rect->width, cam_rect->height,
 			cam_rect->left, cam_rect->top);
 	}
 
 	if (!ret) {
 		*target_rect = *cam_rect;
-		move_and_crop_subrect(target_rect, subrect);
+		update_subrect(target_rect, subrect);
 	}
 
 	return ret;
 }
-EXPORT_SYMBOL(soc_camera_client_s_selection);
+EXPORT_SYMBOL(soc_camera_client_s_crop);
 
 /* Iterative set_fmt, also updates cached client crop on success */
 static int client_set_fmt(struct soc_camera_device *icd,
@@ -234,10 +221,7 @@ static int client_set_fmt(struct soc_camera_device *icd,
 	struct device *dev = icd->parent;
 	struct v4l2_mbus_framefmt *mf = &format->format;
 	unsigned int width = mf->width, height = mf->height, tmp_w, tmp_h;
-	struct v4l2_subdev_selection sdsel = {
-		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
-		.target = V4L2_SEL_TGT_CROP_BOUNDS,
-	};
+	struct v4l2_cropcap cap;
 	bool host_1to1;
 	int ret;
 
@@ -259,14 +243,16 @@ static int client_set_fmt(struct soc_camera_device *icd,
 	if (!host_can_scale)
 		goto update_cache;
 
-	ret = v4l2_subdev_call(sd, pad, get_selection, NULL, &sdsel);
+	cap.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+
+	ret = v4l2_subdev_call(sd, video, cropcap, &cap);
 	if (ret < 0)
 		return ret;
 
-	if (max_width > sdsel.r.width)
-		max_width = sdsel.r.width;
-	if (max_height > sdsel.r.height)
-		max_height = sdsel.r.height;
+	if (max_width > cap.bounds.width)
+		max_width = cap.bounds.width;
+	if (max_height > cap.bounds.height)
+		max_height = cap.bounds.height;
 
 	/* Camera set a format, but geometry is not precise, try to improve */
 	tmp_w = mf->width;
@@ -300,23 +286,22 @@ update_cache:
 	if (host_1to1)
 		*subrect = *rect;
 	else
-		move_and_crop_subrect(rect, subrect);
+		update_subrect(rect, subrect);
 
 	return 0;
 }
 
 /**
- * soc_camera_client_scale
- * @icd:		soc-camera device
- * @rect:		camera cropping window
- * @subrect:		part of rect, sent to the user
- * @mf:			in- / output camera output window
- * @width:		on input: max host input width;
- *			on output: user width, mapped back to input
- * @height:		on input: max host input height;
- *			on output: user height, mapped back to input
- * @host_can_scale:	host can scale this pixel format
- * @shift:		shift, used for scaling
+ * @icd		- soc-camera device
+ * @rect	- camera cropping window
+ * @subrect	- part of rect, sent to the user
+ * @mf		- in- / output camera output window
+ * @width	- on input: max host input width
+ *		  on output: user width, mapped back to input
+ * @height	- on input: max host input height
+ *		  on output: user height, mapped back to input
+ * @host_can_scale - host can scale this pixel format
+ * @shift	- shift, used for scaling
  */
 int soc_camera_client_scale(struct soc_camera_device *icd,
 			struct v4l2_rect *rect, struct v4l2_rect *subrect,

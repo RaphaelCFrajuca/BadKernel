@@ -29,9 +29,9 @@
 #include <linux/slab.h>
 #include <linux/poll.h>
 #include <linux/wait.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
-#include <media/i2c/saa6588.h>
+#include <media/saa6588.h>
 #include <media/v4l2-device.h>
 
 
@@ -411,9 +411,9 @@ static long saa6588_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		break;
 		/* --- poll() for /dev/radio --- */
 	case SAA6588_CMD_POLL:
-		a->poll_mask = 0;
+		a->result = 0;
 		if (s->data_available_for_read)
-			a->poll_mask |= EPOLLIN | EPOLLRDNORM;
+			a->result |= POLLIN | POLLRDNORM;
 		poll_wait(a->instance, &s->read_queue, a->event_list);
 		break;
 

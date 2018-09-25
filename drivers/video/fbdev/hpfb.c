@@ -16,7 +16,7 @@
 #include <linux/dio.h>
 
 #include <asm/io.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
 static struct fb_info fb_info = {
 	.fix = {
@@ -377,6 +377,7 @@ static struct dio_driver hpfb_driver = {
 int __init hpfb_init(void)
 {
 	unsigned int sid;
+	mm_segment_t fs;
 	unsigned char i;
 	int err;
 
@@ -401,7 +402,10 @@ int __init hpfb_init(void)
 	if (err)
 		return err;
 
-	err = probe_kernel_read(&i, (unsigned char *)INTFBVADDR + DIO_IDOFF, 1);
+	fs = get_fs();
+	set_fs(KERNEL_DS);
+	err = get_user(i, (unsigned char *)INTFBVADDR + DIO_IDOFF);
+	set_fs(fs);
 
 	if (!err && (i == DIO_ID_FBUFFER) && topcat_sid_ok(sid = DIO_SECID(INTFBVADDR))) {
 		if (!request_mem_region(INTFBPADDR, DIO_DEVSIZE, "Internal Topcat"))

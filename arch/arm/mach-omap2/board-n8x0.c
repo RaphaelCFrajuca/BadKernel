@@ -53,18 +53,20 @@ static u32 board_caps;
 
 static void board_check_revision(void)
 {
-	if (of_machine_is_compatible("nokia,n800"))
-		board_caps = NOKIA_N800;
-	else if (of_machine_is_compatible("nokia,n810"))
-		board_caps = NOKIA_N810;
-	else if (of_machine_is_compatible("nokia,n810-wimax"))
-		board_caps = NOKIA_N810_WIMAX;
+	if (of_have_populated_dt()) {
+		if (of_machine_is_compatible("nokia,n800"))
+			board_caps = NOKIA_N800;
+		else if (of_machine_is_compatible("nokia,n810"))
+			board_caps = NOKIA_N810;
+		else if (of_machine_is_compatible("nokia,n810-wimax"))
+			board_caps = NOKIA_N810_WIMAX;
+	}
 
 	if (!board_caps)
 		pr_err("Unknown board\n");
 }
 
-#if IS_ENABLED(CONFIG_USB_MUSB_TUSB6010)
+#if defined(CONFIG_USB_MUSB_TUSB6010) || defined(CONFIG_USB_MUSB_TUSB6010_MODULE)
 /*
  * Enable or disable power to TUSB6010. When enabling, turn on 3.3 V and
  * 1.5 V voltage regulators of PM companion chip. Companion chip will then
@@ -115,7 +117,7 @@ static struct musb_hdrc_platform_data tusb_data = {
 static void __init n8x0_usb_init(void)
 {
 	int ret = 0;
-	static const char announce[] __initconst = KERN_INFO "TUSB 6010\n";
+	static char	announce[] __initdata = KERN_INFO "TUSB 6010\n";
 
 	/* PM companion chip power control pin */
 	ret = gpio_request_one(TUSB6010_GPIO_ENABLE, GPIOF_OUT_INIT_LOW,
@@ -161,7 +163,8 @@ static struct spi_board_info n800_spi_board_info[] __initdata = {
 	},
 };
 
-#if defined(CONFIG_MENELAUS) && IS_ENABLED(CONFIG_MMC_OMAP)
+#if defined(CONFIG_MENELAUS) &&						\
+	(defined(CONFIG_MMC_OMAP) || defined(CONFIG_MMC_OMAP_MODULE))
 
 /*
  * On both N800 and N810, only the first of the two MMC controllers is in use.
@@ -566,11 +569,11 @@ static int n8x0_menelaus_late_init(struct device *dev)
 }
 #endif
 
-struct menelaus_platform_data n8x0_menelaus_platform_data = {
+struct menelaus_platform_data n8x0_menelaus_platform_data __initdata = {
 	.late_init = n8x0_menelaus_late_init,
 };
 
-struct aic3x_pdata n810_aic33_data = {
+struct aic3x_pdata n810_aic33_data __initdata = {
 	.gpio_reset = 118,
 };
 

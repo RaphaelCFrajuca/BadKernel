@@ -32,6 +32,7 @@
 #include <linux/scatterlist.h>
 #include <linux/device.h>
 #include <linux/of.h>
+#include <linux/types.h>
 #include <asm/hvcall.h>
 #include <asm/vio.h>
 
@@ -833,7 +834,7 @@ static void __exit nx_fini(void)
 	vio_unregister_driver(&nx_driver.viodriver);
 }
 
-static const struct vio_device_id nx_crypto_driver_ids[] = {
+static struct vio_device_id nx_crypto_driver_ids[] = {
 	{ "ibm,sym-encryption-v1", "ibm,sym-encryption" },
 	{ "", "" }
 };

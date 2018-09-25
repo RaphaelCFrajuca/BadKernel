@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * class.c - basic device class management
  *
@@ -6,6 +5,9 @@
  * Copyright (c) 2002-3 Open Source Development Labs
  * Copyright (c) 2003-2004 Greg Kroah-Hartman
  * Copyright (c) 2003-2004 IBM Corp.
+ *
+ * This file is released under the GPLv2
+ *
  */
 
 #include <linux/device.h>
@@ -117,6 +119,36 @@ static void class_put(struct class *cls)
 		kset_put(&cls->p->subsys);
 }
 
+static int add_class_attrs(struct class *cls)
+{
+	int i;
+	int error = 0;
+
+	if (cls->class_attrs) {
+		for (i = 0; cls->class_attrs[i].attr.name; i++) {
+			error = class_create_file(cls, &cls->class_attrs[i]);
+			if (error)
+				goto error;
+		}
+	}
+done:
+	return error;
+error:
+	while (--i >= 0)
+		class_remove_file(cls, &cls->class_attrs[i]);
+	goto done;
+}
+
+static void remove_class_attrs(struct class *cls)
+{
+	int i;
+
+	if (cls->class_attrs) {
+		for (i = 0; cls->class_attrs[i].attr.name; i++)
+			class_remove_file(cls, &cls->class_attrs[i]);
+	}
+}
+
 static void klist_class_dev_get(struct klist_node *n)
 {
 	struct device *dev = container_of(n, struct device, knode_class);
@@ -129,18 +161,6 @@ static void klist_class_dev_put(struct klist_node *n)
 	struct device *dev = container_of(n, struct device, knode_class);
 
 	put_device(dev);
-}
-
-static int class_add_groups(struct class *cls,
-			    const struct attribute_group **groups)
-{
-	return sysfs_create_groups(&cls->p->subsys.kobj, groups);
-}
-
-static void class_remove_groups(struct class *cls,
-				const struct attribute_group **groups)
-{
-	return sysfs_remove_groups(&cls->p->subsys.kobj, groups);
 }
 
 int __class_register(struct class *cls, struct lock_class_key *key)
@@ -183,7 +203,7 @@ int __class_register(struct class *cls, struct lock_class_key *key)
 		kfree(cp);
 		return error;
 	}
-	error = class_add_groups(class_get(cls), cls->class_groups);
+	error = add_class_attrs(class_get(cls));
 	class_put(cls);
 	return error;
 }
@@ -192,7 +212,7 @@ EXPORT_SYMBOL_GPL(__class_register);
 void class_unregister(struct class *cls)
 {
 	pr_debug("device class '%s': unregistering\n", cls->name);
-	class_remove_groups(cls, cls->class_groups);
+	remove_class_attrs(cls);
 	kset_unregister(&cls->p->subsys);
 }
 

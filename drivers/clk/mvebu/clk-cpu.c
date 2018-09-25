@@ -186,11 +186,11 @@ static void __init of_cpu_clk_setup(struct device_node *node)
 	for_each_node_by_type(dn, "cpu")
 		ncpus++;
 
-	cpuclk = kcalloc(ncpus, sizeof(*cpuclk), GFP_KERNEL);
+	cpuclk = kzalloc(ncpus * sizeof(*cpuclk), GFP_KERNEL);
 	if (WARN_ON(!cpuclk))
 		goto cpuclk_out;
 
-	clks = kcalloc(ncpus, sizeof(*clks), GFP_KERNEL);
+	clks = kzalloc(ncpus * sizeof(*clks), GFP_KERNEL);
 	if (WARN_ON(!clks))
 		goto clks_out;
 
@@ -245,11 +245,3 @@ cpuclk_out:
 
 CLK_OF_DECLARE(armada_xp_cpu_clock, "marvell,armada-xp-cpu-clock",
 					 of_cpu_clk_setup);
-
-static void __init of_mv98dx3236_cpu_clk_setup(struct device_node *node)
-{
-	of_clk_add_provider(node, of_clk_src_simple_get, NULL);
-}
-
-CLK_OF_DECLARE(mv98dx3236_cpu_clock, "marvell,mv98dx3236-cpu-clock",
-					 of_mv98dx3236_cpu_clk_setup);

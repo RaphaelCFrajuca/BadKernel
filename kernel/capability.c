@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * linux/kernel/capability.c
  *
@@ -18,7 +17,7 @@
 #include <linux/syscalls.h>
 #include <linux/pid_namespace.h>
 #include <linux/user_namespace.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
 /*
  * Leveraged for setting/resetting capabilities
@@ -319,7 +318,6 @@ bool has_capability(struct task_struct *t, int cap)
 {
 	return has_ns_capability(t, &init_user_ns, cap);
 }
-EXPORT_SYMBOL(has_capability);
 
 /**
  * has_ns_capability_noaudit - Does a task have a capability (unaudited)

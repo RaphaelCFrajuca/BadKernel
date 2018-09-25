@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: LGPL-2.1 WITH Linux-syscall-note */
 /* taskstats.h - exporting per-task statistics
  *
  * Copyright (C) Shailabh Nagar, IBM Corp. 2006

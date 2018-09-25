@@ -20,8 +20,9 @@
 #ifndef M88RS2000_H
 #define M88RS2000_H
 
+#include <linux/kconfig.h>
 #include <linux/dvb/frontend.h>
-#include <media/dvb_frontend.h>
+#include "dvb_frontend.h"
 
 struct m88rs2000_config {
 	/* Demodulator i2c address */

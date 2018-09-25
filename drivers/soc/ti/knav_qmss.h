@@ -19,8 +19,6 @@
 #ifndef __KNAV_QMSS_H__
 #define __KNAV_QMSS_H__
 
-#include <linux/percpu.h>
-
 #define THRESH_GTE	BIT(7)
 #define THRESH_LT	0
 
@@ -95,13 +93,13 @@ struct knav_reg_pdsp_regs {
 struct knav_reg_acc_command {
 	u32		command;
 	u32		queue_mask;
-	u32		list_dma;
+	u32		list_phys;
 	u32		queue_num;
 	u32		timer_config;
 };
 
 struct knav_link_ram_block {
-	dma_addr_t	 dma;
+	dma_addr_t	 phys;
 	void		*virt;
 	size_t		 size;
 };
@@ -164,11 +162,11 @@ struct knav_qmgr_info {
  * notifies:			notifier counts
  */
 struct knav_queue_stats {
-	unsigned int pushes;
-	unsigned int pops;
-	unsigned int push_errors;
-	unsigned int pop_errors;
-	unsigned int notifies;
+	atomic_t	 pushes;
+	atomic_t	 pops;
+	atomic_t	 push_errors;
+	atomic_t	 pop_errors;
+	atomic_t	 notifies;
 };
 
 /**
@@ -285,18 +283,13 @@ struct knav_queue_inst {
 struct knav_queue {
 	struct knav_reg_queue __iomem	*reg_push, *reg_pop, *reg_peek;
 	struct knav_queue_inst		*inst;
-	struct knav_queue_stats __percpu	*stats;
+	struct knav_queue_stats	stats;
 	knav_queue_notify_fn		notifier_fn;
 	void				*notifier_fn_arg;
 	atomic_t			notifier_enabled;
 	struct rcu_head			rcu;
 	unsigned			flags;
 	struct list_head		list;
-};
-
-enum qmss_version {
-	QMSS,
-	QMSS_66AK2G,
 };
 
 struct knav_device {
@@ -312,7 +305,6 @@ struct knav_device {
 	struct list_head			pools;
 	struct list_head			pdsps;
 	struct list_head			qmgrs;
-	enum qmss_version			version;
 };
 
 struct knav_range_ops {

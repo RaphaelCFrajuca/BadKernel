@@ -31,4 +31,4 @@ $(obj)/../Image.elf: $(obj)/Image.o $(obj)/boot.lds
 		-o $@ $(obj)/Image.o
 	$(Q)$(kecho) '  Kernel: $@ is ready'
 
-all Image: $(obj)/../Image.elf
+zImage:	$(obj)/../Image.elf

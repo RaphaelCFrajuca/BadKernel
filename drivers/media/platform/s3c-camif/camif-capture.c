@@ -80,7 +80,7 @@ static int s3c_camif_hw_init(struct camif_dev *camif, struct camif_vp *vp)
 	camif_hw_set_test_pattern(camif, camif->test_pattern);
 	if (variant->has_img_effect)
 		camif_hw_set_effect(camif, camif->colorfx,
-				camif->colorfx_cr, camif->colorfx_cb);
+				camif->colorfx_cb, camif->colorfx_cr);
 	if (variant->ip_revision == S3C6410_CAMIF_IP_REV)
 		camif_hw_set_input_path(vp);
 	camif_cfg_video_path(vp);
@@ -338,7 +338,7 @@ irqreturn_t s3c_camif_irq_handler(int irq, void *priv)
 
 		if (!WARN_ON(vbuf == NULL)) {
 			/* Dequeue a filled buffer */
-			vbuf->vb.vb2_buf.timestamp = ktime_get_ns();
+			v4l2_get_timestamp(&vbuf->vb.timestamp);
 			vbuf->vb.sequence = vp->frame_sequence++;
 			vb2_buffer_done(&vbuf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 
@@ -364,7 +364,7 @@ irqreturn_t s3c_camif_irq_handler(int irq, void *priv)
 		camif_hw_set_test_pattern(camif, camif->test_pattern);
 		if (camif->variant->has_img_effect)
 			camif_hw_set_effect(camif, camif->colorfx,
-				    camif->colorfx_cr, camif->colorfx_cb);
+				    camif->colorfx_cb, camif->colorfx_cr);
 		vp->state &= ~ST_VP_CONFIG;
 	}
 unlock:
@@ -435,25 +435,38 @@ static void stop_streaming(struct vb2_queue *vq)
 	camif_stop_capture(vp);
 }
 
-static int queue_setup(struct vb2_queue *vq,
+static int queue_setup(struct vb2_queue *vq, const void *parg,
 		       unsigned int *num_buffers, unsigned int *num_planes,
-		       unsigned int sizes[], struct device *alloc_devs[])
+		       unsigned int sizes[], void *allocators[])
 {
+	const struct v4l2_format *pfmt = parg;
+	const struct v4l2_pix_format *pix = NULL;
 	struct camif_vp *vp = vb2_get_drv_priv(vq);
+	struct camif_dev *camif = vp->camif;
 	struct camif_frame *frame = &vp->out_frame;
-	const struct camif_fmt *fmt = vp->out_fmt;
+	const struct camif_fmt *fmt;
 	unsigned int size;
 
-	if (fmt == NULL)
-		return -EINVAL;
-
-	size = (frame->f_width * frame->f_height * fmt->depth) / 8;
-
-	if (*num_planes)
-		return sizes[0] < size ? -EINVAL : 0;
+	if (pfmt) {
+		pix = &pfmt->fmt.pix;
+		fmt = s3c_camif_find_format(vp, &pix->pixelformat, -1);
+		if (fmt == NULL)
+			return -EINVAL;
+		size = (pix->width * pix->height * fmt->depth) / 8;
+	} else {
+		fmt = vp->out_fmt;
+		if (fmt == NULL)
+			return -EINVAL;
+		size = (frame->f_width * frame->f_height * fmt->depth) / 8;
+	}
 
 	*num_planes = 1;
-	sizes[0] = size;
+
+	if (pix)
+		sizes[0] = max(size, pix->sizeimage);
+	else
+		sizes[0] = size;
+	allocators[0] = camif->alloc_ctx;
 
 	pr_debug("size: %u\n", sizes[0]);
 	return 0;
@@ -590,12 +603,12 @@ static int s3c_camif_close(struct file *file)
 	return ret;
 }
 
-static __poll_t s3c_camif_poll(struct file *file,
+static unsigned int s3c_camif_poll(struct file *file,
 				   struct poll_table_struct *wait)
 {
 	struct camif_vp *vp = video_drvdata(file);
 	struct camif_dev *camif = vp->camif;
-	__poll_t ret;
+	int ret;
 
 	mutex_lock(&camif->lock);
 	if (vp->owner && vp->owner != file->private_data)
@@ -820,7 +833,7 @@ static int camif_pipeline_validate(struct camif_dev *camif)
 
 	/* Retrieve format at the sensor subdev source pad */
 	pad = media_entity_remote_pad(&camif->pads[0]);
-	if (!pad || !is_media_entity_v4l2_subdev(pad->entity))
+	if (!pad || media_entity_type(pad->entity) != MEDIA_ENT_T_V4L2_SUBDEV)
 		return -EPIPE;
 
 	src_fmt.pad = pad->index;
@@ -856,13 +869,13 @@ static int s3c_camif_streamon(struct file *file, void *priv,
 	if (s3c_vp_active(vp))
 		return 0;
 
-	ret = media_pipeline_start(sensor, camif->m_pipeline);
+	ret = media_entity_pipeline_start(sensor, camif->m_pipeline);
 	if (ret < 0)
 		return ret;
 
 	ret = camif_pipeline_validate(camif);
 	if (ret < 0) {
-		media_pipeline_stop(sensor);
+		media_entity_pipeline_stop(sensor);
 		return ret;
 	}
 
@@ -886,7 +899,7 @@ static int s3c_camif_streamoff(struct file *file, void *priv,
 
 	ret = vb2_streamoff(&vp->vb_queue, type);
 	if (ret == 0)
-		media_pipeline_stop(&camif->sensor.sd->entity);
+		media_entity_pipeline_stop(&camif->sensor.sd->entity);
 	return ret;
 }
 
@@ -1136,14 +1149,13 @@ int s3c_camif_register_video_node(struct camif_dev *camif, int idx)
 	q->drv_priv = vp;
 	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
 	q->lock = &vp->camif->lock;
-	q->dev = camif->v4l2_dev.dev;
 
 	ret = vb2_queue_init(q);
 	if (ret)
 		goto err_vd_rel;
 
 	vp->pad.flags = MEDIA_PAD_FL_SINK;
-	ret = media_entity_pads_init(&vfd->entity, 1, &vp->pad);
+	ret = media_entity_init(&vfd->entity, 1, &vp->pad, 0);
 	if (ret)
 		goto err_vd_rel;
 
@@ -1489,7 +1501,7 @@ static const struct v4l2_subdev_pad_ops s3c_camif_subdev_pad_ops = {
 	.set_fmt = s3c_camif_subdev_set_fmt,
 };
 
-static const struct v4l2_subdev_ops s3c_camif_subdev_ops = {
+static struct v4l2_subdev_ops s3c_camif_subdev_ops = {
 	.pad = &s3c_camif_subdev_pad_ops,
 };
 
@@ -1559,8 +1571,8 @@ int s3c_camif_create_subdev(struct camif_dev *camif)
 	camif->pads[CAMIF_SD_PAD_SOURCE_C].flags = MEDIA_PAD_FL_SOURCE;
 	camif->pads[CAMIF_SD_PAD_SOURCE_P].flags = MEDIA_PAD_FL_SOURCE;
 
-	ret = media_entity_pads_init(&sd->entity, CAMIF_SD_PADS_NUM,
-				camif->pads);
+	ret = media_entity_init(&sd->entity, CAMIF_SD_PADS_NUM,
+				camif->pads, 0);
 	if (ret)
 		return ret;
 

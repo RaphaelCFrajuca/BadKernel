@@ -27,8 +27,6 @@
 #include "futextest.h"
 #include "logging.h"
 
-#define TEST_NAME "futex-wait-timeout"
-
 static long timeout_ns = 100000;	/* 100us default timeout */
 
 void usage(char *prog)
@@ -68,10 +66,9 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	ksft_print_header();
-	ksft_print_msg("%s: Block on a futex and wait for timeout\n",
+	printf("%s: Block on a futex and wait for timeout\n",
 	       basename(argv[0]));
-	ksft_print_msg("\tArguments: timeout=%ldns\n", timeout_ns);
+	printf("\tArguments: timeout=%ldns\n", timeout_ns);
 
 	/* initialize timeout */
 	to.tv_sec = 0;
@@ -84,6 +81,6 @@ int main(int argc, char *argv[])
 		ret = RET_FAIL;
 	}
 
-	print_result(TEST_NAME, ret);
+	print_result(ret);
 	return ret;
 }

@@ -4,7 +4,7 @@
  *  by the Free Software Foundation.
  *
  * Copyright (C) 2010 Thomas Langer <thomas.langer@lantiq.com>
- * Copyright (C) 2010 John Crispin <john@phrozen.org>
+ * Copyright (C) 2010 John Crispin <blogic@openwrt.org>
  */
 #include <linux/io.h>
 #include <linux/export.h>
@@ -159,6 +159,11 @@ void clk_deactivate(struct clk *clk)
 		clk->deactivate(clk);
 }
 EXPORT_SYMBOL(clk_deactivate);
+
+struct clk *of_clk_get_from_provider(struct of_phandle_args *clkspec)
+{
+	return NULL;
+}
 
 static inline u32 get_counter_resolution(void)
 {

@@ -94,7 +94,7 @@ MC_TOKEN		([~%^&*+=|<>/-]=)|(&&)|("||")|(->)|(<<)|(>>)
 
 /* Bring in the keyword recognizer.  */
 
-#include "keywords.c"
+#include "keywords.hash.c"
 
 
 /* Macros to append to our phrase collection list.  */
@@ -186,10 +186,10 @@ repeat:
 	case IDENT:
 	  APP;
 	  {
-	    int r = is_reserved_word(yytext, yyleng);
-	    if (r >= 0)
+	    const struct resword *r = is_reserved_word(yytext, yyleng);
+	    if (r)
 	      {
-		switch (token = r)
+		switch (token = r->token)
 		  {
 		  case ATTRIBUTE_KEYW:
 		    lexstate = ST_ATTRIBUTE;
@@ -289,23 +289,6 @@ repeat:
 	}
       break;
 
-    case ST_TYPEOF_1:
-      if (token == IDENT)
-	{
-	  if (is_reserved_word(yytext, yyleng) >= 0
-	      || find_symbol(yytext, SYM_TYPEDEF, 1))
-	    {
-	      yyless(0);
-	      unput('(');
-	      lexstate = ST_NORMAL;
-	      token = TYPEOF_KEYW;
-	      break;
-	    }
-	  _APP("(", 1);
-	}
-	lexstate = ST_TYPEOF;
-	/* FALLTHRU */
-
     case ST_TYPEOF:
       switch (token)
 	{
@@ -329,6 +312,24 @@ repeat:
 	  goto repeat;
 	}
       break;
+
+    case ST_TYPEOF_1:
+      if (token == IDENT)
+	{
+	  if (is_reserved_word(yytext, yyleng)
+	      || find_symbol(yytext, SYM_TYPEDEF, 1))
+	    {
+	      yyless(0);
+	      unput('(');
+	      lexstate = ST_NORMAL;
+	      token = TYPEOF_KEYW;
+	      break;
+	    }
+	  _APP("(", 1);
+	}
+	APP;
+	lexstate = ST_TYPEOF;
+	goto repeat;
 
     case ST_BRACKET:
       APP;

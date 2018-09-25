@@ -83,7 +83,6 @@
 			fifo-size = <32>;
 			reg-io-width = <4>;
 			reg-shift = <2>;
-			tx-threshold = <16>;
 		};
 
 		sysid: sysid@18001528 {
@@ -244,7 +243,6 @@
 	};
 
 	chosen {
-		bootargs = "debug earlycon console=ttyS0,115200";
-		stdout-path = &a_16550_uart_0;
+		bootargs = "debug console=ttyS0,115200";
 	};
 };

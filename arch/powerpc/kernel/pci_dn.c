@@ -31,7 +31,6 @@
 #include <asm/pci-bridge.h>
 #include <asm/ppc-pci.h>
 #include <asm/firmware.h>
-#include <asm/eeh.h>
 
 /*
  * The function is used to find the firmware data of one
@@ -139,7 +138,7 @@ struct pci_dn *pci_get_pdn(struct pci_dev *pdev)
 
 #ifdef CONFIG_PCI_IOV
 static struct pci_dn *add_one_dev_pci_data(struct pci_dn *parent,
-					   int vf_index,
+					   struct pci_dev *pdev,
 					   int busno, int devfn)
 {
 	struct pci_dn *pdn;
@@ -149,18 +148,28 @@ static struct pci_dn *add_one_dev_pci_data(struct pci_dn *parent,
 		return NULL;
 
 	pdn = kzalloc(sizeof(*pdn), GFP_KERNEL);
-	if (!pdn)
+	if (!pdn) {
+		dev_warn(&pdev->dev, "%s: Out of memory!\n", __func__);
 		return NULL;
+	}
 
 	pdn->phb = parent->phb;
 	pdn->parent = parent;
 	pdn->busno = busno;
 	pdn->devfn = devfn;
-	pdn->vf_index = vf_index;
+#ifdef CONFIG_PPC_POWERNV
 	pdn->pe_number = IODA_INVALID_PE;
+#endif
 	INIT_LIST_HEAD(&pdn->child_list);
 	INIT_LIST_HEAD(&pdn->list);
 	list_add_tail(&pdn->list, &parent->child_list);
+
+	/*
+	 * If we already have PCI device instance, lets
+	 * bind them.
+	 */
+	if (pdev)
+		pdev->dev.archdata.pci_data = pdn;
 
 	return pdn;
 }
@@ -187,9 +196,7 @@ struct pci_dn *add_dev_pci_data(struct pci_dev *pdev)
 		return NULL;
 
 	for (i = 0; i < pci_sriov_get_totalvfs(pdev); i++) {
-		struct eeh_dev *edev __maybe_unused;
-
-		pdn = add_one_dev_pci_data(parent, i,
+		pdn = add_one_dev_pci_data(parent, NULL,
 					   pci_iov_virtfn_bus(pdev, i),
 					   pci_iov_virtfn_devfn(pdev, i));
 		if (!pdn) {
@@ -197,13 +204,6 @@ struct pci_dn *add_dev_pci_data(struct pci_dev *pdev)
 				 __func__, i);
 			return NULL;
 		}
-
-#ifdef CONFIG_EEH
-		/* Create the EEH device for the VF */
-		edev = eeh_dev_init(pdn);
-		BUG_ON(!edev);
-		edev->physfn = pdev;
-#endif /* CONFIG_EEH */
 	}
 #endif /* CONFIG_PCI_IOV */
 
@@ -224,7 +224,9 @@ void remove_dev_pci_data(struct pci_dev *pdev)
 	 */
 	if (pdev->is_virtfn) {
 		pdn = pci_get_pdn(pdev);
+#ifdef CONFIG_PPC_POWERNV
 		pdn->pe_number = IODA_INVALID_PE;
+#endif
 		return;
 	}
 
@@ -248,22 +250,11 @@ void remove_dev_pci_data(struct pci_dev *pdev)
 	 * a batch mode.
 	 */
 	for (i = 0; i < pci_sriov_get_totalvfs(pdev); i++) {
-		struct eeh_dev *edev __maybe_unused;
-
 		list_for_each_entry_safe(pdn, tmp,
 			&parent->child_list, list) {
 			if (pdn->busno != pci_iov_virtfn_bus(pdev, i) ||
 			    pdn->devfn != pci_iov_virtfn_devfn(pdev, i))
 				continue;
-
-#ifdef CONFIG_EEH
-			/* Release EEH device for the VF */
-			edev = pdn_to_eeh_dev(pdn);
-			if (edev) {
-				pdn->edev = NULL;
-				kfree(edev);
-			}
-#endif /* CONFIG_EEH */
 
 			if (!list_empty(&pdn->list))
 				list_del(&pdn->list);
@@ -274,23 +265,27 @@ void remove_dev_pci_data(struct pci_dev *pdev)
 #endif /* CONFIG_PCI_IOV */
 }
 
-struct pci_dn *pci_add_device_node_info(struct pci_controller *hose,
-					struct device_node *dn)
+/*
+ * Traverse_func that inits the PCI fields of the device node.
+ * NOTE: this *must* be done before read/write config to the device.
+ */
+void *update_dn_pci_info(struct device_node *dn, void *data)
 {
+	struct pci_controller *phb = data;
 	const __be32 *type = of_get_property(dn, "ibm,pci-config-space-type", NULL);
 	const __be32 *regs;
 	struct device_node *parent;
 	struct pci_dn *pdn;
-#ifdef CONFIG_EEH
-	struct eeh_dev *edev;
-#endif
 
-	pdn = kzalloc(sizeof(*pdn), GFP_KERNEL);
+	pdn = zalloc_maybe_bootmem(sizeof(*pdn), GFP_KERNEL);
 	if (pdn == NULL)
 		return NULL;
 	dn->data = pdn;
-	pdn->phb = hose;
+	pdn->node = dn;
+	pdn->phb = phb;
+#ifdef CONFIG_PPC_POWERNV
 	pdn->pe_number = IODA_INVALID_PE;
+#endif
 	regs = of_get_property(dn, "reg", NULL);
 	if (regs) {
 		u32 addr = of_read_number(regs, 1);
@@ -311,15 +306,6 @@ struct pci_dn *pci_add_device_node_info(struct pci_controller *hose,
 	/* Extended config space */
 	pdn->pci_ext_config_space = (type && of_read_number(type, 1) == 1);
 
-	/* Create EEH device */
-#ifdef CONFIG_EEH
-	edev = eeh_dev_init(pdn);
-	if (!edev) {
-		kfree(pdn);
-		return NULL;
-	}
-#endif
-
 	/* Attach to parent node */
 	INIT_LIST_HEAD(&pdn->child_list);
 	INIT_LIST_HEAD(&pdn->list);
@@ -328,35 +314,8 @@ struct pci_dn *pci_add_device_node_info(struct pci_controller *hose,
 	if (pdn->parent)
 		list_add_tail(&pdn->list, &pdn->parent->child_list);
 
-	return pdn;
+	return NULL;
 }
-EXPORT_SYMBOL_GPL(pci_add_device_node_info);
-
-void pci_remove_device_node_info(struct device_node *dn)
-{
-	struct pci_dn *pdn = dn ? PCI_DN(dn) : NULL;
-	struct device_node *parent;
-#ifdef CONFIG_EEH
-	struct eeh_dev *edev = pdn_to_eeh_dev(pdn);
-
-	if (edev)
-		edev->pdn = NULL;
-#endif
-
-	if (!pdn)
-		return;
-
-	WARN_ON(!list_empty(&pdn->child_list));
-	list_del(&pdn->list);
-
-	parent = of_get_parent(dn);
-	if (parent)
-		of_node_put(parent);
-
-	dn->data = NULL;
-	kfree(pdn);
-}
-EXPORT_SYMBOL_GPL(pci_remove_device_node_info);
 
 /*
  * Traverse a device tree stopping each PCI device in the tree.
@@ -376,9 +335,8 @@ EXPORT_SYMBOL_GPL(pci_remove_device_node_info);
  * one of these nodes we also assume its siblings are non-pci for
  * performance.
  */
-void *pci_traverse_device_nodes(struct device_node *start,
-				void *(*fn)(struct device_node *, void *),
-				void *data)
+void *traverse_pci_devices(struct device_node *start, traverse_func pre,
+		void *data)
 {
 	struct device_node *dn, *nextdn;
 	void *ret;
@@ -393,11 +351,8 @@ void *pci_traverse_device_nodes(struct device_node *start,
 		if (classp)
 			class = of_read_number(classp, 1);
 
-		if (fn) {
-			ret = fn(dn, data);
-			if (ret)
-				return ret;
-		}
+		if (pre && ((ret = pre(dn, data)) != NULL))
+			return ret;
 
 		/* If we are a PCI bridge, go down */
 		if (dn->child && ((class >> 8) == PCI_CLASS_BRIDGE_PCI ||
@@ -419,7 +374,6 @@ void *pci_traverse_device_nodes(struct device_node *start,
 	}
 	return NULL;
 }
-EXPORT_SYMBOL_GPL(pci_traverse_device_nodes);
 
 static struct pci_dn *pci_dn_next_one(struct pci_dn *root,
 				      struct pci_dn *pdn)
@@ -461,18 +415,6 @@ void *traverse_pci_dn(struct pci_dn *root,
 	return NULL;
 }
 
-static void *add_pdn(struct device_node *dn, void *data)
-{
-	struct pci_controller *hose = data;
-	struct pci_dn *pdn;
-
-	pdn = pci_add_device_node_info(hose, dn);
-	if (!pdn)
-		return ERR_PTR(-ENOMEM);
-
-	return NULL;
-}
-
 /** 
  * pci_devs_phb_init_dynamic - setup pci devices under this PHB
  * phb: pci-to-host bridge (top-level bridge connecting to cpu)
@@ -487,7 +429,8 @@ void pci_devs_phb_init_dynamic(struct pci_controller *phb)
 	struct pci_dn *pdn;
 
 	/* PHB nodes themselves must not match */
-	pdn = pci_add_device_node_info(phb, dn);
+	update_dn_pci_info(dn, phb);
+	pdn = dn->data;
 	if (pdn) {
 		pdn->devfn = pdn->busno = -1;
 		pdn->vendor_id = pdn->device_id = pdn->class_code = 0;
@@ -496,7 +439,7 @@ void pci_devs_phb_init_dynamic(struct pci_controller *phb)
 	}
 
 	/* Update dn->phb ptrs for new phb and children devices */
-	pci_traverse_device_nodes(dn, add_pdn, phb);
+	traverse_pci_devices(dn, update_dn_pci_info, phb);
 }
 
 /** 
@@ -508,18 +451,14 @@ void pci_devs_phb_init_dynamic(struct pci_controller *phb)
  * pci device found underneath.  This routine runs once,
  * early in the boot sequence.
  */
-static int __init pci_devs_phb_init(void)
+void __init pci_devs_phb_init(void)
 {
 	struct pci_controller *phb, *tmp;
 
 	/* This must be done first so the device nodes have valid pci info! */
 	list_for_each_entry_safe(phb, tmp, &hose_list, list_node)
 		pci_devs_phb_init_dynamic(phb);
-
-	return 0;
 }
-
-core_initcall(pci_devs_phb_init);
 
 static void pci_dev_pdn_setup(struct pci_dev *pdev)
 {

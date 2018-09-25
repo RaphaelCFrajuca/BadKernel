@@ -30,9 +30,7 @@
  * obviously not be running from flash.  The __xipram is therefore marking
  * those functions so they get relocated to ram.
  */
-#ifdef CONFIG_XIP_KERNEL
-#define __xipram noinline __attribute__ ((__section__ (".xiptext")))
-#endif
+#define __xipram noinline __attribute__ ((__section__ (".data")))
 
 /*
  * Each architecture has to provide the following macros.  They must access
@@ -92,10 +90,10 @@
 #define xip_cpu_idle()  do { } while (0)
 #endif
 
-#endif /* CONFIG_MTD_XIP */
+#else
 
-#ifndef __xipram
 #define __xipram
-#endif
+
+#endif /* CONFIG_MTD_XIP */
 
 #endif /* __LINUX_MTD_XIP_H__ */

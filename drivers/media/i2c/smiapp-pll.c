@@ -479,8 +479,7 @@ int smiapp_pll_calculate(struct device *dev,
 		return 0;
 	}
 
-	dev_dbg(dev, "unable to compute pre_pll divisor\n");
-
+	dev_info(dev, "unable to compute pre_pll divisor\n");
 	return rval;
 }
 EXPORT_SYMBOL_GPL(smiapp_pll_calculate);

@@ -13,10 +13,9 @@
  *
  */
 
-#include <linux/export.h>
 #include <linux/io.h>
-#include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
 
 #include <asm/mach-jz4740/base.h>
 #include <asm/mach-jz4740/timer.h>

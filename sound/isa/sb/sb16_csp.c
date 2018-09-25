@@ -1029,7 +1029,7 @@ static int snd_sb_qsound_space_put(struct snd_kcontrol *kcontrol, struct snd_ctl
 	return change;
 }
 
-static const struct snd_kcontrol_new snd_sb_qsound_switch = {
+static struct snd_kcontrol_new snd_sb_qsound_switch = {
 	.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
 	.name = "3D Control - Switch",
 	.info = snd_sb_qsound_switch_info,
@@ -1037,7 +1037,7 @@ static const struct snd_kcontrol_new snd_sb_qsound_switch = {
 	.put = snd_sb_qsound_switch_put
 };
 
-static const struct snd_kcontrol_new snd_sb_qsound_space = {
+static struct snd_kcontrol_new snd_sb_qsound_space = {
 	.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
 	.name = "3D Control - Space",
 	.info = snd_sb_qsound_space_info,

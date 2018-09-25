@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* iTCO Vendor Specific Support hooks */
 #ifdef CONFIG_ITCO_VENDOR_SUPPORT
 extern void iTCO_vendor_pre_start(struct resource *, unsigned int);

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _WD719X_H_
 #define _WD719X_H_
 

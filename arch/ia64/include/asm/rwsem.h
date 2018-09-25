@@ -1,10 +1,9 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * R/W semaphores for ia64
  *
  * Copyright (C) 2003 Ken Chen <kenneth.w.chen@intel.com>
  * Copyright (C) 2003 Asit Mallick <asit.k.mallick@intel.com>
- * Copyright (C) 2005 Christoph Lameter <cl@linux.com>
+ * Copyright (C) 2005 Christoph Lameter <clameter@sgi.com>
  *
  * Based on asm-i386/rwsem.h and other architecture implementation.
  *
@@ -38,63 +37,30 @@
 /*
  * lock for reading
  */
-static inline int
-___down_read (struct rw_semaphore *sem)
-{
-	long result = ia64_fetchadd8_acq((unsigned long *)&sem->count.counter, 1);
-
-	return (result < 0);
-}
-
 static inline void
 __down_read (struct rw_semaphore *sem)
 {
-	if (___down_read(sem))
+	long result = ia64_fetchadd8_acq((unsigned long *)&sem->count, 1);
+
+	if (result < 0)
 		rwsem_down_read_failed(sem);
-}
-
-static inline int
-__down_read_killable (struct rw_semaphore *sem)
-{
-	if (___down_read(sem))
-		if (IS_ERR(rwsem_down_read_failed_killable(sem)))
-			return -EINTR;
-
-	return 0;
 }
 
 /*
  * lock for writing
  */
-static inline long
-___down_write (struct rw_semaphore *sem)
+static inline void
+__down_write (struct rw_semaphore *sem)
 {
 	long old, new;
 
 	do {
-		old = atomic_long_read(&sem->count);
+		old = sem->count;
 		new = old + RWSEM_ACTIVE_WRITE_BIAS;
-	} while (atomic_long_cmpxchg_acquire(&sem->count, old, new) != old);
+	} while (cmpxchg_acq(&sem->count, old, new) != old);
 
-	return old;
-}
-
-static inline void
-__down_write (struct rw_semaphore *sem)
-{
-	if (___down_write(sem))
+	if (old != 0)
 		rwsem_down_write_failed(sem);
-}
-
-static inline int
-__down_write_killable (struct rw_semaphore *sem)
-{
-	if (___down_write(sem)) {
-		if (IS_ERR(rwsem_down_write_failed_killable(sem)))
-			return -EINTR;
-	}
-
-	return 0;
 }
 
 /*
@@ -103,7 +69,7 @@ __down_write_killable (struct rw_semaphore *sem)
 static inline void
 __up_read (struct rw_semaphore *sem)
 {
-	long result = ia64_fetchadd8_rel((unsigned long *)&sem->count.counter, -1);
+	long result = ia64_fetchadd8_rel((unsigned long *)&sem->count, -1);
 
 	if (result < 0 && (--result & RWSEM_ACTIVE_MASK) == 0)
 		rwsem_wake(sem);
@@ -118,9 +84,9 @@ __up_write (struct rw_semaphore *sem)
 	long old, new;
 
 	do {
-		old = atomic_long_read(&sem->count);
+		old = sem->count;
 		new = old - RWSEM_ACTIVE_WRITE_BIAS;
-	} while (atomic_long_cmpxchg_release(&sem->count, old, new) != old);
+	} while (cmpxchg_rel(&sem->count, old, new) != old);
 
 	if (new < 0 && (new & RWSEM_ACTIVE_MASK) == 0)
 		rwsem_wake(sem);
@@ -133,8 +99,8 @@ static inline int
 __down_read_trylock (struct rw_semaphore *sem)
 {
 	long tmp;
-	while ((tmp = atomic_long_read(&sem->count)) >= 0) {
-		if (tmp == atomic_long_cmpxchg_acquire(&sem->count, tmp, tmp+1)) {
+	while ((tmp = sem->count) >= 0) {
+		if (tmp == cmpxchg_acq(&sem->count, tmp, tmp+1)) {
 			return 1;
 		}
 	}
@@ -147,8 +113,8 @@ __down_read_trylock (struct rw_semaphore *sem)
 static inline int
 __down_write_trylock (struct rw_semaphore *sem)
 {
-	long tmp = atomic_long_cmpxchg_acquire(&sem->count,
-			RWSEM_UNLOCKED_VALUE, RWSEM_ACTIVE_WRITE_BIAS);
+	long tmp = cmpxchg_acq(&sem->count, RWSEM_UNLOCKED_VALUE,
+			      RWSEM_ACTIVE_WRITE_BIAS);
 	return tmp == RWSEM_UNLOCKED_VALUE;
 }
 
@@ -161,12 +127,19 @@ __downgrade_write (struct rw_semaphore *sem)
 	long old, new;
 
 	do {
-		old = atomic_long_read(&sem->count);
+		old = sem->count;
 		new = old - RWSEM_WAITING_BIAS;
-	} while (atomic_long_cmpxchg_release(&sem->count, old, new) != old);
+	} while (cmpxchg_rel(&sem->count, old, new) != old);
 
 	if (old < 0)
 		rwsem_downgrade_wake(sem);
 }
+
+/*
+ * Implement atomic add functionality.  These used to be "inline" functions, but GCC v3.1
+ * doesn't quite optimize this stuff right and ends up with bad calls to fetchandadd.
+ */
+#define rwsem_atomic_add(delta, sem)	atomic64_add(delta, (atomic64_t *)(&(sem)->count))
+#define rwsem_atomic_update(delta, sem)	atomic64_add_return(delta, (atomic64_t *)(&(sem)->count))
 
 #endif /* _ASM_IA64_RWSEM_H */

@@ -70,7 +70,9 @@ static DECLARE_INTC_DESC(intc_desc, "sh7705", vectors, NULL,
 			 NULL, prio_registers, NULL);
 
 static struct plat_sci_port scif0_platform_data = {
-	.scscr		= SCSCR_CKE1,
+	.flags		= UPF_BOOT_AUTOCONF,
+	.scscr		= SCSCR_TIE | SCSCR_RIE  | SCSCR_TE |
+			  SCSCR_RE  | SCSCR_CKE1 | SCSCR_CKE0,
 	.type		= PORT_SCIF,
 	.ops		= &sh770x_sci_port_ops,
 	.regtype	= SCIx_SH7705_SCIF_REGTYPE,
@@ -92,6 +94,8 @@ static struct platform_device scif0_device = {
 };
 
 static struct plat_sci_port scif1_platform_data = {
+	.flags		= UPF_BOOT_AUTOCONF,
+	.scscr		= SCSCR_TIE | SCSCR_RIE | SCSCR_TE | SCSCR_RE,
 	.type		= PORT_SCIF,
 	.ops		= &sh770x_sci_port_ops,
 	.regtype	= SCIx_SH7705_SCIF_REGTYPE,

@@ -36,7 +36,7 @@
 
 #include "cxgb3_offload.h"
 #include "iwch_provider.h"
-#include <rdma/cxgb3-abi.h>
+#include "iwch_user.h"
 #include "iwch.h"
 #include "iwch_cm.h"
 
@@ -45,6 +45,7 @@
 MODULE_AUTHOR("Boyd Faulkner, Steve Wise");
 MODULE_DESCRIPTION("Chelsio T3 RDMA Driver");
 MODULE_LICENSE("Dual BSD/GPL");
+MODULE_VERSION(DRV_VERSION);
 
 static void open_rnic_dev(struct t3cdev *);
 static void close_rnic_dev(struct t3cdev *);
@@ -104,7 +105,7 @@ static void iwch_db_drop_task(struct work_struct *work)
 
 static void rnic_init(struct iwch_dev *rnicp)
 {
-	pr_debug("%s iwch_dev %p\n", __func__,  rnicp);
+	PDBG("%s iwch_dev %p\n", __func__,  rnicp);
 	idr_init(&rnicp->cqidr);
 	idr_init(&rnicp->qpidr);
 	idr_init(&rnicp->mmidr);
@@ -144,11 +145,12 @@ static void open_rnic_dev(struct t3cdev *tdev)
 {
 	struct iwch_dev *rnicp;
 
-	pr_debug("%s t3cdev %p\n", __func__,  tdev);
-	pr_info_once("Chelsio T3 RDMA Driver - version %s\n", DRV_VERSION);
+	PDBG("%s t3cdev %p\n", __func__,  tdev);
+	printk_once(KERN_INFO MOD "Chelsio T3 RDMA Driver - version %s\n",
+		       DRV_VERSION);
 	rnicp = (struct iwch_dev *)ib_alloc_device(sizeof(*rnicp));
 	if (!rnicp) {
-		pr_err("Cannot allocate ib device\n");
+		printk(KERN_ERR MOD "Cannot allocate ib device\n");
 		return;
 	}
 	rnicp->rdev.ulp = rnicp;
@@ -158,7 +160,7 @@ static void open_rnic_dev(struct t3cdev *tdev)
 
 	if (cxio_rdev_open(&rnicp->rdev)) {
 		mutex_unlock(&dev_mutex);
-		pr_err("Unable to open CXIO rdev\n");
+		printk(KERN_ERR MOD "Unable to open CXIO rdev\n");
 		ib_dealloc_device(&rnicp->ibdev);
 		return;
 	}
@@ -169,18 +171,18 @@ static void open_rnic_dev(struct t3cdev *tdev)
 	mutex_unlock(&dev_mutex);
 
 	if (iwch_register_device(rnicp)) {
-		pr_err("Unable to register device\n");
+		printk(KERN_ERR MOD "Unable to register device\n");
 		close_rnic_dev(tdev);
 	}
-	pr_info("Initialized device %s\n",
-		pci_name(rnicp->rdev.rnic_info.pdev));
+	printk(KERN_INFO MOD "Initialized device %s\n",
+	       pci_name(rnicp->rdev.rnic_info.pdev));
 	return;
 }
 
 static void close_rnic_dev(struct t3cdev *tdev)
 {
 	struct iwch_dev *dev, *tmp;
-	pr_debug("%s t3cdev %p\n", __func__,  tdev);
+	PDBG("%s t3cdev %p\n", __func__,  tdev);
 	mutex_lock(&dev_mutex);
 	list_for_each_entry_safe(dev, tmp, &dev_list, entry) {
 		if (dev->rdev.t3cdev_p == tdev) {

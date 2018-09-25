@@ -27,7 +27,6 @@
 #include <linux/module.h>
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
-#include <linux/sched/signal.h>
 
 #include <net/bluetooth/bluetooth.h>
 #include <net/bluetooth/hci_core.h>
@@ -73,9 +72,9 @@ struct sco_pinfo {
 #define SCO_CONN_TIMEOUT	(HZ * 40)
 #define SCO_DISCONN_TIMEOUT	(HZ * 2)
 
-static void sco_sock_timeout(struct timer_list *t)
+static void sco_sock_timeout(unsigned long arg)
 {
-	struct sock *sk = from_timer(sk, t, sk_timer);
+	struct sock *sk = (struct sock *)arg;
 
 	BT_DBG("sock %p state %d", sk, sk->sk_state);
 
@@ -220,7 +219,7 @@ static int sco_connect(struct sock *sk)
 
 	BT_DBG("%pMR -> %pMR", &sco_pi(sk)->src, &sco_pi(sk)->dst);
 
-	hdev = hci_get_route(&sco_pi(sk)->dst, &sco_pi(sk)->src, BDADDR_BREDR);
+	hdev = hci_get_route(&sco_pi(sk)->dst, &sco_pi(sk)->src);
 	if (!hdev)
 		return -EHOSTUNREACH;
 
@@ -488,7 +487,7 @@ static struct sock *sco_sock_alloc(struct net *net, struct socket *sock,
 
 	sco_pi(sk)->setting = BT_VOICE_CVSD_16BIT;
 
-	timer_setup(&sk->sk_timer, sco_sock_timeout, 0);
+	setup_timer(&sk->sk_timer, sco_sock_timeout, (unsigned long)sk);
 
 	bt_sock_link(&sco_sk_list, sk);
 	return sk;
@@ -525,8 +524,10 @@ static int sco_sock_bind(struct socket *sock, struct sockaddr *addr,
 
 	BT_DBG("sk %p %pMR", sk, &sa->sco_bdaddr);
 
-	if (!addr || addr_len < sizeof(struct sockaddr_sco) ||
-	    addr->sa_family != AF_BLUETOOTH)
+	if (!addr || addr->sa_family != AF_BLUETOOTH)
+		return -EINVAL;
+
+	if (addr_len < sizeof(struct sockaddr_sco))
 		return -EINVAL;
 
 	lock_sock(sk);
@@ -626,7 +627,7 @@ done:
 }
 
 static int sco_sock_accept(struct socket *sock, struct socket *newsock,
-			   int flags, bool kern)
+			   int flags)
 {
 	DEFINE_WAIT_FUNC(wait, woken_wake_function);
 	struct sock *sk = sock->sk, *ch;
@@ -681,7 +682,7 @@ done:
 }
 
 static int sco_sock_getname(struct socket *sock, struct sockaddr *addr,
-			    int peer)
+			    int *len, int peer)
 {
 	struct sockaddr_sco *sa = (struct sockaddr_sco *) addr;
 	struct sock *sk = sock->sk;
@@ -689,13 +690,14 @@ static int sco_sock_getname(struct socket *sock, struct sockaddr *addr,
 	BT_DBG("sock %p, sk %p", sock, sk);
 
 	addr->sa_family = AF_BLUETOOTH;
+	*len = sizeof(struct sockaddr_sco);
 
 	if (peer)
 		bacpy(&sa->sco_bdaddr, &sco_pi(sk)->dst);
 	else
 		bacpy(&sa->sco_bdaddr, &sco_pi(sk)->src);
 
-	return sizeof(struct sockaddr_sco);
+	return 0;
 }
 
 static int sco_sock_sendmsg(struct socket *sock, struct msghdr *msg,
@@ -1198,7 +1200,7 @@ static const struct proto_ops sco_sock_ops = {
 	.getname	= sco_sock_getname,
 	.sendmsg	= sco_sock_sendmsg,
 	.recvmsg	= sco_sock_recvmsg,
-	.poll_mask	= bt_sock_poll_mask,
+	.poll		= bt_sock_poll,
 	.ioctl		= bt_sock_ioctl,
 	.mmap		= sock_no_mmap,
 	.socketpair	= sock_no_socketpair,

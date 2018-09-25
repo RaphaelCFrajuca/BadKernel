@@ -25,7 +25,6 @@
 #include <linux/of.h>
 
 #include "core.h"
-#include "card.h"
 #include "sdio_cis.h"
 #include "sdio_bus.h"
 
@@ -143,7 +142,7 @@ static int sdio_bus_probe(struct device *dev)
 		return -ENODEV;
 
 	ret = dev_pm_domain_attach(dev, false);
-	if (ret)
+	if (ret == -EPROBE_DEFER)
 		return ret;
 
 	/* Unbound SDIO functions are always suspended.
@@ -344,7 +343,6 @@ int sdio_add_func(struct sdio_func *func)
 
 	sdio_set_of_node(func);
 	sdio_acpi_set_handle(func);
-	device_enable_async_suspend(&func->dev);
 	ret = device_add(&func->dev);
 	if (ret == 0)
 		sdio_func_set_present(func);

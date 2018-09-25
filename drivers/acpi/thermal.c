@@ -40,7 +40,7 @@
 #include <linux/thermal.h>
 #include <linux/acpi.h>
 #include <linux/workqueue.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
 #define PREFIX "ACPI: "
 
@@ -520,8 +520,7 @@ static void acpi_thermal_check(void *data)
 	if (!tz->tz_enabled)
 		return;
 
-	thermal_zone_device_update(tz->thermal_zone,
-				   THERMAL_EVENT_UNSPECIFIED);
+	thermal_zone_device_update(tz->thermal_zone);
 }
 
 /* sys I/F for generic thermal sysfs support */
@@ -1209,7 +1208,7 @@ static int thermal_psv(const struct dmi_system_id *d) {
 	return 0;
 }
 
-static const struct dmi_system_id thermal_dmi_table[] __initconst = {
+static struct dmi_system_id thermal_dmi_table[] __initdata = {
 	/*
 	 * Award BIOS on this AOpen makes thermal control almost worthless.
 	 * http://bugzilla.kernel.org/show_bug.cgi?id=8842
@@ -1260,8 +1259,7 @@ static int __init acpi_thermal_init(void)
 		return -ENODEV;
 	}
 
-	acpi_thermal_pm_queue = alloc_workqueue("acpi_thermal_pm",
-						WQ_HIGHPRI | WQ_MEM_RECLAIM, 0);
+	acpi_thermal_pm_queue = create_workqueue("acpi_thermal_pm");
 	if (!acpi_thermal_pm_queue)
 		return -ENODEV;
 

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * (C) Copyright 2002 Linus Torvalds
  * Portions based on the vdso-randomization code from exec-shield:

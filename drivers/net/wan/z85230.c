@@ -483,10 +483,11 @@ static void z8530_status(struct z8530_channel *chan)
 	write_zsctrl(chan, RES_H_IUS);
 }
 
-struct z8530_irqhandler z8530_sync = {
-	.rx = z8530_rx,
-	.tx = z8530_tx,
-	.status = z8530_status,
+struct z8530_irqhandler z8530_sync =
+{
+	z8530_rx,
+	z8530_tx,
+	z8530_status
 };
 
 EXPORT_SYMBOL(z8530_sync);
@@ -604,15 +605,15 @@ static void z8530_dma_status(struct z8530_channel *chan)
 }
 
 static struct z8530_irqhandler z8530_dma_sync = {
-	.rx = z8530_dma_rx,
-	.tx = z8530_dma_tx,
-	.status = z8530_dma_status,
+	z8530_dma_rx,
+	z8530_dma_tx,
+	z8530_dma_status
 };
 
 static struct z8530_irqhandler z8530_txdma_sync = {
-	.rx = z8530_rx,
-	.tx = z8530_dma_tx,
-	.status = z8530_dma_status,
+	z8530_rx,
+	z8530_dma_tx,
+	z8530_dma_status
 };
 
 /**
@@ -677,10 +678,11 @@ static void z8530_status_clear(struct z8530_channel *chan)
 	write_zsctrl(chan, RES_H_IUS);
 }
 
-struct z8530_irqhandler z8530_nop = {
-	.rx = z8530_rx_clear,
-	.tx = z8530_tx_clear,
-	.status = z8530_status_clear,
+struct z8530_irqhandler z8530_nop=
+{
+	z8530_rx_clear,
+	z8530_tx_clear,
+	z8530_status_clear
 };
 
 

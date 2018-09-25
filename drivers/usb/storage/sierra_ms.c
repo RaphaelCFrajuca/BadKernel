@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <scsi/scsi.h>
 #include <scsi/scsi_host.h>
 #include <scsi/scsi_cmnd.h>
@@ -90,7 +89,7 @@ static void debug_swoc(const struct device *dev, struct swoc_info *swocInfo)
 }
 
 
-static ssize_t truinst_show(struct device *dev, struct device_attribute *attr,
+static ssize_t show_truinst(struct device *dev, struct device_attribute *attr,
 			char *buf)
 {
 	struct swoc_info *swocInfo;
@@ -122,7 +121,7 @@ static ssize_t truinst_show(struct device *dev, struct device_attribute *attr,
 	}
 	return result;
 }
-static DEVICE_ATTR_RO(truinst);
+static DEVICE_ATTR(truinst, S_IRUGO, show_truinst, NULL);
 
 int sierra_ms_init(struct us_data *us)
 {
@@ -178,8 +177,7 @@ int sierra_ms_init(struct us_data *us)
 
 		debug_swoc(&us->pusb_dev->dev, swocInfo);
 
-		/*
-		 * If there is not Linux software on the TRU-Install device
+		/* If there is not Linux software on the TRU-Install device
 		 * then switch to modem mode
 		 */
 		if (!containsFullLinuxPackage(swocInfo)) {

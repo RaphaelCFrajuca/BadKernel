@@ -84,7 +84,6 @@ static int nfcmrvl_uart_parse_dt(struct device_node *node,
 	ret = nfcmrvl_parse_dt(matched_node, pdata);
 	if (ret < 0) {
 		pr_err("Failed to get generic entries\n");
-		of_node_put(matched_node);
 		return ret;
 	}
 
@@ -97,8 +96,6 @@ static int nfcmrvl_uart_parse_dt(struct device_node *node,
 		pdata->break_control = 1;
 	else
 		pdata->break_control = 0;
-
-	of_node_put(matched_node);
 
 	return 0;
 }

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/kernel.h>
 #include <asm/div64.h>
 #include <linux/reciprocal_div.h>

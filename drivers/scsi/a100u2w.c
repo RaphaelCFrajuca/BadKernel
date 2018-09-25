@@ -1222,8 +1222,19 @@ static struct pci_driver inia100_pci_driver = {
 	.remove		= inia100_remove_one,
 };
 
-module_pci_driver(inia100_pci_driver);
+static int __init inia100_init(void)
+{
+	return pci_register_driver(&inia100_pci_driver);
+}
+
+static void __exit inia100_exit(void)
+{
+	pci_unregister_driver(&inia100_pci_driver);
+}
 
 MODULE_DESCRIPTION("Initio A100U2W SCSI driver");
 MODULE_AUTHOR("Initio Corporation");
 MODULE_LICENSE("Dual BSD/GPL");
+
+module_init(inia100_init);
+module_exit(inia100_exit);

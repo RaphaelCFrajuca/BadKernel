@@ -76,12 +76,15 @@ o	I hear that RCU is patented?  What is with that?
 	Of these, one was allowed to lapse by the assignee, and the
 	others have been contributed to the Linux kernel under GPL.
 	There are now also LGPL implementations of user-level RCU
-	available (http://liburcu.org/).
+	available (http://lttng.org/?q=node/18).
 
 o	I hear that RCU needs work in order to support realtime kernels?
 
-	Realtime-friendly RCU can be enabled via the CONFIG_PREEMPT_RCU
-	kernel configuration parameter.
+	This work is largely completed.  Realtime-friendly RCU can be
+	enabled via the CONFIG_PREEMPT_RCU kernel configuration
+	parameter.  However, work is in progress for enabling priority
+	boosting of preempted RCU read-side critical sections.	This is
+	needed if you have CPU-bound realtime threads.
 
 o	Where can I find more information on RCU?
 

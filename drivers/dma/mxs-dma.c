@@ -1,8 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0
-//
-// Copyright 2011 Freescale Semiconductor, Inc. All Rights Reserved.
-//
-// Refer to drivers/dma/imx-sdma.c
+/*
+ * Copyright 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ *
+ * Refer to drivers/dma/imx-sdma.c
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
 
 #include <linux/init.h>
 #include <linux/types.h>
@@ -322,7 +326,8 @@ static void mxs_dma_tasklet(unsigned long data)
 {
 	struct mxs_dma_chan *mxs_chan = (struct mxs_dma_chan *) data;
 
-	dmaengine_desc_get_callback_invoke(&mxs_chan->desc, NULL);
+	if (mxs_chan->desc.callback)
+		mxs_chan->desc.callback(mxs_chan->desc.callback_param);
 }
 
 static int mxs_dma_irq_to_chan(struct mxs_dma_engine *mxs_dma, int irq)
@@ -424,10 +429,12 @@ static int mxs_dma_alloc_chan_resources(struct dma_chan *chan)
 		goto err_alloc;
 	}
 
-	ret = request_irq(mxs_chan->chan_irq, mxs_dma_int_handler,
-			  0, "mxs-dma", mxs_dma);
-	if (ret)
-		goto err_irq;
+	if (mxs_chan->chan_irq != NO_IRQ) {
+		ret = request_irq(mxs_chan->chan_irq, mxs_dma_int_handler,
+					0, "mxs-dma", mxs_dma);
+		if (ret)
+			goto err_irq;
+	}
 
 	ret = clk_prepare_enable(mxs_dma->clk);
 	if (ret)
@@ -613,7 +620,7 @@ static struct dma_async_tx_descriptor *mxs_dma_prep_dma_cyclic(
 
 	if (period_len > MAX_XFER_BYTES) {
 		dev_err(mxs_dma->dma_device.dev,
-				"maximum period size exceeded: %zu > %d\n",
+				"maximum period size exceeded: %d > %d\n",
 				period_len, MAX_XFER_BYTES);
 		goto err_out;
 	}

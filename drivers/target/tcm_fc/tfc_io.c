@@ -82,7 +82,7 @@ int ft_queue_data_in(struct se_cmd *se_cmd)
 
 	ep = fc_seq_exch(cmd->seq);
 	lport = ep->lp;
-	cmd->seq = fc_seq_start_next(cmd->seq);
+	cmd->seq = lport->tt.seq_start_next(cmd->seq);
 
 	remaining = se_cmd->data_length;
 
@@ -154,9 +154,9 @@ int ft_queue_data_in(struct se_cmd *se_cmd)
 			BUG_ON(!page);
 			from = kmap_atomic(page + (mem_off >> PAGE_SHIFT));
 			page_addr = from;
-			from += offset_in_page(mem_off);
+			from += mem_off & ~PAGE_MASK;
 			tlen = min(tlen, (size_t)(PAGE_SIZE -
-						offset_in_page(mem_off)));
+						(mem_off & ~PAGE_MASK)));
 			memcpy(to, from, tlen);
 			kunmap_atomic(page_addr);
 			to += tlen;
@@ -174,7 +174,7 @@ int ft_queue_data_in(struct se_cmd *se_cmd)
 			f_ctl |= FC_FC_END_SEQ;
 		fc_fill_fc_hdr(fp, FC_RCTL_DD_SOL_DATA, ep->did, ep->sid,
 			       FC_TYPE_FCP, f_ctl, fh_off);
-		error = fc_seq_send(lport, seq, fp);
+		error = lport->tt.seq_send(lport, seq, fp);
 		if (error) {
 			pr_info_ratelimited("%s: Failed to send frame %p, "
 						"xid <0x%x>, remaining %zu, "
@@ -314,9 +314,9 @@ void ft_recv_write_data(struct ft_cmd *cmd, struct fc_frame *fp)
 
 		to = kmap_atomic(page + (mem_off >> PAGE_SHIFT));
 		page_addr = to;
-		to += offset_in_page(mem_off);
+		to += mem_off & ~PAGE_MASK;
 		tlen = min(tlen, (size_t)(PAGE_SIZE -
-					  offset_in_page(mem_off)));
+					  (mem_off & ~PAGE_MASK)));
 		memcpy(to, from, tlen);
 		kunmap_atomic(page_addr);
 

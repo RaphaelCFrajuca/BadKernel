@@ -25,7 +25,7 @@
 #include <linux/init.h>
 #include <linux/seq_file.h>
 #include <linux/slab.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/lppaca.h>
 #include <asm/hvcall.h>
 #include <asm/firmware.h>
@@ -37,7 +37,6 @@
 #include <asm/mmu.h>
 #include <asm/machdep.h>
 
-#include "pseries.h"
 
 /*
  * This isn't a module but we expose that to userspace
@@ -52,20 +51,18 @@
  * Track sum of all purrs across all processors. This is used to further
  * calculate usage values by different applications
  */
-static void cpu_get_purr(void *arg)
-{
-	atomic64_t *sum = arg;
-
-	atomic64_add(mfspr(SPRN_PURR), sum);
-}
-
 static unsigned long get_purr(void)
 {
-	atomic64_t purr = ATOMIC64_INIT(0);
+	unsigned long sum_purr = 0;
+	int cpu;
 
-	on_each_cpu(cpu_get_purr, &purr, 1);
+	for_each_possible_cpu(cpu) {
+		struct cpu_usage *cu;
 
-	return atomic64_read(&purr);
+		cu = &per_cpu(cpu_usage_array, cpu);
+		sum_purr += cu->current_tb;
+	}
+	return sum_purr;
 }
 
 /*
@@ -372,10 +369,10 @@ static void parse_system_parameter_string(struct seq_file *m)
  */
 static int lparcfg_count_active_processors(void)
 {
-	struct device_node *cpus_dn;
+	struct device_node *cpus_dn = NULL;
 	int count = 0;
 
-	for_each_node_by_type(cpus_dn, "cpu") {
+	while ((cpus_dn = of_find_node_by_type(cpus_dn, "cpu"))) {
 #ifdef LPARCFG_DEBUG
 		printk(KERN_ERR "cpus_dn %p\n", cpus_dn);
 #endif
@@ -487,9 +484,8 @@ static int pseries_lparcfg_data(struct seq_file *m, void *v)
 	seq_printf(m, "shared_processor_mode=%d\n",
 		   lppaca_shared_proc(get_lppaca()));
 
-#ifdef CONFIG_PPC_BOOK3S_64
 	seq_printf(m, "slb_size=%d\n", mmu_slb_size);
-#endif
+
 	parse_em_data(m);
 
 	return 0;
@@ -699,11 +695,11 @@ static const struct file_operations lparcfg_fops = {
 
 static int __init lparcfg_init(void)
 {
-	umode_t mode = 0444;
+	umode_t mode = S_IRUSR | S_IRGRP | S_IROTH;
 
 	/* Allow writing if we have FW_FEATURE_SPLPAR */
 	if (firmware_has_feature(FW_FEATURE_SPLPAR))
-		mode |= 0200;
+		mode |= S_IWUSR;
 
 	if (!proc_create("powerpc/lparcfg", mode, NULL, &lparcfg_fops)) {
 		printk(KERN_ERR "Failed to create powerpc/lparcfg\n");

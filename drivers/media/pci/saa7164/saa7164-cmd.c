@@ -13,6 +13,10 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *
  *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include <linux/wait.h>
@@ -130,13 +134,14 @@ int saa7164_irq_dequeue(struct saa7164_dev *dev)
  * -bus/c running buffer. */
 static int saa7164_cmd_dequeue(struct saa7164_dev *dev)
 {
+	int loop = 1;
 	int ret;
 	u32 timeout;
 	wait_queue_head_t *q = NULL;
 	u8 tmp[512];
 	dprintk(DBGLVL_CMD, "%s()\n", __func__);
 
-	while (true) {
+	while (loop) {
 
 		struct tmComResInfo tRsp = { 0, 0, 0, 0, 0, 0 };
 		ret = saa7164_bus_get(dev, &tRsp, NULL, 1);
@@ -177,6 +182,8 @@ static int saa7164_cmd_dequeue(struct saa7164_dev *dev)
 		wake_up(q);
 		return SAA_OK;
 	}
+
+	return SAA_OK;
 }
 
 static int saa7164_cmd_set(struct saa7164_dev *dev, struct tmComResInfo *msg,
@@ -294,8 +301,8 @@ static int saa7164_cmd_wait(struct saa7164_dev *dev, u8 seqno)
 			else
 				saa7164_cmd_timeout_seqno(dev, seqno);
 
-			dprintk(DBGLVL_CMD, "%s(seqno=%d) Waiting res = %d (signalled=%d)\n",
-				__func__, seqno, r,
+			dprintk(DBGLVL_CMD, "%s(seqno=%d) Waiting res = %d "
+				"(signalled=%d)\n", __func__, seqno, r,
 				dev->cmds[seqno].signalled);
 		} else
 			ret = SAA_OK;
@@ -346,8 +353,8 @@ int saa7164_cmd_send(struct saa7164_dev *dev, u8 id, enum tmComResCmd command,
 	int ret;
 	int safety = 0;
 
-	dprintk(DBGLVL_CMD, "%s(unitid = %s (%d) , command = 0x%x, sel = 0x%x)\n",
-		__func__, saa7164_unitid_name(dev, id), id,
+	dprintk(DBGLVL_CMD, "%s(unitid = %s (%d) , command = 0x%x, "
+		"sel = 0x%x)\n", __func__, saa7164_unitid_name(dev, id), id,
 		command, controlselector);
 
 	if ((size == 0) || (buf == NULL)) {
@@ -445,7 +452,9 @@ int saa7164_cmd_send(struct saa7164_dev *dev, u8 id, enum tmComResCmd command,
 		if (presponse_t->seqno != pcommand_t->seqno) {
 
 			dprintk(DBGLVL_CMD,
-				"wrong event: seqno = %d, expected seqno = %d, will dequeue regardless\n",
+				"wrong event: seqno = %d, "
+				"expected seqno = %d, "
+				"will dequeue regardless\n",
 				presponse_t->seqno, pcommand_t->seqno);
 
 			ret = saa7164_cmd_dequeue(dev);
@@ -506,8 +515,6 @@ int saa7164_cmd_send(struct saa7164_dev *dev, u8 id, enum tmComResCmd command,
 				dprintk(DBGLVL_CMD,
 					"%s() UNKNOWN OR INVALID CONTROL\n",
 					__func__);
-				ret = SAA_ERR_NOT_SUPPORTED;
-				break;
 			default:
 				dprintk(DBGLVL_CMD, "%s() UNKNOWN\n", __func__);
 				ret = SAA_ERR_NOT_SUPPORTED;

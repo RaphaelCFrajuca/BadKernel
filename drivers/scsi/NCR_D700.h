@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* -*- mode: c; c-basic-offset: 8 -*- */
 
 /* NCR Dual 700 MCA SCSI Driver

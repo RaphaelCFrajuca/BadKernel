@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/types.h>
 
 #include "debug.h"
@@ -172,7 +171,7 @@ static int test_data_set(struct test_data *dat_set, int x86_64)
  * verbose (-v) option to see all the instructions and whether or not they
  * decoded successfuly.
  */
-int test__insn_x86(struct test *test __maybe_unused, int subtest __maybe_unused)
+int test__insn_x86(void)
 {
 	int ret = 0;
 

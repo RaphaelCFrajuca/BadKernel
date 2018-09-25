@@ -23,7 +23,7 @@
  *
  *
  *  libata documentation is available via 'make {ps|pdf}docs',
- *  as Documentation/driver-api/libata.rst
+ *  as Documentation/DocBook/libata.*
  *
  */
 

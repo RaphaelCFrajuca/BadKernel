@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * There are multiple 16-bit CRC polynomials in common use, but this is
  * *the* standard CRC-32 polynomial, first popularized by Ethernet.

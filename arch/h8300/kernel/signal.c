@@ -25,7 +25,6 @@
  */
 
 #include <linux/sched.h>
-#include <linux/sched/task_stack.h>
 #include <linux/mm.h>
 #include <linux/kernel.h>
 #include <linux/signal.h>
@@ -42,7 +41,7 @@
 #include <linux/tracehook.h>
 
 #include <asm/setup.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/pgtable.h>
 #include <asm/traps.h>
 #include <asm/ucontext.h>
@@ -96,7 +95,7 @@ restore_sigcontext(struct sigcontext *usc, int *pd0)
 	regs->ccr |= ccr;
 	regs->orig_er0 = -1;		/* disable syscall checks */
 	err |= __get_user(usp, &usc->sc_usp);
-	regs->sp = usp;
+	wrusp(usp);
 
 	err |= __get_user(er0, &usc->sc_er0);
 	*pd0 = er0;
@@ -181,7 +180,7 @@ static int setup_rt_frame(struct ksignal *ksig, sigset_t *set,
 		return -EFAULT;
 
 	/* Set up to return from userspace.  */
-	ret = (unsigned char *)&frame->retcode;
+	ret = frame->retcode;
 	if (ksig->ka.sa.sa_flags & SA_RESTORER)
 		ret = (unsigned char *)(ksig->ka.sa.sa_restorer);
 	else {
@@ -197,8 +196,8 @@ static int setup_rt_frame(struct ksignal *ksig, sigset_t *set,
 		return -EFAULT;
 
 	/* Set up registers for signal handler */
-	regs->sp  = (unsigned long)frame;
-	regs->pc  = (unsigned long)ksig->ka.sa.sa_handler;
+	wrusp((unsigned long) frame);
+	regs->pc  = (unsigned long) ksig->ka.sa.sa_handler;
 	regs->er0 = ksig->sig;
 	regs->er1 = (unsigned long)&(frame->info);
 	regs->er2 = (unsigned long)&frame->uc;

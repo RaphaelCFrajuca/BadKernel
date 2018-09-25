@@ -22,7 +22,6 @@
 #include <linux/scatterlist.h>
 #include <linux/of.h>
 #include <linux/gfp.h>
-#include <linux/pci.h>
 
 #include <scsi/scsi.h>
 #include <scsi/scsi_host.h>
@@ -31,6 +30,7 @@
 #include <asm/macio.h>
 #include <asm/io.h>
 #include <asm/dbdma.h>
+#include <asm/pci-bridge.h>
 #include <asm/machdep.h>
 #include <asm/pmac_feature.h>
 #include <asm/mediabay.h>
@@ -1131,9 +1131,11 @@ static int pata_macio_attach(struct macio_dev *mdev,
 	/* Allocate and init private data structure */
 	priv = devm_kzalloc(&mdev->ofdev.dev,
 			    sizeof(struct pata_macio_priv), GFP_KERNEL);
-	if (!priv)
+	if (priv == NULL) {
+		dev_err(&mdev->ofdev.dev,
+			"Failed to allocate private memory\n");
 		return -ENOMEM;
-
+	}
 	priv->node = of_node_get(mdev->ofdev.dev.of_node);
 	priv->mdev = mdev;
 	priv->dev = &mdev->ofdev.dev;
@@ -1275,9 +1277,11 @@ static int pata_macio_pci_attach(struct pci_dev *pdev,
 	/* Allocate and init private data structure */
 	priv = devm_kzalloc(&pdev->dev,
 			    sizeof(struct pata_macio_priv), GFP_KERNEL);
-	if (!priv)
+	if (priv == NULL) {
+		dev_err(&pdev->dev,
+			"Failed to allocate private memory\n");
 		return -ENOMEM;
-
+	}
 	priv->node = of_node_get(np);
 	priv->pdev = pdev;
 	priv->dev = &pdev->dev;
@@ -1324,7 +1328,7 @@ static int pata_macio_pci_resume(struct pci_dev *pdev)
 }
 #endif /* CONFIG_PM_SLEEP */
 
-static const struct of_device_id pata_macio_match[] =
+static struct of_device_id pata_macio_match[] =
 {
 	{
 	.name 		= "IDE",

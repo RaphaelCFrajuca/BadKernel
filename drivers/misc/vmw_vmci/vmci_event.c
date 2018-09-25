@@ -19,7 +19,6 @@
 #include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
-#include <linux/rculist.h>
 
 #include "vmci_driver.h"
 #include "vmci_event.h"

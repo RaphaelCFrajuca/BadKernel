@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * IA-64 Linux syscall numbers and inline-functions.
  *
@@ -12,7 +11,7 @@
 
 
 
-#define NR_syscalls			326 /* length of syscall table */
+#define NR_syscalls			323 /* length of syscall table */
 
 /*
  * The following defines stop scripts/checksyscalls.sh from complaining about

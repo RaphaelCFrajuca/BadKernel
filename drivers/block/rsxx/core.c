@@ -203,11 +203,14 @@ static ssize_t rsxx_cram_write(struct file *fp, const char __user *ubuf,
 	char *buf;
 	ssize_t st;
 
-	buf = memdup_user(ubuf, cnt);
-	if (IS_ERR(buf))
-		return PTR_ERR(buf);
+	buf = kzalloc(cnt, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
 
-	st = rsxx_creg_write(card, CREG_ADD_CRAM + (u32)*ppos, cnt, buf, 1);
+	st = copy_from_user(buf, ubuf, cnt);
+	if (!st)
+		st = rsxx_creg_write(card, CREG_ADD_CRAM + (u32)*ppos, cnt,
+				     buf, 1);
 	kfree(buf);
 	if (st)
 		return st;
@@ -247,19 +250,19 @@ static void rsxx_debugfs_dev_new(struct rsxx_cardinfo *card)
 	if (IS_ERR_OR_NULL(card->debugfs_dir))
 		goto failed_debugfs_dir;
 
-	debugfs_stats = debugfs_create_file("stats", 0444,
+	debugfs_stats = debugfs_create_file("stats", S_IRUGO,
 					    card->debugfs_dir, card,
 					    &debugfs_stats_fops);
 	if (IS_ERR_OR_NULL(debugfs_stats))
 		goto failed_debugfs_stats;
 
-	debugfs_pci_regs = debugfs_create_file("pci_regs", 0444,
+	debugfs_pci_regs = debugfs_create_file("pci_regs", S_IRUGO,
 					       card->debugfs_dir, card,
 					       &debugfs_pci_regs_fops);
 	if (IS_ERR_OR_NULL(debugfs_pci_regs))
 		goto failed_debugfs_pci_regs;
 
-	debugfs_cram = debugfs_create_file("cram", 0644,
+	debugfs_cram = debugfs_create_file("cram", S_IRUGO | S_IWUSR,
 					   card->debugfs_dir, card,
 					   &debugfs_cram_fops);
 	if (IS_ERR_OR_NULL(debugfs_cram))
@@ -873,8 +876,7 @@ static int rsxx_pci_probe(struct pci_dev *dev,
 		dev_info(CARD_TO_DEV(card),
 			"Failed reading the number of DMA targets\n");
 
-	card->ctrl = kcalloc(card->n_targets, sizeof(*card->ctrl),
-			     GFP_KERNEL);
+	card->ctrl = kzalloc(card->n_targets * sizeof(*card->ctrl), GFP_KERNEL);
 	if (!card->ctrl) {
 		st = -ENOMEM;
 		goto failed_dma_setup;

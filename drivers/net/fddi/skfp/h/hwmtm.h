@@ -168,25 +168,13 @@ struct os_debug {
 #define DB_P	debug
 #endif
 
-#define DB_RX(lev, fmt, ...)						\
-do {									\
-	if (DB_P.d_os.hwm_rx >= (lev))					\
-		printf(fmt "\n", ##__VA_ARGS__);			\
-} while (0)
-#define DB_TX(lev, fmt, ...)						\
-do {									\
-	if (DB_P.d_os.hwm_tx >= (lev))					\
-		printf(fmt "\n", ##__VA_ARGS__);			\
-} while (0)
-#define DB_GEN(lev, fmt, ...)						\
-do {									\
-	if (DB_P.d_os.hwm_gen >= (lev))					\
-		printf(fmt "\n", ##__VA_ARGS__);			\
-} while (0)
+#define DB_RX(a,b,c,lev) if (DB_P.d_os.hwm_rx >= (lev))	printf(a,b,c)
+#define DB_TX(a,b,c,lev) if (DB_P.d_os.hwm_tx >= (lev))	printf(a,b,c)
+#define DB_GEN(a,b,c,lev) if (DB_P.d_os.hwm_gen >= (lev)) printf(a,b,c)
 #else	/* DEBUG */
-#define DB_RX(lev, fmt, ...)	no_printk(fmt "\n", ##__VA_ARGS__)
-#define DB_TX(lev, fmt, ...)	no_printk(fmt "\n", ##__VA_ARGS__)
-#define DB_GEN(lev, fmt, ...)	no_printk(fmt "\n", ##__VA_ARGS__)
+#define DB_RX(a,b,c,lev)
+#define DB_TX(a,b,c,lev)
+#define DB_GEN(a,b,c,lev)
 #endif	/* DEBUG */
 
 #ifndef	SK_BREAK

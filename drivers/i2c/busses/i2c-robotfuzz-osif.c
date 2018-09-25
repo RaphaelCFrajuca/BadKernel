@@ -62,24 +62,27 @@ static int osif_xfer(struct i2c_adapter *adapter, struct i2c_msg *msgs,
 {
 	struct osif_priv *priv = adapter->algo_data;
 	struct i2c_msg *pmsg;
-	int ret;
-	int i;
+	int ret = 0;
+	int i, cmd;
 
-	for (i = 0; i < num; i++) {
+	for (i = 0; ret >= 0 && i < num; i++) {
 		pmsg = &msgs[i];
 
 		if (pmsg->flags & I2C_M_RD) {
-			ret = osif_usb_read(adapter, OSIFI2C_READ,
-					    pmsg->flags, pmsg->addr,
-					    pmsg->buf, pmsg->len);
+			cmd = OSIFI2C_READ;
+
+			ret = osif_usb_read(adapter, cmd, pmsg->flags,
+					    pmsg->addr, pmsg->buf,
+					    pmsg->len);
 			if (ret != pmsg->len) {
 				dev_err(&adapter->dev, "failure reading data\n");
 				return -EREMOTEIO;
 			}
 		} else {
-			ret = osif_usb_write(adapter, OSIFI2C_WRITE,
-					     pmsg->flags, pmsg->addr,
-					     pmsg->buf, pmsg->len);
+			cmd = OSIFI2C_WRITE;
+
+			ret = osif_usb_write(adapter, cmd, pmsg->flags,
+					     pmsg->addr, pmsg->buf, pmsg->len);
 			if (ret != pmsg->len) {
 				dev_err(&adapter->dev, "failure writing data\n");
 				return -EREMOTEIO;
@@ -114,7 +117,7 @@ static u32 osif_func(struct i2c_adapter *adapter)
 	return I2C_FUNC_I2C | I2C_FUNC_SMBUS_EMUL;
 }
 
-static const struct i2c_algorithm osif_algorithm = {
+static struct i2c_algorithm osif_algorithm = {
 	.master_xfer	= osif_xfer,
 	.functionality	= osif_func,
 };
@@ -122,7 +125,7 @@ static const struct i2c_algorithm osif_algorithm = {
 #define USB_OSIF_VENDOR_ID	0x1964
 #define USB_OSIF_PRODUCT_ID	0x0001
 
-static const struct usb_device_id osif_table[] = {
+static struct usb_device_id osif_table[] = {
 	{ USB_DEVICE(USB_OSIF_VENDOR_ID, USB_OSIF_PRODUCT_ID) },
 	{ }
 };

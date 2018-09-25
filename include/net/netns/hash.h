@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NET_NS_HASH_H__
 #define __NET_NS_HASH_H__
 

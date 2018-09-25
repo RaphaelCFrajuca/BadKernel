@@ -23,6 +23,7 @@
 #include <linux/pl320-ipc.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
+#include <linux/of_platform.h>
 #include <linux/of_address.h>
 #include <linux/reboot.h>
 #include <linux/amba/bus.h>
@@ -161,6 +162,8 @@ static void __init highbank_init(void)
 	bus_register_notifier(&amba_bustype, &highbank_amba_nb);
 
 	pl320_ipc_register_notifier(&hb_keys_nb);
+
+	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
 
 	if (psci_ops.cpu_suspend)
 		platform_device_register(&highbank_cpuidle_device);

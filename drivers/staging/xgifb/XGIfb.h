@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_XGIFB
 #define _LINUX_XGIFB
 #include "vgatypes.h"

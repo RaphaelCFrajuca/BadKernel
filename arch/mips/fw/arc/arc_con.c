@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Wrap-around code for a console using the
  * ARC io-routines.

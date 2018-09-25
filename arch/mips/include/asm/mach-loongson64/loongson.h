@@ -14,6 +14,7 @@
 #include <linux/io.h>
 #include <linux/init.h>
 #include <linux/irq.h>
+#include <linux/kconfig.h>
 #include <boot_param.h>
 
 /* loongson internal northbridge initialization */
@@ -26,7 +27,7 @@ extern void mach_prepare_shutdown(void);
 /* environment arguments from bootloader */
 extern u32 cpu_clock_freq;
 extern u32 memsize, highmemsize;
-extern const struct plat_smp_ops loongson3_smp_ops;
+extern struct plat_smp_ops loongson3_smp_ops;
 
 /* loongson-specific command line, env and memory initialization */
 extern void __init prom_init_memory(void);

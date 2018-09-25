@@ -13,11 +13,10 @@
 
 #include <asm/cacheflush.h>
 #include <asm/idmap.h>
-#include <asm/virt.h>
 
 #include "reboot.h"
 
-typedef void (*phys_reset_t)(unsigned long, bool);
+typedef void (*phys_reset_t)(unsigned long);
 
 /*
  * Function pointers to optional machine specific functions
@@ -52,10 +51,8 @@ static void __soft_restart(void *addr)
 	flush_cache_all();
 
 	/* Switch to the identity mapping. */
-	phys_reset = (phys_reset_t)virt_to_idmap(cpu_reset);
-
-	/* original stub should be restored by kvm */
-	phys_reset((unsigned long)addr, is_hyp_mode_available());
+	phys_reset = (phys_reset_t)(unsigned long)virt_to_idmap(cpu_reset);
+	phys_reset((unsigned long)addr);
 
 	/* Should never get here. */
 	BUG();
@@ -108,6 +105,8 @@ void machine_halt(void)
 {
 	local_irq_disable();
 	smp_send_stop();
+
+	local_irq_disable();
 	while (1);
 }
 
@@ -181,5 +180,6 @@ void machine_restart(char *cmd)
 
 	/* Whoops - the platform was unable to reboot. Tell the user! */
 	printk("Reboot failed -- System halted\n");
+	local_irq_disable();
 	while (1);
 }

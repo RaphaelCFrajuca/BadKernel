@@ -35,7 +35,6 @@
 #include <asm/pgtable.h>
 #include <asm/reg.h>
 #include <asm/cell-regs.h>
-#include <asm/cpu_has_feature.h>
 
 #include "pervasive.h"
 
@@ -88,14 +87,11 @@ static void cbe_power_save(void)
 static int cbe_system_reset_exception(struct pt_regs *regs)
 {
 	switch (regs->msr & SRR1_WAKEMASK) {
-	case SRR1_WAKEDEC:
-		set_dec(1);
 	case SRR1_WAKEEE:
-		/*
-		 * Handle these when interrupts get re-enabled and we take
-		 * them as regular exceptions. We are in an NMI context
-		 * and can't handle these here.
-		 */
+		do_IRQ(regs);
+		break;
+	case SRR1_WAKEDEC:
+		timer_interrupt(regs);
 		break;
 	case SRR1_WAKEMT:
 		return cbe_sysreset_hack();

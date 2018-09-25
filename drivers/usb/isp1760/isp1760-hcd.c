@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Driver for the NXP ISP1760 chip
  *
@@ -397,6 +396,7 @@ static int handshake(struct usb_hcd *hcd, u32 reg,
 /* reset a non-running (STS_HALT == 1) controller */
 static int ehci_reset(struct usb_hcd *hcd)
 {
+	int retval;
 	struct isp1760_hcd *priv = hcd_to_priv(hcd);
 
 	u32 command = reg_read32(hcd->regs, HC_USBCMD);
@@ -405,8 +405,9 @@ static int ehci_reset(struct usb_hcd *hcd)
 	reg_write32(hcd->regs, HC_USBCMD, command);
 	hcd->state = HC_STATE_HALT;
 	priv->next_statechange = jiffies;
-
-	return handshake(hcd, HC_USBCMD, CMD_RESET, 0, 250 * 1000);
+	retval = handshake(hcd, HC_USBCMD,
+			    CMD_RESET, 0, 250 * 1000);
+	return retval;
 }
 
 static struct isp1760_qh *qh_alloc(gfp_t flags)
@@ -1259,11 +1260,10 @@ leave:
 #define SLOT_TIMEOUT 300
 #define SLOT_CHECK_PERIOD 200
 static struct timer_list errata2_timer;
-static struct usb_hcd *errata2_timer_hcd;
 
-static void errata2_function(struct timer_list *unused)
+static void errata2_function(unsigned long data)
 {
-	struct usb_hcd *hcd = errata2_timer_hcd;
+	struct usb_hcd *hcd = (struct usb_hcd *) data;
 	struct isp1760_hcd *priv = hcd_to_priv(hcd);
 	int slot;
 	struct ptd ptd;
@@ -1335,8 +1335,7 @@ static int isp1760_run(struct usb_hcd *hcd)
 	if (retval)
 		return retval;
 
-	errata2_timer_hcd = hcd;
-	timer_setup(&errata2_timer, errata2_function, 0);
+	setup_timer(&errata2_timer, errata2_function, (unsigned long)hcd);
 	errata2_timer.expires = jiffies + msecs_to_jiffies(SLOT_CHECK_PERIOD);
 	add_timer(&errata2_timer);
 
@@ -2093,7 +2092,7 @@ static void isp1760_stop(struct usb_hcd *hcd)
 
 	isp1760_hub_control(hcd, ClearPortFeature, USB_PORT_FEAT_POWER,	1,
 			NULL, 0);
-	msleep(20);
+	mdelay(20);
 
 	spin_lock_irq(&priv->lock);
 	ehci_reset(hcd);

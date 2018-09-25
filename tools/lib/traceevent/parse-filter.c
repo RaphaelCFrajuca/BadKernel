@@ -28,14 +28,9 @@
 #include "event-utils.h"
 
 #define COMM "COMM"
-#define CPU "CPU"
 
 static struct format_field comm = {
 	.name = "COMM",
-};
-
-static struct format_field cpu = {
-	.name = "CPU",
 };
 
 struct event_list {
@@ -287,9 +282,11 @@ find_event(struct pevent *pevent, struct event_list **events,
 		sys_name = NULL;
 	}
 
-	ret = asprintf(&reg, "^%s$", event_name);
-	if (ret < 0)
+	reg = malloc(strlen(event_name) + 3);
+	if (reg == NULL)
 		return PEVENT_ERRNO__MEM_ALLOC_FAILED;
+
+	sprintf(reg, "^%s$", event_name);
 
 	ret = regcomp(&ereg, reg, REG_ICASE|REG_NOSUB);
 	free(reg);
@@ -298,12 +295,13 @@ find_event(struct pevent *pevent, struct event_list **events,
 		return PEVENT_ERRNO__INVALID_EVENT_NAME;
 
 	if (sys_name) {
-		ret = asprintf(&reg, "^%s$", sys_name);
-		if (ret < 0) {
+		reg = malloc(strlen(sys_name) + 3);
+		if (reg == NULL) {
 			regfree(&ereg);
 			return PEVENT_ERRNO__MEM_ALLOC_FAILED;
 		}
 
+		sprintf(reg, "^%s$", sys_name);
 		ret = regcomp(&sreg, reg, REG_ICASE|REG_NOSUB);
 		free(reg);
 		if (ret) {
@@ -384,17 +382,14 @@ create_arg_item(struct event_format *event, const char *token,
 		/* Consider this a field */
 		field = pevent_find_any_field(event, token);
 		if (!field) {
-			/* If token is 'COMM' or 'CPU' then it is special */
-			if (strcmp(token, COMM) == 0) {
-				field = &comm;
-			} else if (strcmp(token, CPU) == 0) {
-				field = &cpu;
-			} else {
+			if (strcmp(token, COMM) != 0) {
 				/* not a field, Make it false */
 				arg->type = FILTER_ARG_BOOLEAN;
 				arg->boolean.value = FILTER_FALSE;
 				break;
 			}
+			/* If token is 'COMM' then it is special */
+			field = &comm;
 		}
 		arg->type = FILTER_ARG_FIELD;
 		arg->field.field = field;
@@ -433,13 +428,13 @@ create_arg_exp(enum filter_exp_type etype)
 		return NULL;
 
 	arg->type = FILTER_ARG_EXP;
-	arg->exp.type = etype;
+	arg->op.type = etype;
 
 	return arg;
 }
 
 static struct filter_arg *
-create_arg_cmp(enum filter_cmp_type ctype)
+create_arg_cmp(enum filter_exp_type etype)
 {
 	struct filter_arg *arg;
 
@@ -449,7 +444,7 @@ create_arg_cmp(enum filter_cmp_type ctype)
 
 	/* Use NUM and change if necessary */
 	arg->type = FILTER_ARG_NUM;
-	arg->num.type = ctype;
+	arg->op.type = etype;
 
 	return arg;
 }
@@ -1631,7 +1626,6 @@ int pevent_filter_clear_trivial(struct event_filter *filter,
 		case FILTER_TRIVIAL_FALSE:
 			if (filter_type->filter->boolean.value)
 				continue;
-			break;
 		case FILTER_TRIVIAL_TRUE:
 			if (!filter_type->filter->boolean.value)
 				continue;
@@ -1723,10 +1717,6 @@ get_value(struct event_format *event,
 		name = get_comm(event, record);
 		return (unsigned long)name;
 	}
-
-	/* Handle our dummy "cpu" field */
-	if (field == &cpu)
-		return record->cpu;
 
 	pevent_read_number_field(field, record->data, &val);
 

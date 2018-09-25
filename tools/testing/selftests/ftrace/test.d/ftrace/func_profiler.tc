@@ -1,5 +1,4 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-2.0
 # description: ftrace - function profiler with function tracing
 
 # There was a bug after a rewrite of the ftrace infrastructure that
@@ -32,7 +31,7 @@ fail() { # mesg
     reset_tracer
     echo > set_ftrace_filter
     echo $1
-    exit_fail
+    exit $FAIL
 }
 
 echo "Testing function tracer with profiler:"

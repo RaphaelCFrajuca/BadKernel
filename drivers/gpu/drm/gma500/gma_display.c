@@ -59,8 +59,7 @@ int gma_pipe_set_base(struct drm_crtc *crtc, int x, int y,
 	struct drm_device *dev = crtc->dev;
 	struct drm_psb_private *dev_priv = dev->dev_private;
 	struct gma_crtc *gma_crtc = to_gma_crtc(crtc);
-	struct drm_framebuffer *fb = crtc->primary->fb;
-	struct psb_framebuffer *psbfb = to_psb_fb(fb);
+	struct psb_framebuffer *psbfb = to_psb_fb(crtc->primary->fb);
 	int pipe = gma_crtc->pipe;
 	const struct psb_offset *map = &dev_priv->regmap[pipe];
 	unsigned long start, offset;
@@ -71,7 +70,7 @@ int gma_pipe_set_base(struct drm_crtc *crtc, int x, int y,
 		return 0;
 
 	/* no fb bound */
-	if (!fb) {
+	if (!crtc->primary->fb) {
 		dev_err(dev->dev, "No FB bound\n");
 		goto gma_pipe_cleaner;
 	}
@@ -82,19 +81,19 @@ int gma_pipe_set_base(struct drm_crtc *crtc, int x, int y,
 	if (ret < 0)
 		goto gma_pipe_set_base_exit;
 	start = psbfb->gtt->offset;
-	offset = y * fb->pitches[0] + x * fb->format->cpp[0];
+	offset = y * crtc->primary->fb->pitches[0] + x * (crtc->primary->fb->bits_per_pixel / 8);
 
-	REG_WRITE(map->stride, fb->pitches[0]);
+	REG_WRITE(map->stride, crtc->primary->fb->pitches[0]);
 
 	dspcntr = REG_READ(map->cntr);
 	dspcntr &= ~DISPPLANE_PIXFORMAT_MASK;
 
-	switch (fb->format->cpp[0] * 8) {
+	switch (crtc->primary->fb->bits_per_pixel) {
 	case 8:
 		dspcntr |= DISPPLANE_8BPP;
 		break;
 	case 16:
-		if (fb->format->depth == 15)
+		if (crtc->primary->fb->depth == 15)
 			dspcntr |= DISPPLANE_15_16BPP;
 		else
 			dspcntr |= DISPPLANE_16BPP;
@@ -144,44 +143,52 @@ void gma_crtc_load_lut(struct drm_crtc *crtc)
 	struct gma_crtc *gma_crtc = to_gma_crtc(crtc);
 	const struct psb_offset *map = &dev_priv->regmap[gma_crtc->pipe];
 	int palreg = map->palette;
-	u16 *r, *g, *b;
 	int i;
 
 	/* The clocks have to be on to load the palette. */
 	if (!crtc->enabled)
 		return;
 
-	r = crtc->gamma_store;
-	g = r + crtc->gamma_size;
-	b = g + crtc->gamma_size;
-
 	if (gma_power_begin(dev, false)) {
 		for (i = 0; i < 256; i++) {
 			REG_WRITE(palreg + 4 * i,
-				  (((*r++ >> 8) + gma_crtc->lut_adj[i]) << 16) |
-				  (((*g++ >> 8) + gma_crtc->lut_adj[i]) << 8) |
-				  ((*b++ >> 8) + gma_crtc->lut_adj[i]));
+				  ((gma_crtc->lut_r[i] +
+				  gma_crtc->lut_adj[i]) << 16) |
+				  ((gma_crtc->lut_g[i] +
+				  gma_crtc->lut_adj[i]) << 8) |
+				  (gma_crtc->lut_b[i] +
+				  gma_crtc->lut_adj[i]));
 		}
 		gma_power_end(dev);
 	} else {
 		for (i = 0; i < 256; i++) {
 			/* FIXME: Why pipe[0] and not pipe[..._crtc->pipe]? */
 			dev_priv->regs.pipe[0].palette[i] =
-				(((*r++ >> 8) + gma_crtc->lut_adj[i]) << 16) |
-				(((*g++ >> 8) + gma_crtc->lut_adj[i]) << 8) |
-				((*b++ >> 8) + gma_crtc->lut_adj[i]);
+				  ((gma_crtc->lut_r[i] +
+				  gma_crtc->lut_adj[i]) << 16) |
+				  ((gma_crtc->lut_g[i] +
+				  gma_crtc->lut_adj[i]) << 8) |
+				  (gma_crtc->lut_b[i] +
+				  gma_crtc->lut_adj[i]);
 		}
 
 	}
 }
 
-int gma_crtc_gamma_set(struct drm_crtc *crtc, u16 *red, u16 *green, u16 *blue,
-		       u32 size,
-		       struct drm_modeset_acquire_ctx *ctx)
+void gma_crtc_gamma_set(struct drm_crtc *crtc, u16 *red, u16 *green, u16 *blue,
+			u32 start, u32 size)
 {
-	gma_crtc_load_lut(crtc);
+	struct gma_crtc *gma_crtc = to_gma_crtc(crtc);
+	int i;
+	int end = (start + size > 256) ? 256 : start + size;
 
-	return 0;
+	for (i = start; i < end; i++) {
+		gma_crtc->lut_r[i] = red[i] >> 8;
+		gma_crtc->lut_g[i] = green[i] >> 8;
+		gma_crtc->lut_b[i] = blue[i] >> 8;
+	}
+
+	gma_crtc_load_lut(crtc);
 }
 
 /**
@@ -274,7 +281,7 @@ void gma_crtc_dpms(struct drm_crtc *crtc, int mode)
 		REG_WRITE(VGACNTRL, VGA_DISP_DISABLE);
 
 		/* Turn off vblank interrupts */
-		drm_crtc_vblank_off(crtc);
+		drm_vblank_off(dev, pipe);
 
 		/* Wait for vblank for the disable to take effect */
 		gma_wait_for_vblank(dev);
@@ -342,6 +349,8 @@ int gma_crtc_cursor_set(struct drm_crtc *crtc,
 	/* If we didn't get a handle then turn the cursor off */
 	if (!handle) {
 		temp = CURSOR_MODE_DISABLE;
+		mutex_lock(&dev->struct_mutex);
+
 		if (gma_power_begin(dev, false)) {
 			REG_WRITE(control, temp);
 			REG_WRITE(base, 0);
@@ -353,9 +362,11 @@ int gma_crtc_cursor_set(struct drm_crtc *crtc,
 			gt = container_of(gma_crtc->cursor_obj,
 					  struct gtt_range, gem);
 			psb_gtt_unpin(gt);
-			drm_gem_object_unreference_unlocked(gma_crtc->cursor_obj);
+			drm_gem_object_unreference(gma_crtc->cursor_obj);
 			gma_crtc->cursor_obj = NULL;
 		}
+
+		mutex_unlock(&dev->struct_mutex);
 		return 0;
 	}
 
@@ -365,7 +376,8 @@ int gma_crtc_cursor_set(struct drm_crtc *crtc,
 		return -EINVAL;
 	}
 
-	obj = drm_gem_object_lookup(file_priv, handle);
+	mutex_lock(&dev->struct_mutex);
+	obj = drm_gem_object_lookup(dev, file_priv, handle);
 	if (!obj) {
 		ret = -ENOENT;
 		goto unlock;
@@ -429,15 +441,17 @@ int gma_crtc_cursor_set(struct drm_crtc *crtc,
 	if (gma_crtc->cursor_obj) {
 		gt = container_of(gma_crtc->cursor_obj, struct gtt_range, gem);
 		psb_gtt_unpin(gt);
-		drm_gem_object_unreference_unlocked(gma_crtc->cursor_obj);
+		drm_gem_object_unreference(gma_crtc->cursor_obj);
 	}
 
 	gma_crtc->cursor_obj = obj;
 unlock:
+	mutex_unlock(&dev->struct_mutex);
 	return ret;
 
 unref_cursor:
-	drm_gem_object_unreference_unlocked(obj);
+	drm_gem_object_unreference(obj);
+	mutex_unlock(&dev->struct_mutex);
 	return ret;
 }
 
@@ -469,6 +483,20 @@ int gma_crtc_cursor_move(struct drm_crtc *crtc, int x, int y)
 		gma_power_end(dev);
 	}
 	return 0;
+}
+
+bool gma_encoder_mode_fixup(struct drm_encoder *encoder,
+			    const struct drm_display_mode *mode,
+			    struct drm_display_mode *adjusted_mode)
+{
+	return true;
+}
+
+bool gma_crtc_mode_fixup(struct drm_crtc *crtc,
+			 const struct drm_display_mode *mode,
+			 struct drm_display_mode *adjusted_mode)
+{
+	return true;
 }
 
 void gma_crtc_prepare(struct drm_crtc *crtc)
@@ -505,18 +533,17 @@ void gma_crtc_destroy(struct drm_crtc *crtc)
 	kfree(gma_crtc);
 }
 
-int gma_crtc_set_config(struct drm_mode_set *set,
-			struct drm_modeset_acquire_ctx *ctx)
+int gma_crtc_set_config(struct drm_mode_set *set)
 {
 	struct drm_device *dev = set->crtc->dev;
 	struct drm_psb_private *dev_priv = dev->dev_private;
 	int ret;
 
 	if (!dev_priv->rpm_enabled)
-		return drm_crtc_helper_set_config(set, ctx);
+		return drm_crtc_helper_set_config(set);
 
 	pm_runtime_forbid(&dev->pdev->dev);
-	ret = drm_crtc_helper_set_config(set, ctx);
+	ret = drm_crtc_helper_set_config(set);
 	pm_runtime_allow(&dev->pdev->dev);
 
 	return ret;

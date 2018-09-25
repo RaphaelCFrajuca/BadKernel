@@ -23,7 +23,6 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/kernel.h>
-#include <linux/sched/signal.h>
 #include <linux/dmi.h>
 #include <linux/module.h>
 #include <linux/types.h>
@@ -651,14 +650,14 @@ out:
 	return retval;
 }
 
-static __poll_t lis3lv02d_misc_poll(struct file *file, poll_table *wait)
+static unsigned int lis3lv02d_misc_poll(struct file *file, poll_table *wait)
 {
 	struct lis3lv02d *lis3 = container_of(file->private_data,
 					      struct lis3lv02d, miscdev);
 
 	poll_wait(file, &lis3->misc_wait, wait);
 	if (atomic_read(&lis3->count))
-		return EPOLLIN | EPOLLRDNORM;
+		return POLLIN | POLLRDNORM;
 	return 0;
 }
 
@@ -856,7 +855,7 @@ static struct attribute *lis3lv02d_attributes[] = {
 	NULL
 };
 
-static const struct attribute_group lis3lv02d_attribute_group = {
+static struct attribute_group lis3lv02d_attribute_group = {
 	.attrs = lis3lv02d_attributes
 };
 

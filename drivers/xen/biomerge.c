@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/bio.h>
 #include <linux/io.h>
 #include <linux/export.h>

@@ -84,7 +84,7 @@ MODULE_DESCRIPTION("Avance Logic ALS4000");
 MODULE_LICENSE("GPL");
 MODULE_SUPPORTED_DEVICE("{{Avance Logic,ALS4000}}");
 
-#if IS_REACHABLE(CONFIG_GAMEPORT)
+#if defined(CONFIG_GAMEPORT) || (defined(MODULE) && defined(CONFIG_GAMEPORT_MODULE))
 #define SUPPORT_JOYSTICK 1
 #endif
 
@@ -102,7 +102,7 @@ MODULE_PARM_DESC(id, "ID string for ALS4000 soundcard.");
 module_param_array(enable, bool, NULL, 0444);
 MODULE_PARM_DESC(enable, "Enable ALS4000 soundcard.");
 #ifdef SUPPORT_JOYSTICK
-module_param_hw_array(joystick_port, int, ioport, NULL, 0444);
+module_param_array(joystick_port, int, NULL, 0444);
 MODULE_PARM_DESC(joystick_port, "Joystick port address for ALS4000 soundcard. (0 = disabled)");
 #endif
 
@@ -592,7 +592,7 @@ static irqreturn_t snd_als4000_interrupt(int irq, void *dev_id)
 
 /*****************************************************************/
 
-static const struct snd_pcm_hardware snd_als4000_playback =
+static struct snd_pcm_hardware snd_als4000_playback =
 {
 	.info =			(SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_INTERLEAVED |
 				 SNDRV_PCM_INFO_MMAP_VALID),
@@ -611,7 +611,7 @@ static const struct snd_pcm_hardware snd_als4000_playback =
 	.fifo_size =		0
 };
 
-static const struct snd_pcm_hardware snd_als4000_capture =
+static struct snd_pcm_hardware snd_als4000_capture =
 {
 	.info =			(SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_INTERLEAVED |
 				 SNDRV_PCM_INFO_MMAP_VALID),
@@ -672,7 +672,7 @@ static int snd_als4000_capture_close(struct snd_pcm_substream *substream)
 
 /******************************************************************/
 
-static const struct snd_pcm_ops snd_als4000_playback_ops = {
+static struct snd_pcm_ops snd_als4000_playback_ops = {
 	.open =		snd_als4000_playback_open,
 	.close =	snd_als4000_playback_close,
 	.ioctl =	snd_pcm_lib_ioctl,
@@ -683,7 +683,7 @@ static const struct snd_pcm_ops snd_als4000_playback_ops = {
 	.pointer =	snd_als4000_playback_pointer
 };
 
-static const struct snd_pcm_ops snd_als4000_capture_ops = {
+static struct snd_pcm_ops snd_als4000_capture_ops = {
 	.open =		snd_als4000_capture_open,
 	.close =	snd_als4000_capture_close,
 	.ioctl =	snd_pcm_lib_ioctl,

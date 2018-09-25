@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * include/asm-sh/processor.h
  *
@@ -136,6 +135,10 @@ extern void start_thread(struct pt_regs *regs, unsigned long new_pc, unsigned lo
 
 /* Free all resources held by a thread. */
 extern void release_thread(struct task_struct *);
+
+/* Copy and release all segment info associated with a VM */
+#define copy_segments(p, mm)	do { } while(0)
+#define release_segments(mm)	do { } while(0)
 
 /*
  * FPU lazy state save handling.

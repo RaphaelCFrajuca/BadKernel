@@ -103,7 +103,7 @@ static struct mipid_platform_data nokia770_mipid_platform_data = {
 	.shutdown = mipid_shutdown,
 };
 
-static const struct omap_lcd_config nokia770_lcd_config __initconst = {
+static struct omap_lcd_config nokia770_lcd_config __initdata = {
 	.ctrl_name	= "hwa742",
 };
 
@@ -159,7 +159,7 @@ static struct omap_usb_config nokia770_usb_config __initdata = {
 	.extcon		= "tahvo-usb",
 };
 
-#if IS_ENABLED(CONFIG_MMC_OMAP)
+#if defined(CONFIG_MMC_OMAP) || defined(CONFIG_MMC_OMAP_MODULE)
 
 #define NOKIA770_GPIO_MMC_POWER		41
 #define NOKIA770_GPIO_MMC_SWITCH	23
@@ -216,7 +216,7 @@ static inline void nokia770_mmc_init(void)
 }
 #endif
 
-#if IS_ENABLED(CONFIG_I2C_CBUS_GPIO)
+#if defined(CONFIG_I2C_CBUS_GPIO) || defined(CONFIG_I2C_CBUS_GPIO_MODULE)
 static struct i2c_cbus_platform_data nokia770_cbus_data = {
 	.clk_gpio = OMAP_MPUIO(9),
 	.dat_gpio = OMAP_MPUIO(10),
@@ -233,10 +233,10 @@ static struct platform_device nokia770_cbus_device = {
 
 static struct i2c_board_info nokia770_i2c_board_info_2[] __initdata = {
 	{
-		I2C_BOARD_INFO("retu", 0x01),
+		I2C_BOARD_INFO("retu-mfd", 0x01),
 	},
 	{
-		I2C_BOARD_INFO("tahvo", 0x02),
+		I2C_BOARD_INFO("tahvo-mfd", 0x02),
 	},
 };
 

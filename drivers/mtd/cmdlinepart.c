@@ -190,10 +190,7 @@ static struct mtd_partition * newpart(char *s,
 		extra_mem = (unsigned char *)(parts + *num_parts);
 	}
 
-	/*
-	 * enter this partition (offset will be calculated later if it is
-	 * OFFSET_CONTINUOUS at this point)
-	 */
+	/* enter this partition (offset will be calculated later if it is zero at this point) */
 	parts[this_part].size = size;
 	parts[this_part].offset = offset;
 	parts[this_part].mask_flags = mask_flags;
@@ -307,7 +304,7 @@ static int mtdpart_setup_real(char *s)
  * the first one in the chain if a NULL mtd_id is passed in.
  */
 static int parse_cmdline_partitions(struct mtd_info *master,
-				    const struct mtd_partition **pparts,
+				    struct mtd_partition **pparts,
 				    struct mtd_part_parser_data *data)
 {
 	unsigned long long offset;
@@ -385,6 +382,7 @@ static int __init mtdpart_setup(char *s)
 __setup("mtdparts=", mtdpart_setup);
 
 static struct mtd_part_parser cmdline_parser = {
+	.owner = THIS_MODULE,
 	.parse_fn = parse_cmdline_partitions,
 	.name = "cmdlinepart",
 };

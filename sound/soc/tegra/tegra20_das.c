@@ -41,7 +41,6 @@ static inline void tegra20_das_write(u32 reg, u32 val)
 static inline u32 tegra20_das_read(u32 reg)
 {
 	u32 val;
-
 	regmap_read(das->regmap, reg, &val);
 	return val;
 }
@@ -143,6 +142,7 @@ static int tegra20_das_probe(struct platform_device *pdev)
 
 	das = devm_kzalloc(&pdev->dev, sizeof(struct tegra20_das), GFP_KERNEL);
 	if (!das) {
+		dev_err(&pdev->dev, "Can't allocate tegra20_das\n");
 		ret = -ENOMEM;
 		goto err;
 	}

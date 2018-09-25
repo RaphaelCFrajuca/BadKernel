@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * include/linux/irqflags.h
  *
@@ -24,22 +23,11 @@
 # define trace_softirq_context(p)	((p)->softirq_context)
 # define trace_hardirqs_enabled(p)	((p)->hardirqs_enabled)
 # define trace_softirqs_enabled(p)	((p)->softirqs_enabled)
-# define trace_hardirq_enter()			\
-do {						\
-	current->hardirq_context++;		\
-} while (0)
-# define trace_hardirq_exit()			\
-do {						\
-	current->hardirq_context--;		\
-} while (0)
-# define lockdep_softirq_enter()		\
-do {						\
-	current->softirq_context++;		\
-} while (0)
-# define lockdep_softirq_exit()			\
-do {						\
-	current->softirq_context--;		\
-} while (0)
+# define trace_hardirq_enter()	do { current->hardirq_context++; } while (0)
+# define trace_hardirq_exit()	do { current->hardirq_context--; } while (0)
+# define lockdep_softirq_enter()	do { current->softirq_context++; } while (0)
+# define lockdep_softirq_exit()	do { current->softirq_context--; } while (0)
+# define INIT_TRACE_IRQFLAGS	.softirqs_enabled = 1,
 #else
 # define trace_hardirqs_on()		do { } while (0)
 # define trace_hardirqs_off()		do { } while (0)
@@ -53,6 +41,7 @@ do {						\
 # define trace_hardirq_exit()		do { } while (0)
 # define lockdep_softirq_enter()	do { } while (0)
 # define lockdep_softirq_exit()		do { } while (0)
+# define INIT_TRACE_IRQFLAGS
 #endif
 
 #if defined(CONFIG_IRQSOFF_TRACER) || \

@@ -1,5 +1,4 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-2.0
 
 if [ $(id -u) != 0 ]; then
 	echo $msg must be run as root >&2
@@ -9,7 +8,7 @@ fi
 echo "--------------------"
 echo "running psock_fanout test"
 echo "--------------------"
-./in_netns.sh ./psock_fanout
+./psock_fanout
 if [ $? -ne 0 ]; then
 	echo "[FAIL]"
 else
@@ -19,7 +18,7 @@ fi
 echo "--------------------"
 echo "running psock_tpacket test"
 echo "--------------------"
-./in_netns.sh ./psock_tpacket
+./psock_tpacket
 if [ $? -ne 0 ]; then
 	echo "[FAIL]"
 else

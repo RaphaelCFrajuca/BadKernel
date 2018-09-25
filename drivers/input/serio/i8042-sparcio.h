@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _I8042_SPARCIO_H
 #define _I8042_SPARCIO_H
 

@@ -23,13 +23,25 @@
  */
 
 #include <linux/dma-debug.h>
+#include <linux/kmemcheck.h>
 #include <linux/dma-mapping.h>
 
-extern const struct dma_map_ops or1k_dma_map_ops;
+#define DMA_ERROR_CODE		(~(dma_addr_t)0x0)
 
-static inline const struct dma_map_ops *get_arch_dma_ops(struct bus_type *bus)
+extern struct dma_map_ops or1k_dma_map_ops;
+
+static inline struct dma_map_ops *get_dma_ops(struct device *dev)
 {
 	return &or1k_dma_map_ops;
 }
+
+#define HAVE_ARCH_DMA_SUPPORTED 1
+static inline int dma_supported(struct device *dev, u64 dma_mask)
+{
+	/* Support 32 bit DMA mask exclusively */
+	return dma_mask == DMA_BIT_MASK(32);
+}
+
+#include <asm-generic/dma-mapping-common.h>
 
 #endif	/* __ASM_OPENRISC_DMA_MAPPING_H */

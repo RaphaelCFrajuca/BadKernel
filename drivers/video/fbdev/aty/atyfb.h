@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  *  ATI Frame Buffer Device Driver Core Definitions
  */

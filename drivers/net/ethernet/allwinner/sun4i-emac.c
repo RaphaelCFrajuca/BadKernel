@@ -37,11 +37,6 @@
 
 #define EMAC_MAX_FRAME_LEN	0x0600
 
-#define EMAC_DEFAULT_MSG_ENABLE 0x0000
-static int debug = -1;     /* defaults above */;
-module_param(debug, int, 0);
-MODULE_PARM_DESC(debug, "debug message flags");
-
 /* Transmit timeout, default 5 seconds. */
 static int watchdog = 5000;
 module_param(watchdog, int, 0400);
@@ -82,6 +77,7 @@ struct emac_board_info {
 
 	int			emacrx_completed_flag;
 
+	struct phy_device	*phy_dev;
 	struct device_node	*phy_node;
 	unsigned int		link;
 	unsigned int		speed;
@@ -119,7 +115,7 @@ static void emac_update_duplex(struct net_device *dev)
 static void emac_handle_link_change(struct net_device *dev)
 {
 	struct emac_board_info *db = netdev_priv(dev);
-	struct phy_device *phydev = dev->phydev;
+	struct phy_device *phydev = db->phy_dev;
 	unsigned long flags;
 	int status_change = 0;
 
@@ -158,22 +154,21 @@ static void emac_handle_link_change(struct net_device *dev)
 static int emac_mdio_probe(struct net_device *dev)
 {
 	struct emac_board_info *db = netdev_priv(dev);
-	struct phy_device *phydev;
 
 	/* to-do: PHY interrupts are currently not supported */
 
 	/* attach the mac to the phy */
-	phydev = of_phy_connect(db->ndev, db->phy_node,
-				&emac_handle_link_change, 0,
-				db->phy_interface);
-	if (!phydev) {
+	db->phy_dev = of_phy_connect(db->ndev, db->phy_node,
+				     &emac_handle_link_change, 0,
+				     db->phy_interface);
+	if (!db->phy_dev) {
 		netdev_err(db->ndev, "could not find the PHY\n");
 		return -ENODEV;
 	}
 
 	/* mask with MAC supported features */
-	phydev->supported &= PHY_BASIC_FEATURES;
-	phydev->advertising = phydev->supported;
+	db->phy_dev->supported &= PHY_BASIC_FEATURES;
+	db->phy_dev->advertising = db->phy_dev->supported;
 
 	db->link = 0;
 	db->speed = 0;
@@ -184,7 +179,10 @@ static int emac_mdio_probe(struct net_device *dev)
 
 static void emac_mdio_remove(struct net_device *dev)
 {
-	phy_disconnect(dev->phydev);
+	struct emac_board_info *db = netdev_priv(dev);
+
+	phy_disconnect(db->phy_dev);
+	db->phy_dev = NULL;
 }
 
 static void emac_reset(struct emac_board_info *db)
@@ -210,7 +208,8 @@ static void emac_inblk_32bit(void __iomem *reg, void *data, int count)
 
 static int emac_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
-	struct phy_device *phydev = dev->phydev;
+	struct emac_board_info *dm = netdev_priv(dev);
+	struct phy_device *phydev = dm->phy_dev;
 
 	if (!netif_running(dev))
 		return -EINVAL;
@@ -230,27 +229,33 @@ static void emac_get_drvinfo(struct net_device *dev,
 	strlcpy(info->bus_info, dev_name(&dev->dev), sizeof(info->bus_info));
 }
 
-static u32 emac_get_msglevel(struct net_device *dev)
+static int emac_get_settings(struct net_device *dev, struct ethtool_cmd *cmd)
 {
-	struct emac_board_info *db = netdev_priv(dev);
+	struct emac_board_info *dm = netdev_priv(dev);
+	struct phy_device *phydev = dm->phy_dev;
 
-	return db->msg_enable;
+	if (!phydev)
+		return -ENODEV;
+
+	return phy_ethtool_gset(phydev, cmd);
 }
 
-static void emac_set_msglevel(struct net_device *dev, u32 value)
+static int emac_set_settings(struct net_device *dev, struct ethtool_cmd *cmd)
 {
-	struct emac_board_info *db = netdev_priv(dev);
+	struct emac_board_info *dm = netdev_priv(dev);
+	struct phy_device *phydev = dm->phy_dev;
 
-	db->msg_enable = value;
+	if (!phydev)
+		return -ENODEV;
+
+	return phy_ethtool_sset(phydev, cmd);
 }
 
 static const struct ethtool_ops emac_ethtool_ops = {
 	.get_drvinfo	= emac_get_drvinfo,
+	.get_settings	= emac_get_settings,
+	.set_settings	= emac_set_settings,
 	.get_link	= ethtool_op_get_link,
-	.get_link_ksettings = phy_ethtool_get_link_ksettings,
-	.set_link_ksettings = phy_ethtool_set_link_ksettings,
-	.get_msglevel	= emac_get_msglevel,
-	.set_msglevel	= emac_set_msglevel,
 };
 
 static unsigned int emac_setup(struct net_device *ndev)
@@ -423,7 +428,7 @@ static void emac_timeout(struct net_device *dev)
 	emac_reset(db);
 	emac_init_device(dev);
 	/* We can accept TX packets again */
-	netif_trans_update(dev);
+	dev->trans_start = jiffies;
 	netif_wake_queue(dev);
 
 	/* Restore previous register address */
@@ -463,7 +468,7 @@ static int emac_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		       db->membase + EMAC_TX_CTL0_REG);
 
 		/* save the time stamp */
-		netif_trans_update(dev);
+		dev->trans_start = jiffies;
 	} else if (channel == 1) {
 		/* set TX len */
 		writel(skb->len, db->membase + EMAC_TX_PL1_REG);
@@ -472,7 +477,7 @@ static int emac_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		       db->membase + EMAC_TX_CTL1_REG);
 
 		/* save the time stamp */
-		netif_trans_update(dev);
+		dev->trans_start = jiffies;
 	}
 
 	if ((db->tx_fifo_stat & 3) == 3) {
@@ -592,7 +597,8 @@ static void emac_rx(struct net_device *dev)
 		/* A packet ready now  & Get status/length */
 		good_packet = true;
 
-		rxhdr = readl(db->membase + EMAC_RX_IO_DATA_REG);
+		emac_inblk_32bit(db->membase + EMAC_RX_IO_DATA_REG,
+				&rxhdr, sizeof(rxhdr));
 
 		if (netif_msg_rx_status(db))
 			dev_dbg(db->dev, "rxhdr: %x\n", *((int *)(&rxhdr)));
@@ -633,7 +639,7 @@ static void emac_rx(struct net_device *dev)
 			if (!skb)
 				continue;
 			skb_reserve(skb, 2);
-			rdptr = skb_put(skb, rxlen - 4);
+			rdptr = (u8 *) skb_put(skb, rxlen - 4);
 
 			/* Read received packet from RX SRAM */
 			if (netif_msg_rx_status(db))
@@ -738,7 +744,7 @@ static int emac_open(struct net_device *dev)
 		return ret;
 	}
 
-	phy_start(dev->phydev);
+	phy_start(db->phy_dev);
 	netif_start_queue(dev);
 
 	return 0;
@@ -775,7 +781,7 @@ static int emac_stop(struct net_device *ndev)
 	netif_stop_queue(ndev);
 	netif_carrier_off(ndev);
 
-	phy_stop(ndev->phydev);
+	phy_stop(db->phy_dev);
 
 	emac_mdio_remove(ndev);
 
@@ -793,6 +799,7 @@ static const struct net_device_ops emac_netdev_ops = {
 	.ndo_tx_timeout		= emac_timeout,
 	.ndo_set_rx_mode	= emac_set_rx_mode,
 	.ndo_do_ioctl		= emac_ioctl,
+	.ndo_change_mtu		= eth_change_mtu,
 	.ndo_validate_addr	= eth_validate_addr,
 	.ndo_set_mac_address	= emac_set_mac_address,
 #ifdef CONFIG_NET_POLL_CONTROLLER
@@ -824,7 +831,6 @@ static int emac_probe(struct platform_device *pdev)
 	db->dev = &pdev->dev;
 	db->ndev = ndev;
 	db->pdev = pdev;
-	db->msg_enable = netif_msg_init(debug, EMAC_DEFAULT_MSG_ENABLE);
 
 	spin_lock_init(&db->lock);
 

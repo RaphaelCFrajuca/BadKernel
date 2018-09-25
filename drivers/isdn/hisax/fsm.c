@@ -27,9 +27,7 @@ FsmNew(struct Fsm *fsm, struct FsmNode *fnlist, int fncount)
 	int i;
 
 	fsm->jumpmatrix =
-		kzalloc(array3_size(sizeof(FSMFNPTR), fsm->state_count,
-				    fsm->event_count),
-			GFP_KERNEL);
+		kzalloc(sizeof(FSMFNPTR) * fsm->state_count * fsm->event_count, GFP_KERNEL);
 	if (!fsm->jumpmatrix)
 		return -ENOMEM;
 
@@ -87,9 +85,8 @@ FsmChangeState(struct FsmInst *fi, int newstate)
 }
 
 static void
-FsmExpireTimer(struct timer_list *t)
+FsmExpireTimer(struct FsmTimer *ft)
 {
-	struct FsmTimer *ft = from_timer(ft, t, tl);
 #if FSM_TIMER_DEBUG
 	if (ft->fi->debug)
 		ft->fi->printdebug(ft->fi, "FsmExpireTimer %lx", (long) ft);
@@ -101,11 +98,13 @@ void
 FsmInitTimer(struct FsmInst *fi, struct FsmTimer *ft)
 {
 	ft->fi = fi;
+	ft->tl.function = (void *) FsmExpireTimer;
+	ft->tl.data = (long) ft;
 #if FSM_TIMER_DEBUG
 	if (ft->fi->debug)
 		ft->fi->printdebug(ft->fi, "FsmInitTimer %lx", (long) ft);
 #endif
-	timer_setup(&ft->tl, FsmExpireTimer, 0);
+	init_timer(&ft->tl);
 }
 
 void
@@ -134,6 +133,7 @@ FsmAddTimer(struct FsmTimer *ft,
 		ft->fi->printdebug(ft->fi, "FsmAddTimer already active!");
 		return -1;
 	}
+	init_timer(&ft->tl);
 	ft->event = event;
 	ft->arg = arg;
 	ft->tl.expires = jiffies + (millisec * HZ) / 1000;
@@ -154,6 +154,7 @@ FsmRestartTimer(struct FsmTimer *ft,
 
 	if (timer_pending(&ft->tl))
 		del_timer(&ft->tl);
+	init_timer(&ft->tl);
 	ft->event = event;
 	ft->arg = arg;
 	ft->tl.expires = jiffies + (millisec * HZ) / 1000;

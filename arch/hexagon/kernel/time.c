@@ -72,9 +72,9 @@ struct adsp_hw_timer_struct {
 /*  Look for "TCX0" for related constants.  */
 static __iomem struct adsp_hw_timer_struct *rtos_timer;
 
-static u64 timer_get_cycles(struct clocksource *cs)
+static cycle_t timer_get_cycles(struct clocksource *cs)
 {
-	return (u64) __vmgettime();
+	return (cycle_t) __vmgettime();
 }
 
 static struct clocksource hexagon_clocksource = {
@@ -199,9 +199,7 @@ void __init time_init_deferred(void)
 	clockevents_calc_mult_shift(ce_dev, sleep_clk_freq, 4);
 
 	ce_dev->max_delta_ns = clockevent_delta2ns(0x7fffffff, ce_dev);
-	ce_dev->max_delta_ticks = 0x7fffffff;
 	ce_dev->min_delta_ns = clockevent_delta2ns(0xf, ce_dev);
-	ce_dev->min_delta_ticks = 0xf;
 
 #ifdef CONFIG_SMP
 	setup_percpu_clockdev();

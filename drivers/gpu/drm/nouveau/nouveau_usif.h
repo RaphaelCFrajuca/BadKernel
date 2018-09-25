@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NOUVEAU_USIF_H__
 #define __NOUVEAU_USIF_H__
 

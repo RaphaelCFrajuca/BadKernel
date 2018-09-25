@@ -364,9 +364,9 @@ static int db9_saturn(int mode, struct parport *port, struct input_dev *devs[])
 	return 0;
 }
 
-static void db9_timer(struct timer_list *t)
+static void db9_timer(unsigned long private)
 {
-	struct db9 *db9 = from_timer(db9, t, timer);
+	struct db9 *db9 = (void *) private;
 	struct parport *port = db9->pd->port;
 	struct input_dev *dev = db9->dev[0];
 	struct input_dev *dev2 = db9->dev[1];
@@ -609,7 +609,9 @@ static void db9_attach(struct parport *pp)
 	db9->pd = pd;
 	db9->mode = mode;
 	db9->parportno = pp->number;
-	timer_setup(&db9->timer, db9_timer, 0);
+	init_timer(&db9->timer);
+	db9->timer.data = (long) db9;
+	db9->timer.function = db9_timer;
 
 	for (i = 0; i < (min(db9_mode->n_pads, DB9_MAX_DEVICES)); i++) {
 

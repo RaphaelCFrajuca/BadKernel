@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* kgdb.c: KGDB support for 64-bit sparc.
  *
  * Copyright (C) 2008 David S. Miller <davem@davemloft.net>

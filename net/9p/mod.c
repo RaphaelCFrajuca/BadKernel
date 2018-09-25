@@ -104,7 +104,7 @@ EXPORT_SYMBOL(v9fs_unregister_trans);
 
 /**
  * v9fs_get_trans_by_name - get transport with the matching name
- * @s: string identifying transport
+ * @name: string identifying transport
  *
  */
 struct p9_trans_module *v9fs_get_trans_by_name(char *s)

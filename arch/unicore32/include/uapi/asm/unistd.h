@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  * linux/arch/unicore32/include/asm/unistd.h
  *
@@ -10,8 +9,6 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
-
-#define __ARCH_WANT_RENAMEAT
 
 /* Use the standard ABI for syscalls. */
 #include <asm-generic/unistd.h>

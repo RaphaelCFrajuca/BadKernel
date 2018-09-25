@@ -14,7 +14,6 @@
  */
 
 #include <linux/iio/common/ssp_sensors.h>
-#include <linux/iio/buffer.h>
 #include <linux/iio/kfifo_buf.h>
 #include <linux/module.h>
 #include <linux/slab.h>

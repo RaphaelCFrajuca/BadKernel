@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __SPARC64_IO_H
 #define __SPARC64_IO_H
 

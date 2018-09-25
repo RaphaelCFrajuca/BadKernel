@@ -20,7 +20,7 @@
 #include <asm/cpu-features.h>
 #include <asm/cpu-type.h>
 #include <asm/mipsmtregs.h>
-#include <linux/uaccess.h> /* for uaccess_kernel() */
+#include <asm/uaccess.h> /* for segment_eq() */
 
 extern void (*r4k_blast_dcache)(void);
 extern void (*r4k_blast_icache)(void);
@@ -147,66 +147,49 @@ static inline void flush_scache_line(unsigned long addr)
 }
 
 #define protected_cache_op(op,addr)				\
-({								\
-	int __err = 0;						\
 	__asm__ __volatile__(					\
 	"	.set	push			\n"		\
 	"	.set	noreorder		\n"		\
 	"	.set "MIPS_ISA_ARCH_LEVEL"	\n"		\
-	"1:	cache	%1, (%2)		\n"		\
-	"2:	.insn				\n"		\
-	"	.set	pop			\n"		\
-	"	.section .fixup,\"ax\"		\n"		\
-	"3:	li	%0, %3			\n"		\
-	"	j	2b			\n"		\
-	"	.previous			\n"		\
+	"1:	cache	%0, (%1)		\n"		\
+	"2:	.set	pop			\n"		\
 	"	.section __ex_table,\"a\"	\n"		\
-	"	"STR(PTR)" 1b, 3b		\n"		\
+	"	"STR(PTR)" 1b, 2b		\n"		\
 	"	.previous"					\
-	: "+r" (__err)						\
-	: "i" (op), "r" (addr), "i" (-EFAULT));			\
-	__err;							\
-})
-
+	:							\
+	: "i" (op), "r" (addr))
 
 #define protected_cachee_op(op,addr)				\
-({								\
-	int __err = 0;						\
 	__asm__ __volatile__(					\
 	"	.set	push			\n"		\
 	"	.set	noreorder		\n"		\
 	"	.set	mips0			\n"		\
 	"	.set	eva			\n"		\
-	"1:	cachee	%1, (%2)		\n"		\
-	"2:	.insn				\n"		\
-	"	.set	pop			\n"		\
-	"	.section .fixup,\"ax\"		\n"		\
-	"3:	li	%0, %3			\n"		\
-	"	j	2b			\n"		\
-	"	.previous			\n"		\
+	"1:	cachee	%0, (%1)		\n"		\
+	"2:	.set	pop			\n"		\
 	"	.section __ex_table,\"a\"	\n"		\
-	"	"STR(PTR)" 1b, 3b		\n"		\
+	"	"STR(PTR)" 1b, 2b		\n"		\
 	"	.previous"					\
-	: "+r" (__err)						\
-	: "i" (op), "r" (addr), "i" (-EFAULT));			\
-	__err;							\
-})
+	:							\
+	: "i" (op), "r" (addr))
 
 /*
  * The next two are for badland addresses like signal trampolines.
  */
-static inline int protected_flush_icache_line(unsigned long addr)
+static inline void protected_flush_icache_line(unsigned long addr)
 {
 	switch (boot_cpu_type()) {
 	case CPU_LOONGSON2:
-		return protected_cache_op(Hit_Invalidate_I_Loongson2, addr);
+		protected_cache_op(Hit_Invalidate_I_Loongson2, addr);
+		break;
 
 	default:
 #ifdef CONFIG_EVA
-		return protected_cachee_op(Hit_Invalidate_I, addr);
+		protected_cachee_op(Hit_Invalidate_I, addr);
 #else
-		return protected_cache_op(Hit_Invalidate_I, addr);
+		protected_cache_op(Hit_Invalidate_I, addr);
 #endif
+		break;
 	}
 }
 
@@ -216,22 +199,18 @@ static inline int protected_flush_icache_line(unsigned long addr)
  * caches.  We're talking about one cacheline unnecessarily getting invalidated
  * here so the penalty isn't overly hard.
  */
-static inline int protected_writeback_dcache_line(unsigned long addr)
+static inline void protected_writeback_dcache_line(unsigned long addr)
 {
 #ifdef CONFIG_EVA
-	return protected_cachee_op(Hit_Writeback_Inv_D, addr);
+	protected_cachee_op(Hit_Writeback_Inv_D, addr);
 #else
-	return protected_cache_op(Hit_Writeback_Inv_D, addr);
+	protected_cache_op(Hit_Writeback_Inv_D, addr);
 #endif
 }
 
-static inline int protected_writeback_scache_line(unsigned long addr)
+static inline void protected_writeback_scache_line(unsigned long addr)
 {
-#ifdef CONFIG_EVA
-	return protected_cachee_op(Hit_Writeback_Inv_SD, addr);
-#else
-	return protected_cache_op(Hit_Writeback_Inv_SD, addr);
-#endif
+	protected_cache_op(Hit_Writeback_Inv_SD, addr);
 }
 
 /*
@@ -714,7 +693,7 @@ static inline void protected_blast_##pfx##cache##_range(unsigned long start,\
 									\
 	__##pfx##flush_prologue						\
 									\
-	if (!uaccess_kernel()) {					\
+	if (segment_eq(get_fs(), USER_DS)) {				\
 		while (1) {						\
 			protected_cachee_op(hitop, addr);		\
 			if (addr == aend)				\

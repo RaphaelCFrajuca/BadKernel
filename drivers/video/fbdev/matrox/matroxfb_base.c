@@ -1198,7 +1198,7 @@ static int matroxfb_blank(int blank, struct fb_info *info)
 	return 0;
 }
 
-static const struct fb_ops matroxfb_ops = {
+static struct fb_ops matroxfb_ops = {
 	.owner =	THIS_MODULE,
 	.fb_open =	matroxfb_open,
 	.fb_release =	matroxfb_release,
@@ -1573,14 +1573,14 @@ static struct board {
 		NULL}};
 
 #ifndef MODULE
-static const struct fb_videomode defaultmode = {
+static struct fb_videomode defaultmode = {
 	/* 640x480 @ 60Hz, 31.5 kHz */
 	NULL, 60, 640, 480, 39721, 40, 24, 32, 11, 96, 2,
 	0, FB_VMODE_NONINTERLACED
 };
+#endif /* !MODULE */
 
 static int hotplug = 0;
-#endif /* !MODULE */
 
 static void setDefaultOutputs(struct matrox_fb_info *minfo)
 {
@@ -1623,7 +1623,7 @@ static int initMatrox2(struct matrox_fb_info *minfo, struct board *b)
 	unsigned int memsize;
 	int err;
 
-	static const struct pci_device_id intel_82437[] = {
+	static struct pci_device_id intel_82437[] = {
 		{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82437) },
 		{ },
 	};
@@ -1794,7 +1794,9 @@ static int initMatrox2(struct matrox_fb_info *minfo, struct board *b)
 	minfo->fbops = matroxfb_ops;
 	minfo->fbcon.fbops = &minfo->fbops;
 	minfo->fbcon.pseudo_palette = minfo->cmap;
-	minfo->fbcon.flags = FBINFO_PARTIAL_PAN_OK | 	 /* Prefer panning for scroll under MC viewer/edit */
+	/* after __init time we are like module... no logo */
+	minfo->fbcon.flags = hotplug ? FBINFO_FLAG_MODULE : FBINFO_FLAG_DEFAULT;
+	minfo->fbcon.flags |= FBINFO_PARTIAL_PAN_OK | 	 /* Prefer panning for scroll under MC viewer/edit */
 				      FBINFO_HWACCEL_COPYAREA |  /* We have hw-assisted bmove */
 				      FBINFO_HWACCEL_FILLRECT |  /* And fillrect */
 				      FBINFO_HWACCEL_IMAGEBLIT | /* And imageblit */
@@ -1999,7 +2001,7 @@ static void matroxfb_register_device(struct matrox_fb_info* minfo) {
 	for (drv = matroxfb_driver_l(matroxfb_driver_list.next);
 	     drv != matroxfb_driver_l(&matroxfb_driver_list);
 	     drv = matroxfb_driver_l(drv->node.next)) {
-		if (drv->probe) {
+		if (drv && drv->probe) {
 			void *p = drv->probe(minfo);
 			if (p) {
 				minfo->drivers_data[i] = p;
@@ -2056,7 +2058,7 @@ static int matroxfb_probe(struct pci_dev* pdev, const struct pci_device_id* dumm
 
 	minfo = kzalloc(sizeof(*minfo), GFP_KERNEL);
 	if (!minfo)
-		return -ENOMEM;
+		return -1;
 
 	minfo->pcidev = pdev;
 	minfo->dead = 0;
@@ -2114,7 +2116,7 @@ static void pci_remove_matrox(struct pci_dev* pdev) {
 	matroxfb_remove(minfo, 1);
 }
 
-static const struct pci_device_id matroxfb_devices[] = {
+static struct pci_device_id matroxfb_devices[] = {
 #ifdef CONFIG_FB_MATROX_MILLENIUM
 	{PCI_VENDOR_ID_MATROX,	PCI_DEVICE_ID_MATROX_MIL,
 		PCI_ANY_ID,	PCI_ANY_ID,	0, 0, 0},

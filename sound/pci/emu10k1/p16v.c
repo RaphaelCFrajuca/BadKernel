@@ -122,7 +122,7 @@
  */
 
  /* hardware definition */
-static const struct snd_pcm_hardware snd_p16v_playback_hw = {
+static struct snd_pcm_hardware snd_p16v_playback_hw = {
 	.info =			SNDRV_PCM_INFO_MMAP | 
 				SNDRV_PCM_INFO_INTERLEAVED |
 				SNDRV_PCM_INFO_BLOCK_TRANSFER |
@@ -143,7 +143,7 @@ static const struct snd_pcm_hardware snd_p16v_playback_hw = {
 	.fifo_size =		0,
 };
 
-static const struct snd_pcm_hardware snd_p16v_capture_hw = {
+static struct snd_pcm_hardware snd_p16v_capture_hw = {
 	.info =			(SNDRV_PCM_INFO_MMAP |
 				 SNDRV_PCM_INFO_INTERLEAVED |
 				 SNDRV_PCM_INFO_BLOCK_TRANSFER |
@@ -300,29 +300,37 @@ static int snd_p16v_pcm_open_capture(struct snd_pcm_substream *substream)
 static int snd_p16v_pcm_hw_params_playback(struct snd_pcm_substream *substream,
 				      struct snd_pcm_hw_params *hw_params)
 {
-	return snd_pcm_lib_malloc_pages(substream,
+	int result;
+	result = snd_pcm_lib_malloc_pages(substream,
 					params_buffer_bytes(hw_params));
+	return result;
 }
 
 /* hw_params callback */
 static int snd_p16v_pcm_hw_params_capture(struct snd_pcm_substream *substream,
 				      struct snd_pcm_hw_params *hw_params)
 {
-	return snd_pcm_lib_malloc_pages(substream,
+	int result;
+	result = snd_pcm_lib_malloc_pages(substream,
 					params_buffer_bytes(hw_params));
+	return result;
 }
 
 
 /* hw_free callback */
 static int snd_p16v_pcm_hw_free_playback(struct snd_pcm_substream *substream)
 {
-	return snd_pcm_lib_free_pages(substream);
+	int result;
+	result = snd_pcm_lib_free_pages(substream);
+	return result;
 }
 
 /* hw_free callback */
 static int snd_p16v_pcm_hw_free_capture(struct snd_pcm_substream *substream)
 {
-	return snd_pcm_lib_free_pages(substream);
+	int result;
+	result = snd_pcm_lib_free_pages(substream);
+	return result;
 }
 
 
@@ -593,7 +601,7 @@ snd_p16v_pcm_pointer_capture(struct snd_pcm_substream *substream)
 }
 
 /* operators */
-static const struct snd_pcm_ops snd_p16v_playback_front_ops = {
+static struct snd_pcm_ops snd_p16v_playback_front_ops = {
 	.open =        snd_p16v_pcm_open_playback_front,
 	.close =       snd_p16v_pcm_close_playback,
 	.ioctl =       snd_pcm_lib_ioctl,
@@ -604,7 +612,7 @@ static const struct snd_pcm_ops snd_p16v_playback_front_ops = {
 	.pointer =     snd_p16v_pcm_pointer_playback,
 };
 
-static const struct snd_pcm_ops snd_p16v_capture_ops = {
+static struct snd_pcm_ops snd_p16v_capture_ops = {
 	.open =        snd_p16v_pcm_open_capture,
 	.close =       snd_p16v_pcm_close_capture,
 	.ioctl =       snd_pcm_lib_ioctl,
@@ -874,7 +882,7 @@ int snd_p16v_mixer(struct snd_emu10k1 *emu)
 
 int snd_p16v_alloc_pm_buffer(struct snd_emu10k1 *emu)
 {
-	emu->p16v_saved = vmalloc(array_size(NUM_CHS * 4, 0x80));
+	emu->p16v_saved = vmalloc(NUM_CHS * 4 * 0x80);
 	if (! emu->p16v_saved)
 		return -ENOMEM;
 	return 0;

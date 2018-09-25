@@ -25,7 +25,6 @@
 
 #define pr_fmt(fmt) "IPv6: " fmt
 
-#include <crypto/algapi.h>
 #include <crypto/hash.h>
 #include <linux/module.h>
 #include <linux/slab.h>
@@ -271,7 +270,6 @@ static int ipv6_clear_mutable_options(struct ipv6hdr *iph, int len, int dir)
 		case NEXTHDR_DEST:
 			if (dir == XFRM_POLICY_OUT)
 				ipv6_rearrange_destopt(iph, exthdr.opth);
-			/* fall through */
 		case NEXTHDR_HOP:
 			if (!zero_out_mutable_opts(exthdr.opth)) {
 				net_dbg_ratelimited("overrun %sopts\n",
@@ -444,7 +442,7 @@ static int ah6_output(struct xfrm_state *x, struct sk_buff *skb)
 		if (err == -EINPROGRESS)
 			goto out;
 
-		if (err == -ENOSPC)
+		if (err == -EBUSY)
 			err = NET_XMIT_DROP;
 		goto out_free;
 	}
@@ -478,14 +476,11 @@ static void ah6_input_done(struct crypto_async_request *base, int err)
 	int hdr_len = skb_network_header_len(skb);
 	int ah_hlen = (ah->hdrlen + 2) << 2;
 
-	if (err)
-		goto out;
-
 	work_iph = AH_SKB_CB(skb)->tmp;
 	auth_data = ah_tmp_auth(work_iph, hdr_len);
 	icv = ah_tmp_icv(ahp->ahash, auth_data, ahp->icv_trunc_len);
 
-	err = crypto_memneq(icv, auth_data, ahp->icv_trunc_len) ? -EBADMSG : 0;
+	err = memcmp(icv, auth_data, ahp->icv_trunc_len) ? -EBADMSG : 0;
 	if (err)
 		goto out;
 
@@ -633,7 +628,7 @@ static int ah6_input(struct xfrm_state *x, struct sk_buff *skb)
 		goto out_free;
 	}
 
-	err = crypto_memneq(icv, auth_data, ahp->icv_trunc_len) ? -EBADMSG : 0;
+	err = memcmp(icv, auth_data, ahp->icv_trunc_len) ? -EBADMSG : 0;
 	if (err)
 		goto out_free;
 

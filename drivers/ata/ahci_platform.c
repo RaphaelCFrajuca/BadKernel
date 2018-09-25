@@ -79,7 +79,6 @@ static const struct of_device_id ahci_of_match[] = {
 	{ .compatible = "ibm,476gtr-ahci", },
 	{ .compatible = "snps,dwc-ahci", },
 	{ .compatible = "hisilicon,hisi-ahci", },
-	{ .compatible = "cavium,octeon-7130-ahci", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, ahci_of_match);
@@ -93,7 +92,6 @@ MODULE_DEVICE_TABLE(acpi, ahci_acpi_match);
 static struct platform_driver ahci_driver = {
 	.probe = ahci_probe,
 	.remove = ata_platform_remove_one,
-	.shutdown = ahci_platform_shutdown,
 	.driver = {
 		.name = DRV_NAME,
 		.of_match_table = ahci_of_match,

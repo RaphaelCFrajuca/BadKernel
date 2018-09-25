@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include <linux/export.h>
 #include <linux/icmpv6.h>
 #include <linux/mutex.h>
@@ -40,7 +39,7 @@ void icmpv6_send(struct sk_buff *skb, u8 type, u8 code, __u32 info)
 
 	if (!send)
 		goto out;
-	send(skb, type, code, info, NULL);
+	send(skb, type, code, info);
 out:
 	rcu_read_unlock();
 }

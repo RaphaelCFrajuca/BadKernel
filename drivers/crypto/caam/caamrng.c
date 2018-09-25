@@ -52,7 +52,7 @@
 
 /* length of descriptors */
 #define DESC_JOB_O_LEN			(CAAM_CMD_SZ * 2 + CAAM_PTR_SZ * 2)
-#define DESC_RNG_LEN			(3 * CAAM_CMD_SZ)
+#define DESC_RNG_LEN			(4 * CAAM_CMD_SZ)
 
 /* Buffer, its dma address and lock */
 struct buf_data {
@@ -100,7 +100,8 @@ static void rng_done(struct device *jrdev, u32 *desc, u32 err, void *context)
 {
 	struct buf_data *bd;
 
-	bd = container_of(desc, struct buf_data, hw_desc[0]);
+	bd = (struct buf_data *)((char *)desc -
+	      offsetof(struct buf_data, hw_desc));
 
 	if (err)
 		caam_jr_strstatus(jrdev, err);
@@ -195,6 +196,9 @@ static inline int rng_create_sh_desc(struct caam_rng_ctx *ctx)
 
 	init_sh_desc(desc, HDR_SHARE_SERIAL);
 
+	/* Propagate errors from shared to job descriptor */
+	append_cmd(desc, SET_OK_NO_PROP_ERRORS | CMD_LOAD);
+
 	/* Generate random bytes */
 	append_operation(desc, OP_ALG_ALGSEL_RNG | OP_TYPE_CLASS1_ALG);
 
@@ -285,7 +289,11 @@ static int caam_init_rng(struct caam_rng_ctx *ctx, struct device *jrdev)
 	if (err)
 		return err;
 
-	return caam_init_buf(ctx, 1);
+	err = caam_init_buf(ctx, 1);
+	if (err)
+		return err;
+
+	return 0;
 }
 
 static struct hwrng caam_rng = {
@@ -343,7 +351,7 @@ static int __init caam_rng_init(void)
 		pr_err("Job Ring Device allocation for transform failed\n");
 		return PTR_ERR(dev);
 	}
-	rng_ctx = kmalloc(sizeof(*rng_ctx), GFP_DMA | GFP_KERNEL);
+	rng_ctx = kmalloc(sizeof(*rng_ctx), GFP_DMA);
 	if (!rng_ctx) {
 		err = -ENOMEM;
 		goto free_caam_alloc;

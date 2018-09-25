@@ -99,7 +99,8 @@ static void _rtl8723e_fill_h2c_command(struct ieee80211_hw *hw, u8 element_id,
 	while (!bwrite_sucess) {
 		wait_writeh2c_limmit--;
 		if (wait_writeh2c_limmit == 0) {
-			pr_err("Write H2C fail because no trigger for FW INT!\n");
+			RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
+				 "Write H2C fail because no trigger for FW INT!\n");
 			break;
 		}
 
@@ -122,8 +123,8 @@ static void _rtl8723e_fill_h2c_command(struct ieee80211_hw *hw, u8 element_id,
 			box_extreg = REG_HMEBOX_EXT_3;
 			break;
 		default:
-			pr_err("switch case %#x not processed\n",
-			       boxnum);
+			RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
+				 "switch case not process\n");
 			break;
 		}
 
@@ -133,7 +134,7 @@ static void _rtl8723e_fill_h2c_command(struct ieee80211_hw *hw, u8 element_id,
 			wait_h2c_limmit--;
 			if (wait_h2c_limmit == 0) {
 				RT_TRACE(rtlpriv, COMP_CMD, DBG_LOUD,
-					 "Waiting too long for FW read clear HMEBox(%d)!\n",
+					 "Wating too long for FW read clear HMEBox(%d)!\n",
 					 boxnum);
 				break;
 			}
@@ -228,8 +229,8 @@ static void _rtl8723e_fill_h2c_command(struct ieee80211_hw *hw, u8 element_id,
 			}
 			break;
 		default:
-			pr_err("switch case %#x not processed\n",
-			       cmd_len);
+			RT_TRACE(rtlpriv, COMP_ERR, DBG_EMERG,
+				 "switch case not process\n");
 			break;
 		}
 
@@ -258,8 +259,8 @@ void rtl8723e_fill_h2c_cmd(struct ieee80211_hw *hw,
 	u32 tmp_cmdbuf[2];
 
 	if (!rtlhal->fw_ready) {
-		WARN_ONCE(true,
-			  "rtl8723ae: error H2C cmd because of Fw download fail!!!\n");
+		RT_ASSERT(false,
+			  "return H2C cmd because of Fw download fail!!!\n");
 		return;
 	}
 	memset(tmp_cmdbuf, 0, 8);
@@ -470,7 +471,8 @@ void rtl8723e_set_fw_rsvdpagepkt(struct ieee80211_hw *hw, bool b_dl_finished)
 		      u1rsvdpageloc, 3);
 
 	skb = dev_alloc_skb(totalpacketlen);
-	skb_put_data(skb, &reserved_page_packet, totalpacketlen);
+	memcpy((u8 *)skb_put(skb, totalpacketlen),
+	       &reserved_page_packet, totalpacketlen);
 
 	rtstatus = rtl_cmd_send_packet(hw, skb);
 

@@ -1,8 +1,7 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Implementation of the SID table type.
  *
- * Author : Stephen Smalley, <sds@tycho.nsa.gov>
+ * Author : Stephen Smalley, <sds@epoch.ncsc.mil>
  */
 #include <linux/kernel.h>
 #include <linux/slab.h>
@@ -19,7 +18,7 @@ int sidtab_init(struct sidtab *s)
 {
 	int i;
 
-	s->htable = kmalloc_array(SIDTAB_SIZE, sizeof(*s->htable), GFP_ATOMIC);
+	s->htable = kmalloc(sizeof(*(s->htable)) * SIDTAB_SIZE, GFP_ATOMIC);
 	if (!s->htable)
 		return -ENOMEM;
 	for (i = 0; i < SIDTAB_SIZE; i++)
@@ -33,11 +32,13 @@ int sidtab_init(struct sidtab *s)
 
 int sidtab_insert(struct sidtab *s, u32 sid, struct context *context)
 {
-	int hvalue;
+	int hvalue, rc = 0;
 	struct sidtab_node *prev, *cur, *newnode;
 
-	if (!s)
-		return -ENOMEM;
+	if (!s) {
+		rc = -ENOMEM;
+		goto out;
+	}
 
 	hvalue = SIDTAB_HASH(sid);
 	prev = NULL;
@@ -47,17 +48,21 @@ int sidtab_insert(struct sidtab *s, u32 sid, struct context *context)
 		cur = cur->next;
 	}
 
-	if (cur && sid == cur->sid)
-		return -EEXIST;
+	if (cur && sid == cur->sid) {
+		rc = -EEXIST;
+		goto out;
+	}
 
 	newnode = kmalloc(sizeof(*newnode), GFP_ATOMIC);
-	if (!newnode)
-		return -ENOMEM;
-
+	if (newnode == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
 	newnode->sid = sid;
 	if (context_cpy(&newnode->context, context)) {
 		kfree(newnode);
-		return -ENOMEM;
+		rc = -ENOMEM;
+		goto out;
 	}
 
 	if (prev) {
@@ -73,7 +78,8 @@ int sidtab_insert(struct sidtab *s, u32 sid, struct context *context)
 	s->nel++;
 	if (sid >= s->next_sid)
 		s->next_sid = sid + 1;
-	return 0;
+out:
+	return rc;
 }
 
 static struct context *sidtab_search_core(struct sidtab *s, u32 sid, int force)
@@ -92,7 +98,7 @@ static struct context *sidtab_search_core(struct sidtab *s, u32 sid, int force)
 	if (force && cur && sid == cur->sid && cur->context.len)
 		return &cur->context;
 
-	if (!cur || sid != cur->sid || cur->context.len) {
+	if (cur == NULL || sid != cur->sid || cur->context.len) {
 		/* Remap invalid SIDs to the unlabeled SID. */
 		sid = SECINITSID_UNLABELED;
 		hvalue = SIDTAB_HASH(sid);

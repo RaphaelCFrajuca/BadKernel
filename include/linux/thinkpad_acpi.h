@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __THINKPAD_ACPI_H__
 #define __THINKPAD_ACPI_H__
 

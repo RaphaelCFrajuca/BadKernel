@@ -58,12 +58,10 @@ static int ad5398_write_reg(struct i2c_client *client, const unsigned short data
 
 	val = cpu_to_be16(data);
 	ret = i2c_master_send(client, (char *)&val, 2);
-	if (ret != 2) {
+	if (ret < 0)
 		dev_err(&client->dev, "I2C write error\n");
-		return ret < 0 ? ret : -EIO;
-	}
 
-	return 0;
+	return ret;
 }
 
 static int ad5398_get_current_limit(struct regulator_dev *rdev)
@@ -181,7 +179,7 @@ static int ad5398_disable(struct regulator_dev *rdev)
 	return ret;
 }
 
-static const struct regulator_ops ad5398_ops = {
+static struct regulator_ops ad5398_ops = {
 	.get_current_limit = ad5398_get_current_limit,
 	.set_current_limit = ad5398_set_current_limit,
 	.enable = ad5398_enable,

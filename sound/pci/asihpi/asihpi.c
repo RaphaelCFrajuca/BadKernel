@@ -69,27 +69,27 @@ static char *id[SNDRV_CARDS] = SNDRV_DEFAULT_STR;	/* ID for this card */
 static bool enable[SNDRV_CARDS] = SNDRV_DEFAULT_ENABLE_PNP;
 static bool enable_hpi_hwdep = 1;
 
-module_param_array(index, int, NULL, 0444);
+module_param_array(index, int, NULL, S_IRUGO);
 MODULE_PARM_DESC(index, "ALSA index value for AudioScience soundcard.");
 
-module_param_array(id, charp, NULL, 0444);
+module_param_array(id, charp, NULL, S_IRUGO);
 MODULE_PARM_DESC(id, "ALSA ID string for AudioScience soundcard.");
 
-module_param_array(enable, bool, NULL, 0444);
+module_param_array(enable, bool, NULL, S_IRUGO);
 MODULE_PARM_DESC(enable, "ALSA enable AudioScience soundcard.");
 
-module_param(enable_hpi_hwdep, bool, 0644);
+module_param(enable_hpi_hwdep, bool, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(enable_hpi_hwdep,
 		"ALSA enable HPI hwdep for AudioScience soundcard ");
 
 /* identify driver */
 #ifdef KERNEL_ALSA_BUILD
 static char *build_info = "Built using headers from kernel source";
-module_param(build_info, charp, 0444);
+module_param(build_info, charp, S_IRUGO);
 MODULE_PARM_DESC(build_info, "Built using headers from kernel source");
 #else
 static char *build_info = "Built within ALSA source";
-module_param(build_info, charp, 0444);
+module_param(build_info, charp, S_IRUGO);
 MODULE_PARM_DESC(build_info, "Built within ALSA source");
 #endif
 
@@ -558,10 +558,12 @@ static void snd_card_asihpi_pcm_int_start(struct snd_pcm_substream *substream)
 	struct snd_card_asihpi_pcm *dpcm;
 	struct snd_card_asihpi *card;
 
+	BUG_ON(!substream);
+
 	dpcm = (struct snd_card_asihpi_pcm *)substream->runtime->private_data;
 	card = snd_pcm_substream_chip(substream);
 
-	WARN_ON(in_interrupt());
+	BUG_ON(in_interrupt());
 	tasklet_disable(&card->t);
 	card->llmode_streampriv = dpcm;
 	tasklet_enable(&card->t);
@@ -573,8 +575,12 @@ static void snd_card_asihpi_pcm_int_start(struct snd_pcm_substream *substream)
 
 static void snd_card_asihpi_pcm_int_stop(struct snd_pcm_substream *substream)
 {
+	struct snd_card_asihpi_pcm *dpcm;
 	struct snd_card_asihpi *card;
 
+	BUG_ON(!substream);
+
+	dpcm = (struct snd_card_asihpi_pcm *)substream->runtime->private_data;
 	card = snd_pcm_substream_chip(substream);
 
 	hpi_handle_error(hpi_adapter_set_property(card->hpi->adapter->index,
@@ -747,9 +753,9 @@ static inline unsigned int modulo_min(unsigned int a, unsigned int b,
 
 /** Timer function, equivalent to interrupt service routine for cards
 */
-static void snd_card_asihpi_timer_function(struct timer_list *t)
+static void snd_card_asihpi_timer_function(unsigned long data)
 {
-	struct snd_card_asihpi_pcm *dpcm = from_timer(dpcm, t, timer);
+	struct snd_card_asihpi_pcm *dpcm = (struct snd_card_asihpi_pcm *)data;
 	struct snd_pcm_substream *substream = dpcm->substream;
 	struct snd_card_asihpi *card = snd_pcm_substream_chip(substream);
 	struct snd_pcm_runtime *runtime;
@@ -861,6 +867,7 @@ static void snd_card_asihpi_timer_function(struct timer_list *t)
 
 	snd_pcm_group_for_each_entry(s, substream) {
 		struct snd_card_asihpi_pcm *ds = s->runtime->private_data;
+		runtime = s->runtime;
 
 		/* don't link Cap and Play */
 		if (substream->stream != s->stream)
@@ -945,7 +952,7 @@ static void snd_card_asihpi_int_task(unsigned long data)
 	asihpi = (struct snd_card_asihpi *)a->snd_card->private_data;
 	if (asihpi->llmode_streampriv)
 		snd_card_asihpi_timer_function(
-			&asihpi->llmode_streampriv->timer);
+			(unsigned long)asihpi->llmode_streampriv);
 }
 
 static void snd_card_asihpi_isr(struct hpi_adapter *a)
@@ -1056,7 +1063,8 @@ static int snd_card_asihpi_playback_open(struct snd_pcm_substream *substream)
 	    If internal and other stream playing, can't switch
 	*/
 
-	timer_setup(&dpcm->timer, snd_card_asihpi_timer_function, 0);
+	setup_timer(&dpcm->timer, snd_card_asihpi_timer_function,
+		    (unsigned long) dpcm);
 	dpcm->substream = substream;
 	runtime->private_data = dpcm;
 	runtime->private_free = snd_card_asihpi_runtime_free;
@@ -1130,7 +1138,7 @@ static int snd_card_asihpi_playback_close(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-static const struct snd_pcm_ops snd_card_asihpi_playback_mmap_ops = {
+static struct snd_pcm_ops snd_card_asihpi_playback_mmap_ops = {
 	.open = snd_card_asihpi_playback_open,
 	.close = snd_card_asihpi_playback_close,
 	.ioctl = snd_card_asihpi_playback_ioctl,
@@ -1236,7 +1244,8 @@ static int snd_card_asihpi_capture_open(struct snd_pcm_substream *substream)
 	if (err)
 		return -EIO;
 
-	timer_setup(&dpcm->timer, snd_card_asihpi_timer_function, 0);
+	setup_timer(&dpcm->timer, snd_card_asihpi_timer_function,
+		    (unsigned long) dpcm);
 	dpcm->substream = substream;
 	runtime->private_data = dpcm;
 	runtime->private_free = snd_card_asihpi_runtime_free;
@@ -1296,7 +1305,7 @@ static int snd_card_asihpi_capture_close(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-static const struct snd_pcm_ops snd_card_asihpi_capture_mmap_ops = {
+static struct snd_pcm_ops snd_card_asihpi_capture_mmap_ops = {
 	.open = snd_card_asihpi_capture_open,
 	.close = snd_card_asihpi_capture_close,
 	.ioctl = snd_card_asihpi_capture_ioctl,

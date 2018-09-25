@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2010 Kent Overstreet <kent.overstreet@gmail.com>
  *
@@ -18,7 +17,7 @@
  * as keys are inserted we only sort the pages that have not yet been written.
  * When garbage collection is run, we resort the entire node.
  *
- * All configuration is done via sysfs; see Documentation/admin-guide/bcache.rst.
+ * All configuration is done via sysfs; see Documentation/bcache.txt.
  */
 
 #include "bcache.h"
@@ -534,6 +533,7 @@ err:
 static bool bch_extent_bad(struct btree_keys *bk, const struct bkey *k)
 {
 	struct btree *b = container_of(bk, struct btree, keys);
+	struct bucket *g;
 	unsigned i, stale;
 
 	if (!KEY_PTRS(k) ||
@@ -548,6 +548,7 @@ static bool bch_extent_bad(struct btree_keys *bk, const struct bkey *k)
 		return false;
 
 	for (i = 0; i < KEY_PTRS(k); i++) {
+		g = PTR_BUCKET(b->c, k, i);
 		stale = ptr_stale(b->c, k, i);
 
 		btree_bug_on(stale > 96, b,

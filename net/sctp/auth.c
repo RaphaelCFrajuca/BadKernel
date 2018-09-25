@@ -27,9 +27,9 @@
  *   Vlad Yasevich     <vladislav.yasevich@hp.com>
  */
 
-#include <crypto/hash.h>
 #include <linux/slab.h>
 #include <linux/types.h>
+#include <linux/crypto.h>
 #include <linux/scatterlist.h>
 #include <net/sctp/sctp.h>
 #include <net/sctp/auth.h>
@@ -48,7 +48,7 @@ static struct sctp_hmac sctp_hmac_list[SCTP_AUTH_NUM_HMACS] = {
 		/* id 2 is reserved as well */
 		.hmac_id = SCTP_AUTH_HMAC_ID_RESERVED_2,
 	},
-#if IS_ENABLED(CONFIG_CRYPTO_SHA256)
+#if defined (CONFIG_CRYPTO_SHA256) || defined (CONFIG_CRYPTO_SHA256_MODULE)
 	{
 		.hmac_id = SCTP_AUTH_HMAC_ID_SHA256,
 		.hmac_name = "hmac(sha256)",
@@ -63,7 +63,7 @@ void sctp_auth_key_put(struct sctp_auth_bytes *key)
 	if (!key)
 		return;
 
-	if (refcount_dec_and_test(&key->refcnt)) {
+	if (atomic_dec_and_test(&key->refcnt)) {
 		kzfree(key);
 		SCTP_DBG_OBJCNT_DEC(keys);
 	}
@@ -84,7 +84,7 @@ static struct sctp_auth_bytes *sctp_auth_create_key(__u32 key_len, gfp_t gfp)
 		return NULL;
 
 	key->len = key_len;
-	refcount_set(&key->refcnt, 1);
+	atomic_set(&key->refcnt, 1);
 	SCTP_DBG_OBJCNT_INC(keys);
 
 	return key;
@@ -101,30 +101,18 @@ struct sctp_shared_key *sctp_auth_shkey_create(__u16 key_id, gfp_t gfp)
 		return NULL;
 
 	INIT_LIST_HEAD(&new->key_list);
-	refcount_set(&new->refcnt, 1);
 	new->key_id = key_id;
 
 	return new;
 }
 
 /* Free the shared key structure */
-static void sctp_auth_shkey_destroy(struct sctp_shared_key *sh_key)
+static void sctp_auth_shkey_free(struct sctp_shared_key *sh_key)
 {
 	BUG_ON(!list_empty(&sh_key->key_list));
 	sctp_auth_key_put(sh_key->key);
 	sh_key->key = NULL;
 	kfree(sh_key);
-}
-
-void sctp_auth_shkey_release(struct sctp_shared_key *sh_key)
-{
-	if (refcount_dec_and_test(&sh_key->refcnt))
-		sctp_auth_shkey_destroy(sh_key);
-}
-
-void sctp_auth_shkey_hold(struct sctp_shared_key *sh_key)
-{
-	refcount_inc(&sh_key->refcnt);
 }
 
 /* Destroy the entire key list.  This is done during the
@@ -140,7 +128,7 @@ void sctp_auth_destroy_keys(struct list_head *keys)
 
 	key_for_each_safe(ep_key, tmp, keys) {
 		list_del_init(&ep_key->key_list);
-		sctp_auth_shkey_release(ep_key);
+		sctp_auth_shkey_free(ep_key);
 	}
 }
 
@@ -197,9 +185,9 @@ static int sctp_auth_compare_vectors(struct sctp_auth_bytes *vector1,
  *    are called the two key vectors.
  */
 static struct sctp_auth_bytes *sctp_auth_make_key_vector(
-			struct sctp_random_param *random,
-			struct sctp_chunks_param *chunks,
-			struct sctp_hmac_algo_param *hmacs,
+			sctp_random_param_t *random,
+			sctp_chunks_param_t *chunks,
+			sctp_hmac_algo_param_t *hmacs,
 			gfp_t gfp)
 {
 	struct sctp_auth_bytes *new;
@@ -238,9 +226,10 @@ static struct sctp_auth_bytes *sctp_auth_make_local_vector(
 				    gfp_t gfp)
 {
 	return sctp_auth_make_key_vector(
-			(struct sctp_random_param *)asoc->c.auth_random,
-			(struct sctp_chunks_param *)asoc->c.auth_chunks,
-			(struct sctp_hmac_algo_param *)asoc->c.auth_hmacs, gfp);
+				    (sctp_random_param_t *)asoc->c.auth_random,
+				    (sctp_chunks_param_t *)asoc->c.auth_chunks,
+				    (sctp_hmac_algo_param_t *)asoc->c.auth_hmacs,
+				    gfp);
 }
 
 /* Make a key vector based on peer's parameters */
@@ -421,19 +410,13 @@ int sctp_auth_asoc_init_active_key(struct sctp_association *asoc, gfp_t gfp)
 
 	sctp_auth_key_put(asoc->asoc_shared_key);
 	asoc->asoc_shared_key = secret;
-	asoc->shkey = ep_key;
 
 	/* Update send queue in case any chunk already in there now
 	 * needs authenticating
 	 */
 	list_for_each_entry(chunk, &asoc->outqueue.out_chunk_list, list) {
-		if (sctp_auth_send_cid(chunk->chunk_hdr->type, asoc)) {
+		if (sctp_auth_send_cid(chunk->chunk_hdr->type, asoc))
 			chunk->auth = 1;
-			if (!chunk->shkey) {
-				chunk->shkey = asoc->shkey;
-				sctp_auth_shkey_hold(chunk->shkey);
-			}
-		}
 	}
 
 	return 0;
@@ -449,11 +432,8 @@ struct sctp_shared_key *sctp_auth_get_shkey(
 
 	/* First search associations set of endpoint pair shared keys */
 	key_for_each(key, &asoc->endpoint_shared_keys) {
-		if (key->key_id == key_id) {
-			if (!key->deactivated)
-				return key;
-			break;
-		}
+		if (key->key_id == key_id)
+			return key;
 	}
 
 	return NULL;
@@ -468,7 +448,7 @@ struct sctp_shared_key *sctp_auth_get_shkey(
  */
 int sctp_auth_init_hmacs(struct sctp_endpoint *ep, gfp_t gfp)
 {
-	struct crypto_shash *tfm = NULL;
+	struct crypto_hash *tfm = NULL;
 	__u16   id;
 
 	/* If AUTH extension is disabled, we are done */
@@ -482,9 +462,9 @@ int sctp_auth_init_hmacs(struct sctp_endpoint *ep, gfp_t gfp)
 		return 0;
 
 	/* Allocated the array of pointers to transorms */
-	ep->auth_hmacs = kcalloc(SCTP_AUTH_NUM_HMACS,
-				 sizeof(struct crypto_shash *),
-				 gfp);
+	ep->auth_hmacs = kzalloc(
+			    sizeof(struct crypto_hash *) * SCTP_AUTH_NUM_HMACS,
+			    gfp);
 	if (!ep->auth_hmacs)
 		return -ENOMEM;
 
@@ -503,7 +483,8 @@ int sctp_auth_init_hmacs(struct sctp_endpoint *ep, gfp_t gfp)
 			continue;
 
 		/* Allocate the ID */
-		tfm = crypto_alloc_shash(sctp_hmac_list[id].hmac_name, 0, 0);
+		tfm = crypto_alloc_hash(sctp_hmac_list[id].hmac_name, 0,
+					CRYPTO_ALG_ASYNC);
 		if (IS_ERR(tfm))
 			goto out_err;
 
@@ -519,7 +500,7 @@ out_err:
 }
 
 /* Destroy the hmac tfm array */
-void sctp_auth_destroy_hmacs(struct crypto_shash *auth_hmacs[])
+void sctp_auth_destroy_hmacs(struct crypto_hash *auth_hmacs[])
 {
 	int i;
 
@@ -527,7 +508,8 @@ void sctp_auth_destroy_hmacs(struct crypto_shash *auth_hmacs[])
 		return;
 
 	for (i = 0; i < SCTP_AUTH_NUM_HMACS; i++) {
-		crypto_free_shash(auth_hmacs[i]);
+		if (auth_hmacs[i])
+			crypto_free_hash(auth_hmacs[i]);
 	}
 	kfree(auth_hmacs);
 }
@@ -559,8 +541,7 @@ struct sctp_hmac *sctp_auth_asoc_get_hmac(const struct sctp_association *asoc)
 	if (!hmacs)
 		return NULL;
 
-	n_elt = (ntohs(hmacs->param_hdr.length) -
-		 sizeof(struct sctp_paramhdr)) >> 1;
+	n_elt = (ntohs(hmacs->param_hdr.length) - sizeof(sctp_paramhdr_t)) >> 1;
 	for (i = 0; i < n_elt; i++) {
 		id = ntohs(hmacs->hmac_ids[i]);
 
@@ -611,8 +592,7 @@ int sctp_auth_asoc_verify_hmac_id(const struct sctp_association *asoc,
 		return 0;
 
 	hmacs = (struct sctp_hmac_algo_param *)asoc->c.auth_hmacs;
-	n_elt = (ntohs(hmacs->param_hdr.length) -
-		 sizeof(struct sctp_paramhdr)) >> 1;
+	n_elt = (ntohs(hmacs->param_hdr.length) - sizeof(sctp_paramhdr_t)) >> 1;
 
 	return __sctp_auth_find_hmacid(hmacs->hmac_ids, n_elt, hmac_id);
 }
@@ -635,8 +615,8 @@ void sctp_auth_asoc_set_default_hmac(struct sctp_association *asoc,
 	if (asoc->default_hmac_id)
 		return;
 
-	n_params = (ntohs(hmacs->param_hdr.length) -
-		    sizeof(struct sctp_paramhdr)) >> 1;
+	n_params = (ntohs(hmacs->param_hdr.length)
+				- sizeof(sctp_paramhdr_t)) >> 1;
 	ep = asoc->ep;
 	for (i = 0; i < n_params; i++) {
 		id = ntohs(hmacs->hmac_ids[i]);
@@ -655,7 +635,7 @@ void sctp_auth_asoc_set_default_hmac(struct sctp_association *asoc,
 
 
 /* Check to see if the given chunk is supposed to be authenticated */
-static int __sctp_auth_cid(enum sctp_cid chunk, struct sctp_chunks_param *param)
+static int __sctp_auth_cid(sctp_cid_t chunk, struct sctp_chunks_param *param)
 {
 	unsigned short len;
 	int found = 0;
@@ -664,7 +644,7 @@ static int __sctp_auth_cid(enum sctp_cid chunk, struct sctp_chunks_param *param)
 	if (!param || param->param_hdr.length == 0)
 		return 0;
 
-	len = ntohs(param->param_hdr.length) - sizeof(struct sctp_paramhdr);
+	len = ntohs(param->param_hdr.length) - sizeof(sctp_paramhdr_t);
 
 	/* SCTP-AUTH, Section 3.2
 	 *    The chunk types for INIT, INIT-ACK, SHUTDOWN-COMPLETE and AUTH
@@ -691,7 +671,7 @@ static int __sctp_auth_cid(enum sctp_cid chunk, struct sctp_chunks_param *param)
 }
 
 /* Check if peer requested that this chunk is authenticated */
-int sctp_auth_send_cid(enum sctp_cid chunk, const struct sctp_association *asoc)
+int sctp_auth_send_cid(sctp_cid_t chunk, const struct sctp_association *asoc)
 {
 	if (!asoc)
 		return 0;
@@ -703,7 +683,7 @@ int sctp_auth_send_cid(enum sctp_cid chunk, const struct sctp_association *asoc)
 }
 
 /* Check if we requested that peer authenticate this chunk. */
-int sctp_auth_recv_cid(enum sctp_cid chunk, const struct sctp_association *asoc)
+int sctp_auth_recv_cid(sctp_cid_t chunk, const struct sctp_association *asoc)
 {
 	if (!asoc)
 		return 0;
@@ -725,15 +705,17 @@ int sctp_auth_recv_cid(enum sctp_cid chunk, const struct sctp_association *asoc)
  *    after the AUTH chunk in the SCTP packet.
  */
 void sctp_auth_calculate_hmac(const struct sctp_association *asoc,
-			      struct sk_buff *skb, struct sctp_auth_chunk *auth,
-			      struct sctp_shared_key *ep_key, gfp_t gfp)
+			      struct sk_buff *skb,
+			      struct sctp_auth_chunk *auth,
+			      gfp_t gfp)
 {
+	struct scatterlist sg;
+	struct hash_desc desc;
 	struct sctp_auth_bytes *asoc_key;
-	struct crypto_shash *tfm;
 	__u16 key_id, hmac_id;
+	__u8 *digest;
 	unsigned char *end;
 	int free_key = 0;
-	__u8 *digest;
 
 	/* Extract the info we need:
 	 * - hmac id
@@ -745,7 +727,12 @@ void sctp_auth_calculate_hmac(const struct sctp_association *asoc,
 	if (key_id == asoc->active_key_id)
 		asoc_key = asoc->asoc_shared_key;
 	else {
-		/* ep_key can't be NULL here */
+		struct sctp_shared_key *ep_key;
+
+		ep_key = sctp_auth_get_shkey(asoc, key_id);
+		if (!ep_key)
+			return;
+
 		asoc_key = sctp_auth_asoc_create_secret(asoc, ep_key, gfp);
 		if (!asoc_key)
 			return;
@@ -755,22 +742,16 @@ void sctp_auth_calculate_hmac(const struct sctp_association *asoc,
 
 	/* set up scatter list */
 	end = skb_tail_pointer(skb);
+	sg_init_one(&sg, auth, end - (unsigned char *)auth);
 
-	tfm = asoc->ep->auth_hmacs[hmac_id];
+	desc.tfm = asoc->ep->auth_hmacs[hmac_id];
+	desc.flags = 0;
 
 	digest = auth->auth_hdr.hmac;
-	if (crypto_shash_setkey(tfm, &asoc_key->data[0], asoc_key->len))
+	if (crypto_hash_setkey(desc.tfm, &asoc_key->data[0], asoc_key->len))
 		goto free;
 
-	{
-		SHASH_DESC_ON_STACK(desc, tfm);
-
-		desc->tfm = tfm;
-		desc->flags = 0;
-		crypto_shash_digest(desc, (u8 *)auth,
-				    end - (unsigned char *)auth, digest);
-		shash_desc_zero(desc);
-	}
+	crypto_hash_digest(&desc, &sg, sg.length, digest);
 
 free:
 	if (free_key)
@@ -792,7 +773,7 @@ int sctp_auth_ep_add_chunkid(struct sctp_endpoint *ep, __u8 chunk_id)
 
 	/* Check if we can add this chunk to the array */
 	param_len = ntohs(p->param_hdr.length);
-	nchunks = param_len - sizeof(struct sctp_paramhdr);
+	nchunks = param_len - sizeof(sctp_paramhdr_t);
 	if (nchunks == SCTP_NUM_CHUNK_TYPES)
 		return -EINVAL;
 
@@ -829,11 +810,9 @@ int sctp_auth_ep_set_hmacs(struct sctp_endpoint *ep,
 		return -EINVAL;
 
 	for (i = 0; i < hmacs->shmac_num_idents; i++)
-		ep->auth_hmacs_list->hmac_ids[i] =
-				htons(hmacs->shmac_idents[i]);
-	ep->auth_hmacs_list->param_hdr.length =
-			htons(sizeof(struct sctp_paramhdr) +
-			hmacs->shmac_num_idents * sizeof(__u16));
+		ep->auth_hmacs_list->hmac_ids[i] = htons(hmacs->shmac_idents[i]);
+	ep->auth_hmacs_list->param_hdr.length = htons(sizeof(sctp_paramhdr_t) +
+				hmacs->shmac_num_idents * sizeof(__u16));
 	return 0;
 }
 
@@ -845,7 +824,7 @@ int sctp_auth_set_key(struct sctp_endpoint *ep,
 		      struct sctp_association *asoc,
 		      struct sctp_authkey *auth_key)
 {
-	struct sctp_shared_key *cur_key, *shkey;
+	struct sctp_shared_key *cur_key = NULL;
 	struct sctp_auth_bytes *key;
 	struct list_head *sh_keys;
 	int replace = 0;
@@ -858,34 +837,46 @@ int sctp_auth_set_key(struct sctp_endpoint *ep,
 	else
 		sh_keys = &ep->endpoint_shared_keys;
 
-	key_for_each(shkey, sh_keys) {
-		if (shkey->key_id == auth_key->sca_keynumber) {
+	key_for_each(cur_key, sh_keys) {
+		if (cur_key->key_id == auth_key->sca_keynumber) {
 			replace = 1;
 			break;
 		}
 	}
 
-	cur_key = sctp_auth_shkey_create(auth_key->sca_keynumber, GFP_KERNEL);
-	if (!cur_key)
-		return -ENOMEM;
+	/* If we are not replacing a key id, we need to allocate
+	 * a shared key.
+	 */
+	if (!replace) {
+		cur_key = sctp_auth_shkey_create(auth_key->sca_keynumber,
+						 GFP_KERNEL);
+		if (!cur_key)
+			return -ENOMEM;
+	}
 
 	/* Create a new key data based on the info passed in */
 	key = sctp_auth_create_key(auth_key->sca_keylength, GFP_KERNEL);
-	if (!key) {
-		kfree(cur_key);
-		return -ENOMEM;
-	}
+	if (!key)
+		goto nomem;
 
 	memcpy(key->data, &auth_key->sca_key[0], auth_key->sca_keylength);
+
+	/* If we are replacing, remove the old keys data from the
+	 * key id.  If we are adding new key id, add it to the
+	 * list.
+	 */
+	if (replace)
+		sctp_auth_key_put(cur_key->key);
+	else
+		list_add(&cur_key->key_list, sh_keys);
+
 	cur_key->key = key;
-
-	if (replace) {
-		list_del_init(&shkey->key_list);
-		sctp_auth_shkey_release(shkey);
-	}
-	list_add(&cur_key->key_list, sh_keys);
-
 	return 0;
+nomem:
+	if (!replace)
+		sctp_auth_shkey_free(cur_key);
+
+	return -ENOMEM;
 }
 
 int sctp_auth_set_active_key(struct sctp_endpoint *ep,
@@ -909,7 +900,7 @@ int sctp_auth_set_active_key(struct sctp_endpoint *ep,
 		}
 	}
 
-	if (!found || key->deactivated)
+	if (!found)
 		return -EINVAL;
 
 	if (asoc) {
@@ -956,58 +947,7 @@ int sctp_auth_del_key_id(struct sctp_endpoint *ep,
 
 	/* Delete the shared key */
 	list_del_init(&key->key_list);
-	sctp_auth_shkey_release(key);
-
-	return 0;
-}
-
-int sctp_auth_deact_key_id(struct sctp_endpoint *ep,
-			   struct sctp_association *asoc, __u16  key_id)
-{
-	struct sctp_shared_key *key;
-	struct list_head *sh_keys;
-	int found = 0;
-
-	/* The key identifier MUST NOT be the current active key
-	 * The key identifier MUST correst to an existing key
-	 */
-	if (asoc) {
-		if (asoc->active_key_id == key_id)
-			return -EINVAL;
-
-		sh_keys = &asoc->endpoint_shared_keys;
-	} else {
-		if (ep->active_key_id == key_id)
-			return -EINVAL;
-
-		sh_keys = &ep->endpoint_shared_keys;
-	}
-
-	key_for_each(key, sh_keys) {
-		if (key->key_id == key_id) {
-			found = 1;
-			break;
-		}
-	}
-
-	if (!found)
-		return -EINVAL;
-
-	/* refcnt == 1 and !list_empty mean it's not being used anywhere
-	 * and deactivated will be set, so it's time to notify userland
-	 * that this shkey can be freed.
-	 */
-	if (asoc && !list_empty(&key->key_list) &&
-	    refcount_read(&key->refcnt) == 1) {
-		struct sctp_ulpevent *ev;
-
-		ev = sctp_ulpevent_make_authkey(asoc, key->key_id,
-						SCTP_AUTH_FREE_KEY, GFP_KERNEL);
-		if (ev)
-			asoc->stream.si->enqueue_event(&asoc->ulpq, ev);
-	}
-
-	key->deactivated = 1;
+	sctp_auth_shkey_free(key);
 
 	return 0;
 }

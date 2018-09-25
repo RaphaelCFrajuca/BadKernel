@@ -13,6 +13,10 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *
  *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include "saa7164.h"
@@ -106,7 +110,8 @@ static int saa7164_vbi_buffers_alloc(struct saa7164_port *port)
 			params->pitch);
 
 		if (!buf) {
-			printk(KERN_ERR "%s() failed (errno = %d), unable to allocate buffer\n",
+			printk(KERN_ERR "%s() failed "
+			       "(errno = %d), unable to allocate buffer\n",
 				__func__, result);
 			result = -ENOMEM;
 			goto failed;
@@ -379,8 +384,8 @@ static int saa7164_vbi_start_streaming(struct saa7164_port *port)
 		/* Stop the hardware, regardless */
 		result = saa7164_vbi_stop_port(port);
 		if (result != SAA_OK) {
-			printk(KERN_ERR "%s() pause/forced stop transition failed, res = 0x%x\n",
-			       __func__, result);
+			printk(KERN_ERR "%s() pause/forced stop transition "
+				"failed, res = 0x%x\n", __func__, result);
 		}
 
 		ret = -EIO;
@@ -398,8 +403,8 @@ static int saa7164_vbi_start_streaming(struct saa7164_port *port)
 		result = saa7164_vbi_acquire_port(port);
 		result = saa7164_vbi_stop_port(port);
 		if (result != SAA_OK) {
-			printk(KERN_ERR "%s() run/forced stop transition failed, res = 0x%x\n",
-			       __func__, result);
+			printk(KERN_ERR "%s() run/forced stop transition "
+				"failed, res = 0x%x\n", __func__, result);
 		}
 
 		ret = -EIO;
@@ -614,11 +619,11 @@ err:
 	return ret;
 }
 
-static __poll_t fops_poll(struct file *file, poll_table *wait)
+static unsigned int fops_poll(struct file *file, poll_table *wait)
 {
 	struct saa7164_vbi_fh *fh = (struct saa7164_vbi_fh *)file->private_data;
 	struct saa7164_port *port = fh->port;
-	__poll_t mask = 0;
+	unsigned int mask = 0;
 
 	port->last_poll_msecs_diff = port->last_poll_msecs;
 	port->last_poll_msecs = jiffies_to_msecs(jiffies);
@@ -650,7 +655,7 @@ static __poll_t fops_poll(struct file *file, poll_table *wait)
 
 	/* Pull the first buffer from the used list */
 	if (!list_empty(&port->list_buf_used.list))
-		mask |= EPOLLIN | EPOLLRDNORM;
+		mask |= POLLIN | POLLRDNORM;
 
 	return mask;
 }
@@ -723,7 +728,8 @@ int saa7164_vbi_register(struct saa7164_port *port)
 
 	/* Sanity check that the PCI configuration space is active */
 	if (port->hwcfg.BARLocation == 0) {
-		printk(KERN_ERR "%s() failed (errno = %d), NO PCI configuration\n",
+		printk(KERN_ERR "%s() failed "
+		       "(errno = %d), NO PCI configuration\n",
 			__func__, result);
 		result = -ENOMEM;
 		goto failed;

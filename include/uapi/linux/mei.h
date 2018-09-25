@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause) */
 /******************************************************************************
  * Intel Management Engine Interface (Intel MEI) Linux driver
  * Intel MEI Interface Header

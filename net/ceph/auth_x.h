@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _FS_CEPH_AUTH_X_H
 #define _FS_CEPH_AUTH_X_H
 
@@ -17,7 +16,7 @@ struct ceph_x_ticket_handler {
 	unsigned int service;
 
 	struct ceph_crypto_key session_key;
-	bool have_key;
+	struct ceph_timespec validity;
 
 	u64 secret_id;
 	struct ceph_buffer *ticket_blob;
@@ -25,16 +24,14 @@ struct ceph_x_ticket_handler {
 	unsigned long renew_after, expires;
 };
 
-#define CEPHX_AU_ENC_BUF_LEN	128  /* big enough for encrypted blob */
 
 struct ceph_x_authorizer {
-	struct ceph_authorizer base;
 	struct ceph_crypto_key session_key;
 	struct ceph_buffer *buf;
 	unsigned int service;
 	u64 nonce;
 	u64 secret_id;
-	char enc_buf[CEPHX_AU_ENC_BUF_LEN] __aligned(8);
+	char reply_buf[128];  /* big enough for encrypted blob */
 };
 
 struct ceph_x_info {

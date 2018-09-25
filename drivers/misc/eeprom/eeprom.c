@@ -19,7 +19,6 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/device.h>
-#include <linux/capability.h>
 #include <linux/jiffies.h>
 #include <linux/i2c.h>
 #include <linux/mutex.h>
@@ -85,7 +84,7 @@ static ssize_t eeprom_read(struct file *filp, struct kobject *kobj,
 			   struct bin_attribute *bin_attr,
 			   char *buf, loff_t off, size_t count)
 {
-	struct i2c_client *client = to_i2c_client(kobj_to_dev(kobj));
+	struct i2c_client *client = to_i2c_client(container_of(kobj, struct device, kobj));
 	struct eeprom_data *data = i2c_get_clientdata(client);
 	u8 slice;
 
@@ -114,7 +113,7 @@ static ssize_t eeprom_read(struct file *filp, struct kobject *kobj,
 	return count;
 }
 
-static const struct bin_attribute eeprom_attr = {
+static struct bin_attribute eeprom_attr = {
 	.attr = {
 		.name = "eeprom",
 		.mode = S_IRUGO,

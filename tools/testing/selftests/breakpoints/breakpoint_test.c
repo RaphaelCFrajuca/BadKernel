@@ -16,8 +16,6 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <errno.h>
-#include <string.h>
 
 #include "../kselftest.h"
 
@@ -44,9 +42,10 @@ static void set_breakpoint_addr(void *addr, int n)
 
 	ret = ptrace(PTRACE_POKEUSER, child_pid,
 		     offsetof(struct user, u_debugreg[n]), addr);
-	if (ret)
-		ksft_exit_fail_msg("Can't set breakpoint addr: %s\n",
-			strerror(errno));
+	if (ret) {
+		perror("Can't set breakpoint addr\n");
+		ksft_exit_fail();
+	}
 }
 
 static void toggle_breakpoint(int n, int type, int len,
@@ -107,8 +106,8 @@ static void toggle_breakpoint(int n, int type, int len,
 	ret = ptrace(PTRACE_POKEUSER, child_pid,
 		     offsetof(struct user, u_debugreg[7]), dr7);
 	if (ret) {
-		ksft_print_msg("Can't set dr7: %s\n", strerror(errno));
-		exit(-1);
+		perror("Can't set dr7");
+		ksft_exit_fail();
 	}
 }
 
@@ -207,7 +206,7 @@ static void trigger_tests(void)
 
 	ret = ptrace(PTRACE_TRACEME, 0, NULL, 0);
 	if (ret) {
-		ksft_print_msg("Can't be traced? %s\n", strerror(errno));
+		perror("Can't be traced?\n");
 		return;
 	}
 
@@ -262,30 +261,29 @@ static void trigger_tests(void)
 
 static void check_success(const char *msg)
 {
+	const char *msg2;
 	int child_nr_tests;
 	int status;
-	int ret;
 
 	/* Wait for the child to SIGTRAP */
 	wait(&status);
 
-	ret = 0;
+	msg2 = "Failed";
 
 	if (WSTOPSIG(status) == SIGTRAP) {
 		child_nr_tests = ptrace(PTRACE_PEEKDATA, child_pid,
 					&nr_tests, 0);
 		if (child_nr_tests == nr_tests)
-			ret = 1;
-		if (ptrace(PTRACE_POKEDATA, child_pid, &trapped, 1))
-			ksft_exit_fail_msg("Can't poke: %s\n", strerror(errno));
+			msg2 = "Ok";
+		if (ptrace(PTRACE_POKEDATA, child_pid, &trapped, 1)) {
+			perror("Can't poke\n");
+			ksft_exit_fail();
+		}
 	}
 
 	nr_tests++;
 
-	if (ret)
-		ksft_test_result_pass(msg);
-	else
-		ksft_test_result_fail(msg);
+	printf("%s [%s]\n", msg, msg2);
 }
 
 static void launch_instruction_breakpoints(char *buf, int local, int global)
@@ -296,7 +294,7 @@ static void launch_instruction_breakpoints(char *buf, int local, int global)
 		set_breakpoint_addr(dummy_funcs[i], i);
 		toggle_breakpoint(i, BP_X, 1, local, global, 1);
 		ptrace(PTRACE_CONT, child_pid, NULL, 0);
-		sprintf(buf, "Test breakpoint %d with local: %d global: %d\n",
+		sprintf(buf, "Test breakpoint %d with local: %d global: %d",
 			i, local, global);
 		check_success(buf);
 		toggle_breakpoint(i, BP_X, 1, local, global, 0);
@@ -318,9 +316,8 @@ static void launch_watchpoints(char *buf, int mode, int len,
 		set_breakpoint_addr(&dummy_var[i], i);
 		toggle_breakpoint(i, mode, len, local, global, 1);
 		ptrace(PTRACE_CONT, child_pid, NULL, 0);
-		sprintf(buf,
-			"Test %s watchpoint %d with len: %d local: %d global: %d\n",
-			mode_str, i, len, local, global);
+		sprintf(buf, "Test %s watchpoint %d with len: %d local: "
+			"%d global: %d", mode_str, i, len, local, global);
 		check_success(buf);
 		toggle_breakpoint(i, mode, len, local, global, 0);
 	}
@@ -367,11 +364,11 @@ static void launch_tests(void)
 
 	/* Icebp traps */
 	ptrace(PTRACE_CONT, child_pid, NULL, 0);
-	check_success("Test icebp\n");
+	check_success("Test icebp");
 
 	/* Int 3 traps */
 	ptrace(PTRACE_CONT, child_pid, NULL, 0);
-	check_success("Test int 3 trap\n");
+	check_success("Test int 3 trap");
 
 	ptrace(PTRACE_CONT, child_pid, NULL, 0);
 }
@@ -381,12 +378,10 @@ int main(int argc, char **argv)
 	pid_t pid;
 	int ret;
 
-	ksft_print_header();
-
 	pid = fork();
 	if (!pid) {
 		trigger_tests();
-		exit(0);
+		return 0;
 	}
 
 	child_pid = pid;
@@ -397,5 +392,5 @@ int main(int argc, char **argv)
 
 	wait(NULL);
 
-	ksft_exit_pass();
+	return ksft_exit_pass();
 }

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Hodge-podge collection of knfsd-related stuff.
  * I will sort this out later.
@@ -61,7 +60,7 @@ struct readdir_cd {
 
 
 extern struct svc_program	nfsd_program;
-extern const struct svc_version	nfsd_version2, nfsd_version3,
+extern struct svc_version	nfsd_version2, nfsd_version3,
 				nfsd_version4;
 extern struct mutex		nfsd_mutex;
 extern spinlock_t		nfsd_drc_lock;
@@ -87,12 +86,12 @@ void		nfsd_destroy(struct net *net);
 
 #if defined(CONFIG_NFSD_V2_ACL) || defined(CONFIG_NFSD_V3_ACL)
 #ifdef CONFIG_NFSD_V2_ACL
-extern const struct svc_version nfsd_acl_version2;
+extern struct svc_version nfsd_acl_version2;
 #else
 #define nfsd_acl_version2 NULL
 #endif
 #ifdef CONFIG_NFSD_V3_ACL
-extern const struct svc_version nfsd_acl_version3;
+extern struct svc_version nfsd_acl_version3;
 #else
 #define nfsd_acl_version3 NULL
 #endif
@@ -125,7 +124,6 @@ void nfs4_state_shutdown_net(struct net *net);
 void nfs4_reset_lease(time_t leasetime);
 int nfs4_reset_recoverydir(char *recdir);
 char * nfs4_recoverydir(void);
-bool nfsd4_spo_must_allow(struct svc_rqst *rqstp);
 #else
 static inline int nfsd4_init_slabs(void) { return 0; }
 static inline void nfsd4_free_slabs(void) { }
@@ -136,10 +134,6 @@ static inline void nfs4_state_shutdown_net(struct net *net) { }
 static inline void nfs4_reset_lease(time_t leasetime) { }
 static inline int nfs4_reset_recoverydir(char *recdir) { return 0; }
 static inline char * nfs4_recoverydir(void) {return NULL; }
-static inline bool nfsd4_spo_must_allow(struct svc_rqst *rqstp)
-{
-	return false;
-}
 #endif
 
 /*
@@ -360,46 +354,44 @@ void		nfsd_lockd_shutdown(void);
 
 #define NFSD4_2_SUPPORTED_ATTRS_WORD2 \
 	(NFSD4_1_SUPPORTED_ATTRS_WORD2 | \
-	FATTR4_WORD2_MODE_UMASK | \
 	NFSD4_2_SECURITY_ATTRS)
 
-extern const u32 nfsd_suppattrs[3][3];
-
-static inline bool bmval_is_subset(const u32 *bm1, const u32 *bm2)
+static inline u32 nfsd_suppattrs0(u32 minorversion)
 {
-	return !((bm1[0] & ~bm2[0]) ||
-	         (bm1[1] & ~bm2[1]) ||
-		 (bm1[2] & ~bm2[2]));
+	return minorversion ? NFSD4_1_SUPPORTED_ATTRS_WORD0
+			    : NFSD4_SUPPORTED_ATTRS_WORD0;
 }
 
-static inline bool nfsd_attrs_supported(u32 minorversion, const u32 *bmval)
+static inline u32 nfsd_suppattrs1(u32 minorversion)
 {
-	return bmval_is_subset(bmval, nfsd_suppattrs[minorversion]);
+	return minorversion ? NFSD4_1_SUPPORTED_ATTRS_WORD1
+			    : NFSD4_SUPPORTED_ATTRS_WORD1;
+}
+
+static inline u32 nfsd_suppattrs2(u32 minorversion)
+{
+	switch (minorversion) {
+	default: return NFSD4_2_SUPPORTED_ATTRS_WORD2;
+	case 1:  return NFSD4_1_SUPPORTED_ATTRS_WORD2;
+	case 0:  return NFSD4_SUPPORTED_ATTRS_WORD2;
+	}
 }
 
 /* These will return ERR_INVAL if specified in GETATTR or READDIR. */
 #define NFSD_WRITEONLY_ATTRS_WORD1 \
 	(FATTR4_WORD1_TIME_ACCESS_SET   | FATTR4_WORD1_TIME_MODIFY_SET)
 
-/*
- * These are the only attrs allowed in CREATE/OPEN/SETATTR. Don't add
- * a writeable attribute here without also adding code to parse it to
- * nfsd4_decode_fattr().
- */
+/* These are the only attrs allowed in CREATE/OPEN/SETATTR. */
 #define NFSD_WRITEABLE_ATTRS_WORD0 \
 	(FATTR4_WORD0_SIZE | FATTR4_WORD0_ACL)
 #define NFSD_WRITEABLE_ATTRS_WORD1 \
 	(FATTR4_WORD1_MODE | FATTR4_WORD1_OWNER | FATTR4_WORD1_OWNER_GROUP \
 	| FATTR4_WORD1_TIME_ACCESS_SET | FATTR4_WORD1_TIME_MODIFY_SET)
 #ifdef CONFIG_NFSD_V4_SECURITY_LABEL
-#define MAYBE_FATTR4_WORD2_SECURITY_LABEL \
-	FATTR4_WORD2_SECURITY_LABEL
+#define NFSD_WRITEABLE_ATTRS_WORD2 FATTR4_WORD2_SECURITY_LABEL
 #else
-#define MAYBE_FATTR4_WORD2_SECURITY_LABEL 0
+#define NFSD_WRITEABLE_ATTRS_WORD2 0
 #endif
-#define NFSD_WRITEABLE_ATTRS_WORD2 \
-	(FATTR4_WORD2_MODE_UMASK \
-	| MAYBE_FATTR4_WORD2_SECURITY_LABEL)
 
 #define NFSD_SUPPATTR_EXCLCREAT_WORD0 \
 	NFSD_WRITEABLE_ATTRS_WORD0

@@ -18,7 +18,6 @@
 #include <linux/compat.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
-#include <linux/sched/task_stack.h>
 #include <linux/mm.h>
 #include <linux/errno.h>
 #include <linux/ptrace.h>
@@ -33,8 +32,7 @@
 #include <asm/pgtable.h>
 #include <asm/page.h>
 #include <asm/reg.h>
-#include <asm/syscall.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/bootinfo.h>
 
 /*
@@ -71,8 +69,8 @@ long compat_arch_ptrace(struct task_struct *child, compat_long_t request,
 		if (get_user(addrOthers, (u32 __user * __user *) (unsigned long) addr) != 0)
 			break;
 
-		copied = ptrace_access_vm(child, (u64)addrOthers, &tmp,
-				sizeof(tmp), FOLL_FORCE);
+		copied = access_process_vm(child, (u64)addrOthers, &tmp,
+				sizeof(tmp), 0);
 		if (copied != sizeof(tmp))
 			break;
 		ret = put_user(tmp, (u32 __user *) (unsigned long) data);
@@ -103,7 +101,7 @@ long compat_arch_ptrace(struct task_struct *child, compat_long_t request,
 				/*
 				 * The odd registers are actually the high
 				 * order bits of the values stored in the even
-				 * registers.
+				 * registers - unless we're using r2k_switch.S.
 				 */
 				tmp = get_fpr32(&fregs[(addr & ~1) - FPR_BASE],
 						addr & 1);
@@ -180,9 +178,8 @@ long compat_arch_ptrace(struct task_struct *child, compat_long_t request,
 		if (get_user(addrOthers, (u32 __user * __user *) (unsigned long) addr) != 0)
 			break;
 		ret = 0;
-		if (ptrace_access_vm(child, (u64)addrOthers, &data,
-					sizeof(data),
-					FOLL_FORCE | FOLL_WRITE) == sizeof(data))
+		if (access_process_vm(child, (u64)addrOthers, &data,
+					sizeof(data), 1) == sizeof(data))
 			break;
 		ret = -EIO;
 		break;
@@ -196,12 +193,6 @@ long compat_arch_ptrace(struct task_struct *child, compat_long_t request,
 		switch (addr) {
 		case 0 ... 31:
 			regs->regs[addr] = data;
-			/* System call number may have been changed */
-			if (addr == 2)
-				mips_syscall_update_nr(child, regs);
-			else if (addr == 4 &&
-				 mips_syscall_is_indirect(child, regs))
-				mips_syscall_update_nr(child, regs);
 			break;
 		case FPR_BASE ... FPR_BASE + 31: {
 			union fpureg *fregs = get_fpu_regs(child);
@@ -216,7 +207,7 @@ long compat_arch_ptrace(struct task_struct *child, compat_long_t request,
 				/*
 				 * The odd registers are actually the high
 				 * order bits of the values stored in the even
-				 * registers.
+				 * registers - unless we're using r2k_switch.S.
 				 */
 				set_fpr32(&fregs[(addr & ~1) - FPR_BASE],
 					  addr & 1, data);

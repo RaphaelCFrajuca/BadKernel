@@ -24,7 +24,6 @@
  */
 
 #include <linux/linkage.h>
-#include <asm/frame.h>
 
 .file "cast5-avx-x86_64-asm_64.S"
 
@@ -47,7 +46,7 @@
 /**********************************************************************
   16-way AVX cast5
  **********************************************************************/
-#define CTX %r15
+#define CTX %rdi
 
 #define RL1 %xmm0
 #define RR1 %xmm1
@@ -70,8 +69,8 @@
 
 #define RTMP %xmm15
 
-#define RID1  %rdi
-#define RID1d %edi
+#define RID1  %rbp
+#define RID1d %ebp
 #define RID2  %rsi
 #define RID2d %esi
 
@@ -195,29 +194,19 @@
 	vpshufb rmask,	x0, x0;           \
 	vpshufb rmask,	x1, x1;
 
-.section	.rodata.cst16.bswap_mask, "aM", @progbits, 16
+.data
+
 .align 16
 .Lbswap_mask:
 	.byte 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12
-.section	.rodata.cst16.bswap128_mask, "aM", @progbits, 16
-.align 16
 .Lbswap128_mask:
 	.byte 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
-.section	.rodata.cst16.bswap_iv_mask, "aM", @progbits, 16
-.align 16
 .Lbswap_iv_mask:
 	.byte 7, 6, 5, 4, 3, 2, 1, 0, 7, 6, 5, 4, 3, 2, 1, 0
-
-.section	.rodata.cst4.16_mask, "aM", @progbits, 4
-.align 4
 .L16_mask:
 	.byte 16, 16, 16, 16
-.section	.rodata.cst4.32_mask, "aM", @progbits, 4
-.align 4
 .L32_mask:
 	.byte 32, 0, 0, 0
-.section	.rodata.cst4.first_mask, "aM", @progbits, 4
-.align 4
 .Lfirst_mask:
 	.byte 0x1f, 0, 0, 0
 
@@ -226,7 +215,7 @@
 .align 16
 __cast5_enc_blk16:
 	/* input:
-	 *	%rdi: ctx
+	 *	%rdi: ctx, CTX
 	 *	RL1: blocks 1 and 2
 	 *	RR1: blocks 3 and 4
 	 *	RL2: blocks 5 and 6
@@ -246,10 +235,8 @@ __cast5_enc_blk16:
 	 *	RR4: encrypted blocks 15 and 16
 	 */
 
-	pushq %r15;
+	pushq %rbp;
 	pushq %rbx;
-
-	movq %rdi, CTX;
 
 	vmovdqa .Lbswap_mask, RKM;
 	vmovd .Lfirst_mask, R1ST;
@@ -285,7 +272,7 @@ __cast5_enc_blk16:
 
 .L__skip_enc:
 	popq %rbx;
-	popq %r15;
+	popq %rbp;
 
 	vmovdqa .Lbswap_mask, RKM;
 
@@ -300,7 +287,7 @@ ENDPROC(__cast5_enc_blk16)
 .align 16
 __cast5_dec_blk16:
 	/* input:
-	 *	%rdi: ctx
+	 *	%rdi: ctx, CTX
 	 *	RL1: encrypted blocks 1 and 2
 	 *	RR1: encrypted blocks 3 and 4
 	 *	RL2: encrypted blocks 5 and 6
@@ -320,10 +307,8 @@ __cast5_dec_blk16:
 	 *	RR4: decrypted blocks 15 and 16
 	 */
 
-	pushq %r15;
+	pushq %rbp;
 	pushq %rbx;
-
-	movq %rdi, CTX;
 
 	vmovdqa .Lbswap_mask, RKM;
 	vmovd .Lfirst_mask, R1ST;
@@ -360,7 +345,7 @@ __cast5_dec_blk16:
 
 	vmovdqa .Lbswap_mask, RKM;
 	popq %rbx;
-	popq %r15;
+	popq %rbp;
 
 	outunpack_blocks(RR1, RL1, RTMP, RX, RKM);
 	outunpack_blocks(RR2, RL2, RTMP, RX, RKM);
@@ -376,14 +361,11 @@ ENDPROC(__cast5_dec_blk16)
 
 ENTRY(cast5_ecb_enc_16way)
 	/* input:
-	 *	%rdi: ctx
+	 *	%rdi: ctx, CTX
 	 *	%rsi: dst
 	 *	%rdx: src
 	 */
-	FRAME_BEGIN
-	pushq %r15;
 
-	movq %rdi, CTX;
 	movq %rsi, %r11;
 
 	vmovdqu (0*4*4)(%rdx), RL1;
@@ -406,22 +388,16 @@ ENTRY(cast5_ecb_enc_16way)
 	vmovdqu RR4, (6*4*4)(%r11);
 	vmovdqu RL4, (7*4*4)(%r11);
 
-	popq %r15;
-	FRAME_END
 	ret;
 ENDPROC(cast5_ecb_enc_16way)
 
 ENTRY(cast5_ecb_dec_16way)
 	/* input:
-	 *	%rdi: ctx
+	 *	%rdi: ctx, CTX
 	 *	%rsi: dst
 	 *	%rdx: src
 	 */
 
-	FRAME_BEGIN
-	pushq %r15;
-
-	movq %rdi, CTX;
 	movq %rsi, %r11;
 
 	vmovdqu (0*4*4)(%rdx), RL1;
@@ -444,22 +420,18 @@ ENTRY(cast5_ecb_dec_16way)
 	vmovdqu RR4, (6*4*4)(%r11);
 	vmovdqu RL4, (7*4*4)(%r11);
 
-	popq %r15;
-	FRAME_END
 	ret;
 ENDPROC(cast5_ecb_dec_16way)
 
 ENTRY(cast5_cbc_dec_16way)
 	/* input:
-	 *	%rdi: ctx
+	 *	%rdi: ctx, CTX
 	 *	%rsi: dst
 	 *	%rdx: src
 	 */
-	FRAME_BEGIN
-	pushq %r12;
-	pushq %r15;
 
-	movq %rdi, CTX;
+	pushq %r12;
+
 	movq %rsi, %r11;
 	movq %rdx, %r12;
 
@@ -495,24 +467,21 @@ ENTRY(cast5_cbc_dec_16way)
 	vmovdqu RR4, (6*16)(%r11);
 	vmovdqu RL4, (7*16)(%r11);
 
-	popq %r15;
 	popq %r12;
-	FRAME_END
+
 	ret;
 ENDPROC(cast5_cbc_dec_16way)
 
 ENTRY(cast5_ctr_16way)
 	/* input:
-	 *	%rdi: ctx
+	 *	%rdi: ctx, CTX
 	 *	%rsi: dst
 	 *	%rdx: src
 	 *	%rcx: iv (big endian, 64bit)
 	 */
-	FRAME_BEGIN
-	pushq %r12;
-	pushq %r15;
 
-	movq %rdi, CTX;
+	pushq %r12;
+
 	movq %rsi, %r11;
 	movq %rdx, %r12;
 
@@ -571,8 +540,7 @@ ENTRY(cast5_ctr_16way)
 	vmovdqu RR4, (6*16)(%r11);
 	vmovdqu RL4, (7*16)(%r11);
 
-	popq %r15;
 	popq %r12;
-	FRAME_END
+
 	ret;
 ENDPROC(cast5_ctr_16way)

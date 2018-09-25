@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _PGTABLE_NOPMD_H
 #define _PGTABLE_NOPMD_H
 

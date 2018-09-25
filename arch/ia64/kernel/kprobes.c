@@ -28,12 +28,12 @@
 #include <linux/string.h>
 #include <linux/slab.h>
 #include <linux/preempt.h>
-#include <linux/extable.h>
+#include <linux/moduleloader.h>
 #include <linux/kdebug.h>
 
 #include <asm/pgtable.h>
 #include <asm/sections.h>
-#include <asm/exception.h>
+#include <asm/uaccess.h>
 
 extern void jprobe_inst_return(void);
 

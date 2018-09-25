@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NVKM_SW_NV50_H__
 #define __NVKM_SW_NV50_H__
 #define nv50_sw_chan(p) container_of((p), struct nv50_sw_chan, base)

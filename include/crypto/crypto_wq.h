@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef CRYPTO_WQ_H
 #define CRYPTO_WQ_H
 

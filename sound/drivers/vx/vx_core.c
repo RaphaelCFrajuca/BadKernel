@@ -256,8 +256,8 @@ int vx_send_msg_nolock(struct vx_core *chip, struct vx_rmh *rmh)
 	if (rmh->LgCmd > 1) {
 		printk(KERN_DEBUG "  ");
 		for (i = 1; i < rmh->LgCmd; i++)
-			printk(KERN_CONT "0x%06x ", rmh->Cmd[i]);
-		printk(KERN_CONT "\n");
+			printk("0x%06x ", rmh->Cmd[i]);
+		printk("\n");
 	}
 #endif
 	/* Check bit M is set according to length of the command */
@@ -795,8 +795,10 @@ struct vx_core *snd_vx_create(struct snd_card *card, struct snd_vx_hardware *hw,
 		return NULL;
 
 	chip = kzalloc(sizeof(*chip) + extra_size, GFP_KERNEL);
-	if (! chip)
+	if (! chip) {
+		snd_printk(KERN_ERR "vx_core: no memory\n");
 		return NULL;
+	}
 	mutex_init(&chip->lock);
 	chip->irq = -1;
 	chip->hw = hw;

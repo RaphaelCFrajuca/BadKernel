@@ -216,7 +216,7 @@ static int detect_sysv(struct sysv_sb_info *sbi, struct buffer_head *bh)
  	if (fs16_to_cpu(sbi, sbd->s_nfree) == 0xffff) {
  		sbi->s_type = FSTYPE_AFS;
 		sbi->s_forced_ro = 1;
- 		if (!sb_rdonly(sb)) {
+ 		if (!(sb->s_flags & MS_RDONLY)) {
  			printk("SysV FS: SCO EAFS on %s detected, " 
  				"forcing read-only mode.\n", 
  				sb->s_id);
@@ -333,7 +333,7 @@ static int complete_read_super(struct super_block *sb, int silent, int size)
 	/* set up enough so that it can read an inode */
 	sb->s_op = &sysv_sops;
 	if (sbi->s_forced_ro)
-		sb->s_flags |= SB_RDONLY;
+		sb->s_flags |= MS_RDONLY;
 	if (sbi->s_truncate)
 		sb->s_d_op = &sysv_dentry_operations;
 	root_inode = sysv_iget(sb, SYSV_ROOT_INO);

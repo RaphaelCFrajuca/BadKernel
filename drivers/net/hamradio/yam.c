@@ -68,7 +68,7 @@
 #include <linux/seq_file.h>
 #include <net/net_namespace.h>
 
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <linux/init.h>
 
 #include <linux/yam.h>
@@ -157,7 +157,7 @@ static struct net_device *yam_devs[NR_PORTS];
 
 static struct yam_mcs *yam_data;
 
-static DEFINE_TIMER(yam_timer, NULL);
+static DEFINE_TIMER(yam_timer, NULL, 0, 0);
 
 /* --------------------------------------------------------------------- */
 
@@ -601,7 +601,7 @@ static netdev_tx_t yam_send_packet(struct sk_buff *skb,
 		return ax25_ip_xmit(skb);
 
 	skb_queue_tail(&yp->send_queue, skb);
-	netif_trans_update(dev);
+	dev->trans_start = jiffies;
 	return NETDEV_TX_OK;
 }
 
@@ -647,7 +647,7 @@ static void yam_arbitrate(struct net_device *dev)
 	yam_start_tx(dev, yp);
 }
 
-static void yam_dotimer(struct timer_list *unused)
+static void yam_dotimer(unsigned long dummy)
 {
 	int i;
 
@@ -841,6 +841,20 @@ static const struct seq_operations yam_seqops = {
 	.stop = yam_seq_stop,
 	.show = yam_seq_show,
 };
+
+static int yam_info_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &yam_seqops);
+}
+
+static const struct file_operations yam_info_fops = {
+	.owner = THIS_MODULE,
+	.open = yam_info_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = seq_release,
+};
+
 #endif
 
 
@@ -962,10 +976,12 @@ static int yam_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 	case SIOCYAMSMCS:
 		if (netif_running(dev))
 			return -EINVAL;		/* Cannot change this parameter when up */
-		ym = memdup_user(ifr->ifr_data,
-				 sizeof(struct yamdrv_ioctl_mcs));
-		if (IS_ERR(ym))
-			return PTR_ERR(ym);
+		if ((ym = kmalloc(sizeof(struct yamdrv_ioctl_mcs), GFP_KERNEL)) == NULL)
+			return -ENOBUFS;
+		if (copy_from_user(ym, ifr->ifr_data, sizeof(struct yamdrv_ioctl_mcs))) {
+			kfree(ym);
+			return -EFAULT;
+		}
 		if (ym->bitrate > YAM_MAXBITRATE) {
 			kfree(ym);
 			return -EINVAL;
@@ -1150,11 +1166,11 @@ static int __init yam_init_driver(void)
 
 	}
 
-	timer_setup(&yam_timer, yam_dotimer, 0);
+	yam_timer.function = yam_dotimer;
 	yam_timer.expires = jiffies + HZ / 100;
 	add_timer(&yam_timer);
 
-	proc_create_seq("yam", 0444, init_net.proc_net, &yam_seqops);
+	proc_create("yam", S_IRUGO, init_net.proc_net, &yam_info_fops);
 	return 0;
  error:
 	while (--i >= 0) {

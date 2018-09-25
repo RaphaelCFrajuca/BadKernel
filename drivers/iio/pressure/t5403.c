@@ -209,6 +209,7 @@ static const struct iio_info t5403_info = {
 	.read_raw = &t5403_read_raw,
 	.write_raw = &t5403_write_raw,
 	.attrs = &t5403_attribute_group,
+	.driver_module = THIS_MODULE,
 };
 
 static int t5403_probe(struct i2c_client *client,
@@ -220,7 +221,7 @@ static int t5403_probe(struct i2c_client *client,
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_WORD_DATA |
 	    I2C_FUNC_SMBUS_I2C_BLOCK))
-		return -EOPNOTSUPP;
+		return -ENODEV;
 
 	ret = i2c_smbus_read_byte_data(client, T5403_SLAVE_ADDR);
 	if (ret < 0)

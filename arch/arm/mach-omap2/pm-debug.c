@@ -21,7 +21,6 @@
 
 #include <linux/kernel.h>
 #include <linux/sched.h>
-#include <linux/sched/clock.h>
 #include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/io.h>
@@ -31,6 +30,7 @@
 #include "clock.h"
 #include "powerdomain.h"
 #include "clockdomain.h"
+#include "omap-pm.h"
 
 #include "soc.h"
 #include "cm2xxx_3xxx.h"
@@ -114,7 +114,8 @@ static int pwrdm_dbg_show_counter(struct powerdomain *pwrdm, void *user)
 		seq_printf(s, ",RET-MEMBANK%d-OFF:%d", i + 1,
 				pwrdm->ret_mem_off_counter[i]);
 
-	seq_putc(s, '\n');
+	seq_printf(s, "\n");
+
 	return 0;
 }
 
@@ -137,7 +138,7 @@ static int pwrdm_dbg_show_timer(struct powerdomain *pwrdm, void *user)
 		seq_printf(s, ",%s:%lld", pwrdm_state_names[i],
 			pwrdm->state_timer[i]);
 
-	seq_putc(s, '\n');
+	seq_printf(s, "\n");
 	return 0;
 }
 
@@ -239,6 +240,10 @@ static int option_set(void *data, u64 val)
 	*option = val;
 
 	if (option == &enable_off_mode) {
+		if (val)
+			omap_pm_enable_off_mode();
+		else
+			omap_pm_disable_off_mode();
 		if (cpu_is_omap34xx())
 			omap3_pm_off_mode_enable(val);
 	}

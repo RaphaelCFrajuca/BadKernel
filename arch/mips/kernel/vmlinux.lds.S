@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #include <asm/asm-offsets.h>
 #include <asm/thread_info.h>
 
@@ -56,7 +55,6 @@ SECTIONS
 	.text : {
 		TEXT_TEXT
 		SCHED_TEXT
-		CPUIDLE_TEXT
 		LOCK_TEXT
 		KPROBES_TEXT
 		IRQENTRY_TEXT
@@ -98,7 +96,6 @@ SECTIONS
 		DATA_DATA
 		CONSTRUCTORS
 	}
-	BUG_TABLE
 	_gp = . + 0x8000;
 	.lit8 : {
 		*(.lit8)
@@ -139,27 +136,6 @@ SECTIONS
 #ifdef CONFIG_SMP
 	PERCPU_SECTION(1 << CONFIG_MIPS_L1_CACHE_SHIFT)
 #endif
-
-#ifdef CONFIG_RELOCATABLE
-	. = ALIGN(4);
-
-	.data.reloc : {
-		_relocation_start = .;
-		/*
-		 * Space for relocation table
-		 * This needs to be filled so that the
-		 * relocs tool can overwrite the content.
-		 * An invalid value is left at the start of the
-		 * section to abort relocation if the table
-		 * has not been filled in.
-		 */
-		LONG(0xFFFFFFFF);
-		FILL(0);
-		. += CONFIG_RELOCATION_TABLE_SIZE - 4;
-		_relocation_end = .;
-	}
-#endif
-
 #ifdef CONFIG_MIPS_RAW_APPENDED_DTB
 	__appended_dtb = .;
 	/* leave space for appended DTB */

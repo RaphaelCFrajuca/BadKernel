@@ -25,8 +25,6 @@
 #ifndef _OCFS2_FS_H
 #define _OCFS2_FS_H
 
-#include <linux/magic.h>
-
 /* Version */
 #define OCFS2_MAJOR_REV_LEVEL		0
 #define OCFS2_MINOR_REV_LEVEL          	90
@@ -57,6 +55,9 @@
  */
 #define OCFS2_MIN_BLOCKSIZE		512
 #define OCFS2_MAX_BLOCKSIZE		OCFS2_MIN_CLUSTERSIZE
+
+/* Filesystem magic number */
+#define OCFS2_SUPER_MAGIC		0x7461636f
 
 /* Object signatures */
 #define OCFS2_SUPER_BLOCK_SIGNATURE	"OCFSV2"
@@ -579,7 +580,7 @@ struct ocfs2_extended_slot {
 /*00*/	__u8	es_valid;
 	__u8	es_reserved1[3];
 	__le32	es_node_num;
-/*08*/
+/*10*/
 };
 
 /*
@@ -807,11 +808,11 @@ struct ocfs2_dir_block_trailer {
 						 * in this block. (unused) */
 /*10*/	__u8		db_signature[8];	/* Signature for verification */
 	__le64		db_reserved2;
-/*20*/	__le64		db_free_next;		/* Next block in list (unused) */
-	__le64		db_blkno;		/* Offset on disk, in blocks */
-/*30*/	__le64		db_parent_dinode;	/* dinode which owns me, in
+	__le64		db_free_next;		/* Next block in list (unused) */
+/*20*/	__le64		db_blkno;		/* Offset on disk, in blocks */
+	__le64		db_parent_dinode;	/* dinode which owns me, in
 						   blocks */
-	struct ocfs2_block_check db_check;	/* Error checking */
+/*30*/	struct ocfs2_block_check db_check;	/* Error checking */
 /*40*/
 };
 

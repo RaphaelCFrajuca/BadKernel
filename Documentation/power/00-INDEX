@@ -6,7 +6,7 @@ basic-pm-debugging.txt
 	- Debugging suspend and resume
 charger-manager.txt
 	- Battery charger management.
-admin-guide/devices.rst
+devices.txt
 	- How drivers interact with system-wide power management
 drivers-testing.txt
 	- Testing suspend and resume support in device drivers
@@ -14,6 +14,8 @@ freezing-of-tasks.txt
 	- How processes and controlled during suspend
 interface.txt
 	- Power management user interface in /sys/power
+notifiers.txt
+	- Registering suspend notifiers in device drivers
 opp.txt
 	- Operating Performance Point library
 pci.txt

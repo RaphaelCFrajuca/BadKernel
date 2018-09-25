@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * SS1000/SC2000 interrupt handling.
  *

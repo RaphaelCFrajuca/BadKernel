@@ -13,6 +13,10 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *
  *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include "saa7164.h"
@@ -153,7 +157,8 @@ static int saa7164_encoder_buffers_alloc(struct saa7164_port *port)
 			params->pitch);
 
 		if (!buf) {
-			printk(KERN_ERR "%s() failed (errno = %d), unable to allocate buffer\n",
+			printk(KERN_ERR "%s() failed "
+			       "(errno = %d), unable to allocate buffer\n",
 				__func__, result);
 			result = -ENOMEM;
 			goto failed;
@@ -676,8 +681,8 @@ static int saa7164_encoder_start_streaming(struct saa7164_port *port)
 		/* Stop the hardware, regardless */
 		result = saa7164_api_transition_port(port, SAA_DMASTATE_STOP);
 		if ((result != SAA_OK) && (result != SAA_ERR_ALREADY_STOPPED)) {
-			printk(KERN_ERR "%s() acquire/forced stop transition failed, res = 0x%x\n",
-			       __func__, result);
+			printk(KERN_ERR "%s() acquire/forced stop transition "
+				"failed, res = 0x%x\n", __func__, result);
 		}
 		ret = -EIO;
 		goto out;
@@ -693,8 +698,8 @@ static int saa7164_encoder_start_streaming(struct saa7164_port *port)
 		/* Stop the hardware, regardless */
 		result = saa7164_api_transition_port(port, SAA_DMASTATE_STOP);
 		if ((result != SAA_OK) && (result != SAA_ERR_ALREADY_STOPPED)) {
-			printk(KERN_ERR "%s() pause/forced stop transition failed, res = 0x%x\n",
-			       __func__, result);
+			printk(KERN_ERR "%s() pause/forced stop transition "
+				"failed, res = 0x%x\n", __func__, result);
 		}
 
 		ret = -EIO;
@@ -711,8 +716,8 @@ static int saa7164_encoder_start_streaming(struct saa7164_port *port)
 		/* Stop the hardware, regardless */
 		result = saa7164_api_transition_port(port, SAA_DMASTATE_STOP);
 		if ((result != SAA_OK) && (result != SAA_ERR_ALREADY_STOPPED)) {
-			printk(KERN_ERR "%s() run/forced stop transition failed, res = 0x%x\n",
-			       __func__, result);
+			printk(KERN_ERR "%s() run/forced stop transition "
+				"failed, res = 0x%x\n", __func__, result);
 		}
 
 		ret = -EIO;
@@ -909,13 +914,13 @@ err:
 	return ret;
 }
 
-static __poll_t fops_poll(struct file *file, poll_table *wait)
+static unsigned int fops_poll(struct file *file, poll_table *wait)
 {
-	__poll_t req_events = poll_requested_events(wait);
+	unsigned long req_events = poll_requested_events(wait);
 	struct saa7164_encoder_fh *fh =
 		(struct saa7164_encoder_fh *)file->private_data;
 	struct saa7164_port *port = fh->port;
-	__poll_t mask = v4l2_ctrl_poll(file, wait);
+	unsigned int mask = v4l2_ctrl_poll(file, wait);
 
 	port->last_poll_msecs_diff = port->last_poll_msecs;
 	port->last_poll_msecs = jiffies_to_msecs(jiffies);
@@ -925,13 +930,13 @@ static __poll_t fops_poll(struct file *file, poll_table *wait)
 	saa7164_histogram_update(&port->poll_interval,
 		port->last_poll_msecs_diff);
 
-	if (!(req_events & (EPOLLIN | EPOLLRDNORM)))
+	if (!(req_events & (POLLIN | POLLRDNORM)))
 		return mask;
 
 	if (atomic_cmpxchg(&fh->v4l_reading, 0, 1) == 0) {
 		if (atomic_inc_return(&port->v4l_reader_count) == 1) {
 			if (saa7164_encoder_initialize(port) < 0)
-				return mask | EPOLLERR;
+				return mask | POLLERR;
 			saa7164_encoder_start_streaming(port);
 			msleep(200);
 		}
@@ -939,7 +944,7 @@ static __poll_t fops_poll(struct file *file, poll_table *wait)
 
 	/* Pull the first buffer from the used list */
 	if (!list_empty(&port->list_buf_used.list))
-		mask |= EPOLLIN | EPOLLRDNORM;
+		mask |= POLLIN | POLLRDNORM;
 
 	return mask;
 }
@@ -1017,11 +1022,13 @@ int saa7164_encoder_register(struct saa7164_port *port)
 
 	dprintk(DBGLVL_ENC, "%s()\n", __func__);
 
-	BUG_ON(port->type != SAA7164_MPEG_ENCODER);
+	if (port->type != SAA7164_MPEG_ENCODER)
+		BUG();
 
 	/* Sanity check that the PCI configuration space is active */
 	if (port->hwcfg.BARLocation == 0) {
-		printk(KERN_ERR "%s() failed (errno = %d), NO PCI configuration\n",
+		printk(KERN_ERR "%s() failed "
+		       "(errno = %d), NO PCI configuration\n",
 			__func__, result);
 		result = -ENOMEM;
 		goto failed;
@@ -1144,7 +1151,8 @@ void saa7164_encoder_unregister(struct saa7164_port *port)
 
 	dprintk(DBGLVL_ENC, "%s(port=%d)\n", __func__, port->nr);
 
-	BUG_ON(port->type != SAA7164_MPEG_ENCODER);
+	if (port->type != SAA7164_MPEG_ENCODER)
+		BUG();
 
 	if (port->v4l_device) {
 		if (port->v4l_device->minor != -1)

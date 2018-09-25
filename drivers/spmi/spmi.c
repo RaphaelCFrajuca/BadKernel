@@ -25,7 +25,6 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/spmi.h>
 
-static bool is_registered;
 static DEFINE_IDA(ctrl_ida);
 
 static void spmi_dev_release(struct device *dev)
@@ -466,25 +465,27 @@ static void of_spmi_register_devices(struct spmi_controller *ctrl)
 		struct spmi_device *sdev;
 		u32 reg[2];
 
-		dev_dbg(&ctrl->dev, "adding child %pOF\n", node);
+		dev_dbg(&ctrl->dev, "adding child %s\n", node->full_name);
 
 		err = of_property_read_u32_array(node, "reg", reg, 2);
 		if (err) {
 			dev_err(&ctrl->dev,
-				"node %pOF err (%d) does not have 'reg' property\n",
-				node, err);
+				"node %s err (%d) does not have 'reg' property\n",
+				node->full_name, err);
 			continue;
 		}
 
 		if (reg[1] != SPMI_USID) {
 			dev_err(&ctrl->dev,
-				"node %pOF contains unsupported 'reg' entry\n",
-				node);
+				"node %s contains unsupported 'reg' entry\n",
+				node->full_name);
 			continue;
 		}
 
 		if (reg[0] >= SPMI_MAX_SLAVE_ID) {
-			dev_err(&ctrl->dev, "invalid usid on node %pOF\n", node);
+			dev_err(&ctrl->dev,
+				"invalid usid on node %s\n",
+				node->full_name);
 			continue;
 		}
 
@@ -518,7 +519,7 @@ int spmi_controller_add(struct spmi_controller *ctrl)
 	int ret;
 
 	/* Can't register until after driver model init */
-	if (WARN_ON(!is_registered))
+	if (WARN_ON(!spmi_bus_type.p))
 		return -EAGAIN;
 
 	ret = device_add(&ctrl->dev);
@@ -587,14 +588,7 @@ module_exit(spmi_exit);
 
 static int __init spmi_init(void)
 {
-	int ret;
-
-	ret = bus_register(&spmi_bus_type);
-	if (ret)
-		return ret;
-
-	is_registered = true;
-	return 0;
+	return bus_register(&spmi_bus_type);
 }
 postcore_initcall(spmi_init);
 

@@ -27,7 +27,6 @@
 #include <linux/spinlock.h>
 #include <linux/suspend.h>
 
-#include <soc/tegra/flowctrl.h>
 #include <soc/tegra/fuse.h>
 #include <soc/tegra/pm.h>
 #include <soc/tegra/pmc.h>
@@ -39,6 +38,7 @@
 #include <asm/suspend.h>
 #include <asm/tlbflush.h>
 
+#include "flowctrl.h"
 #include "iomap.h"
 #include "pm.h"
 #include "reset.h"

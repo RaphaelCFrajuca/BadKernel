@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Pioctl operations for Coda.
  * Original version: (C) 1996 Peter Braam
@@ -36,6 +35,7 @@ const struct inode_operations coda_ioctl_inode_operations = {
 };
 
 const struct file_operations coda_ioctl_operations = {
+	.owner		= THIS_MODULE,
 	.unlocked_ioctl	= coda_pioctl,
 	.llseek		= noop_llseek,
 };

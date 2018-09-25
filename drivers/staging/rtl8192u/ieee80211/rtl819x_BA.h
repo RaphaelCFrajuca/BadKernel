@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _BATYPE_H_
 #define _BATYPE_H_
 
@@ -32,8 +31,8 @@ typedef union _SEQUENCE_CONTROL{
 	struct {
 		u16	FragNum:4;
 		u16	SeqNum:12;
-	} field;
-} SEQUENCE_CONTROL, *PSEQUENCE_CONTROL;
+	}field;
+}SEQUENCE_CONTROL, *PSEQUENCE_CONTROL;
 
 typedef union _BA_PARAM_SET {
 	u8 charData[2];

@@ -14,9 +14,7 @@
  */
 
 #include <endian.h>
-#include <errno.h>
 #include <byteswap.h>
-#include <inttypes.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/bitops.h>
@@ -67,7 +65,7 @@ struct intel_bts {
 	u64				branches_sample_type;
 	u64				branches_id;
 	size_t				branches_event_size;
-	unsigned long			num_events;
+	bool				synth_needs_swap;
 };
 
 struct intel_bts_queue {
@@ -277,15 +275,10 @@ static int intel_bts_synth_branch_sample(struct intel_bts_queue *btsq,
 	union perf_event event;
 	struct perf_sample sample = { .ip = 0, };
 
-	if (bts->synth_opts.initial_skip &&
-	    bts->num_events++ <= bts->synth_opts.initial_skip)
-		return 0;
-
 	event.sample.header.type = PERF_RECORD_SAMPLE;
 	event.sample.header.misc = PERF_RECORD_MISC_USER;
 	event.sample.header.size = sizeof(struct perf_event_header);
 
-	sample.cpumode = PERF_RECORD_MISC_USER;
 	sample.ip = le64_to_cpu(branch->from);
 	sample.pid = btsq->pid;
 	sample.tid = btsq->tid;
@@ -296,13 +289,13 @@ static int intel_bts_synth_branch_sample(struct intel_bts_queue *btsq,
 	sample.cpu = btsq->cpu;
 	sample.flags = btsq->sample_flags;
 	sample.insn_len = btsq->intel_pt_insn.length;
-	memcpy(sample.insn, btsq->intel_pt_insn.buf, INTEL_PT_INSN_BUF_SZ);
 
 	if (bts->synth_opts.inject) {
 		event.sample.header.size = bts->branches_event_size;
 		ret = perf_event__synthesize_sample(&event,
 						    bts->branches_sample_type,
-						    0, &sample);
+						    0, &sample,
+						    bts->synth_needs_swap);
 		if (ret)
 			return ret;
 	}
@@ -320,11 +313,14 @@ static int intel_bts_get_next_insn(struct intel_bts_queue *btsq, u64 ip)
 	struct machine *machine = btsq->bts->machine;
 	struct thread *thread;
 	struct addr_location al;
-	unsigned char buf[INTEL_PT_INSN_BUF_SZ];
+	unsigned char buf[1024];
+	size_t bufsz;
 	ssize_t len;
 	int x86_64;
 	uint8_t cpumode;
 	int err = -1;
+
+	bufsz = intel_pt_insn_max_size();
 
 	if (machine__kernel_ip(machine, ip))
 		cpumode = PERF_RECORD_MISC_KERNEL;
@@ -335,16 +331,16 @@ static int intel_bts_get_next_insn(struct intel_bts_queue *btsq, u64 ip)
 	if (!thread)
 		return -1;
 
-	if (!thread__find_map(thread, cpumode, ip, &al) || !al.map->dso)
+	thread__find_addr_map(thread, cpumode, MAP__FUNCTION, ip, &al);
+	if (!al.map || !al.map->dso)
 		goto out_put;
 
-	len = dso__data_read_addr(al.map->dso, al.map, machine, ip, buf,
-				  INTEL_PT_INSN_BUF_SZ);
+	len = dso__data_read_addr(al.map->dso, al.map, machine, ip, buf, bufsz);
 	if (len <= 0)
 		goto out_put;
 
 	/* Load maps to ensure dso->is_64_bit has been updated */
-	map__load(al.map);
+	map__load(al.map, machine->symbol_filter);
 
 	x86_64 = al.map->dso->is_64_bit;
 
@@ -420,8 +416,7 @@ static int intel_bts_get_branch_type(struct intel_bts_queue *btsq,
 }
 
 static int intel_bts_process_buffer(struct intel_bts_queue *btsq,
-				    struct auxtrace_buffer *buffer,
-				    struct thread *thread)
+				    struct auxtrace_buffer *buffer)
 {
 	struct branch *branch;
 	size_t sz, bsz = sizeof(struct branch);
@@ -443,12 +438,6 @@ static int intel_bts_process_buffer(struct intel_bts_queue *btsq,
 		if (!branch->from && !branch->to)
 			continue;
 		intel_bts_get_branch_type(btsq, branch);
-		if (btsq->bts->synth_opts.thread_stack)
-			thread_stack__event(thread, btsq->sample_flags,
-					    le64_to_cpu(branch->from),
-					    le64_to_cpu(branch->to),
-					    btsq->intel_pt_insn.length,
-					    buffer->buffer_nr + 1);
 		if (filter && !(filter & btsq->sample_flags))
 			continue;
 		err = intel_bts_synth_branch_sample(btsq, branch);
@@ -497,7 +486,7 @@ static int intel_bts_process_queue(struct intel_bts_queue *btsq, u64 *timestamp)
 	}
 
 	if (!buffer->data) {
-		int fd = perf_data__fd(btsq->bts->session->data);
+		int fd = perf_data_file__fd(btsq->bts->session->file);
 
 		buffer->data = auxtrace_buffer__get_data(buffer, fd);
 		if (!buffer->data) {
@@ -512,13 +501,12 @@ static int intel_bts_process_queue(struct intel_bts_queue *btsq, u64 *timestamp)
 		goto out_put;
 	}
 
-	if (!btsq->bts->synth_opts.callchain &&
-	    !btsq->bts->synth_opts.thread_stack && thread &&
+	if (!btsq->bts->synth_opts.callchain && thread &&
 	    (!old_buffer || btsq->bts->sampling_mode ||
 	     (btsq->bts->snapshot_mode && !buffer->consecutive)))
 		thread_stack__set_trace_nr(thread, buffer->buffer_nr + 1);
 
-	err = intel_bts_process_buffer(btsq, buffer, thread);
+	err = intel_bts_process_buffer(btsq, buffer);
 
 	auxtrace_buffer__drop_data(buffer);
 
@@ -661,10 +649,10 @@ static int intel_bts_process_auxtrace_event(struct perf_session *session,
 	if (!bts->data_queued) {
 		struct auxtrace_buffer *buffer;
 		off_t data_offset;
-		int fd = perf_data__fd(session->data);
+		int fd = perf_data_file__fd(session->file);
 		int err;
 
-		if (perf_data__is_pipe(session->data)) {
+		if (perf_data_file__is_pipe(session->file)) {
 			data_offset = 0;
 		} else {
 			data_offset = lseek(fd, 0, SEEK_CUR);
@@ -690,7 +678,7 @@ static int intel_bts_process_auxtrace_event(struct perf_session *session,
 	return 0;
 }
 
-static int intel_bts_flush(struct perf_session *session,
+static int intel_bts_flush(struct perf_session *session __maybe_unused,
 			   struct perf_tool *tool __maybe_unused)
 {
 	struct intel_bts *bts = container_of(session->auxtrace, struct intel_bts,
@@ -783,7 +771,7 @@ static int intel_bts_synth_events(struct intel_bts *bts,
 	u64 id;
 	int err;
 
-	evlist__for_each_entry(evlist, evsel) {
+	evlist__for_each(evlist, evsel) {
 		if (evsel->attr.type == bts->pmu_type && evsel->ids) {
 			found = true;
 			break;
@@ -838,6 +826,8 @@ static int intel_bts_synth_events(struct intel_bts *bts,
 				__perf_evsel__sample_size(attr.sample_type);
 	}
 
+	bts->synth_needs_swap = evsel->needs_swap;
+
 	return 0;
 }
 
@@ -860,6 +850,8 @@ static void intel_bts_print_info(u64 *arr, int start, int finish)
 	for (i = start; i <= finish; i++)
 		fprintf(stdout, intel_bts_info_fmts[i], arr[i]);
 }
+
+u64 intel_bts_auxtrace_info_priv[INTEL_BTS_AUXTRACE_PRIV_SIZE];
 
 int intel_bts_process_auxtrace_info(union perf_event *event,
 				    struct perf_session *session)
@@ -907,14 +899,10 @@ int intel_bts_process_auxtrace_info(union perf_event *event,
 	if (dump_trace)
 		return 0;
 
-	if (session->itrace_synth_opts && session->itrace_synth_opts->set) {
+	if (session->itrace_synth_opts && session->itrace_synth_opts->set)
 		bts->synth_opts = *session->itrace_synth_opts;
-	} else {
+	else
 		itrace_synth_opts__set_default(&bts->synth_opts);
-		if (session->itrace_synth_opts)
-			bts->synth_opts.thread_stack =
-				session->itrace_synth_opts->thread_stack;
-	}
 
 	if (bts->synth_opts.calls)
 		bts->branches_filter |= PERF_IP_FLAG_CALL | PERF_IP_FLAG_ASYNC |

@@ -624,7 +624,7 @@ struct scb {
 };
 
 TAILQ_HEAD(scb_tailq, scb);
-BSD_LIST_HEAD(scb_list, scb);
+LIST_HEAD(scb_list, scb);
 
 struct scb_data {
 	/*
@@ -1046,6 +1046,8 @@ typedef enum {
 
 typedef uint8_t ahd_mode_state;
 
+typedef void ahd_callback_t (void *);
+
 struct ahd_completion
 {
 	uint16_t	tag;
@@ -1067,7 +1069,7 @@ struct ahd_softc {
 	/*
 	 * SCBs that have been sent to the controller
 	 */
-	BSD_LIST_HEAD(, scb)	  pending_scbs;
+	LIST_HEAD(, scb)	  pending_scbs;
 
 	/*
 	 * Current register window mode information.
@@ -1120,7 +1122,8 @@ struct ahd_softc {
 	/*
 	 * Timer handles for timer driven callbacks.
 	 */
-	struct timer_list	stat_timer;
+	ahd_timer_t		  reset_timer;
+	ahd_timer_t		  stat_timer;
 
 	/*
 	 * Statistics.

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /* -*- mode: c; c-basic-offset: 8 -*- */
 
 /* NCR Quad 720 MCA SCSI Driver

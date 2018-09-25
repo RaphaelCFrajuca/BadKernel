@@ -1,5 +1,16 @@
-/* SPDX-License-Identifier: GPL-2.0+ */
-/* Copyright (C) 2013 Noralf Tronnes */
+/*
+ * Copyright (C) 2013 Noralf Tronnes
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
 
 #ifndef __LINUX_FBTFT_H
 #define __LINUX_FBTFT_H
@@ -8,6 +19,14 @@
 #include <linux/spinlock.h>
 #include <linux/spi/spi.h>
 #include <linux/platform_device.h>
+
+#define FBTFT_NOP		0x00
+#define FBTFT_SWRESET	0x01
+#define FBTFT_RDDID		0x04
+#define FBTFT_RDDST		0x09
+#define FBTFT_CASET		0x2A
+#define FBTFT_RASET		0x2B
+#define FBTFT_RAMWR		0x2C
 
 #define FBTFT_ONBOARD_BACKLIGHT 2
 
@@ -27,7 +46,7 @@
  */
 struct fbtft_gpio {
 	char name[FBTFT_GPIO_NAME_SIZE];
-	unsigned int gpio;
+	unsigned gpio;
 };
 
 struct fbtft_par;
@@ -68,7 +87,7 @@ struct fbtft_ops {
 	void (*reset)(struct fbtft_par *par);
 	void (*mkdirty)(struct fb_info *info, int from, int to);
 	void (*update_display)(struct fbtft_par *par,
-				unsigned int start_line, unsigned int end_line);
+				unsigned start_line, unsigned end_line);
 	int (*init_display)(struct fbtft_par *par);
 	int (*blank)(struct fbtft_par *par, bool on);
 
@@ -81,7 +100,7 @@ struct fbtft_ops {
 	void (*unregister_backlight)(struct fbtft_par *par);
 
 	int (*set_var)(struct fbtft_par *par);
-	int (*set_gamma)(struct fbtft_par *par, u32 *curves);
+	int (*set_gamma)(struct fbtft_par *par, unsigned long *curves);
 };
 
 /**
@@ -104,16 +123,16 @@ struct fbtft_ops {
  * This structure is not stored by FBTFT except for init_sequence.
  */
 struct fbtft_display {
-	unsigned int width;
-	unsigned int height;
-	unsigned int regwidth;
-	unsigned int buswidth;
-	unsigned int backlight;
+	unsigned width;
+	unsigned height;
+	unsigned regwidth;
+	unsigned buswidth;
+	unsigned backlight;
 	struct fbtft_ops fbtftops;
-	unsigned int bpp;
-	unsigned int fps;
+	unsigned bpp;
+	unsigned fps;
 	int txbuflen;
-	const s16 *init_sequence;
+	int *init_sequence;
 	char *gamma;
 	int gamma_num;
 	int gamma_len;
@@ -135,9 +154,9 @@ struct fbtft_display {
 struct fbtft_platform_data {
 	struct fbtft_display display;
 	const struct fbtft_gpio *gpios;
-	unsigned int rotate;
+	unsigned rotate;
 	bool bgr;
-	unsigned int fps;
+	unsigned fps;
 	int txbuflen;
 	u8 startbyte;
 	char *gamma;
@@ -198,14 +217,15 @@ struct fbtft_par {
 	u32 pseudo_palette[16];
 	struct {
 		void *buf;
+		dma_addr_t dma;
 		size_t len;
 	} txbuf;
 	u8 *buf;
 	u8 startbyte;
 	struct fbtft_ops fbtftops;
 	spinlock_t dirty_lock;
-	unsigned int dirty_lines_start;
-	unsigned int dirty_lines_end;
+	unsigned dirty_lines_start;
+	unsigned dirty_lines_end;
 	struct {
 		int reset;
 		int dc;
@@ -217,10 +237,10 @@ struct fbtft_par {
 		int led[16];
 		int aux[16];
 	} gpio;
-	const s16 *init_sequence;
+	int *init_sequence;
 	struct {
 		struct mutex lock;
-		u32 *curves;
+		unsigned long *curves;
 		int num_values;
 		int num_curves;
 	} gamma;
@@ -229,7 +249,6 @@ struct fbtft_par {
 	ktime_t update_time;
 	bool bgr;
 	void *extra;
-	bool polarity;
 };
 
 #define NUMARGS(...)  (sizeof((int[]){__VA_ARGS__})/sizeof(int))
@@ -238,7 +257,6 @@ struct fbtft_par {
 	par->fbtftops.write_register(par, NUMARGS(__VA_ARGS__), __VA_ARGS__)
 
 /* fbtft-core.c */
-int fbtft_write_buf_dc(struct fbtft_par *par, void *buf, size_t len, int dc);
 void fbtft_dbg_hex(const struct device *dev, int groupsize,
 		   void *buf, size_t len, const char *fmt, ...);
 struct fb_info *fbtft_framebuffer_alloc(struct fbtft_display *display,

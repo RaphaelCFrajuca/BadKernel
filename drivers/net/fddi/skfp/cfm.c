@@ -52,6 +52,7 @@ static const char ID_sccs[] = "@(#)cfm.c	2.18 98/10/06 (C) SK " ;
 #define ACTIONS_DONE()	(smc->mib.fddiSMTCF_State &= ~AFLAG)
 #define ACTIONS(x)	(x|AFLAG)
 
+#ifdef	DEBUG
 /*
  * symbolic state names
  */
@@ -67,6 +68,7 @@ static const char * const cfm_states[] = {
 static const char * const cfm_events[] = {
 	"NONE","CF_LOOP_A","CF_LOOP_B","CF_JOIN_A","CF_JOIN_B"
 } ;
+#endif
 
 /*
  * map from state to downstream port type
@@ -228,10 +230,10 @@ void cfm(struct s_smc *smc, int event)
 
 	oldstate = smc->mib.fddiSMTCF_State ;
 	do {
-		DB_CFM("CFM : state %s%s event %s",
-		       smc->mib.fddiSMTCF_State & AFLAG ? "ACTIONS " : "",
-		       cfm_states[smc->mib.fddiSMTCF_State & ~AFLAG],
-		       cfm_events[event]);
+		DB_CFM("CFM : state %s%s",
+			(smc->mib.fddiSMTCF_State & AFLAG) ? "ACTIONS " : "",
+			cfm_states[smc->mib.fddiSMTCF_State & ~AFLAG]) ;
+		DB_CFM(" event %s\n",cfm_events[event],0) ;
 		state = smc->mib.fddiSMTCF_State ;
 		cfm_fsm(smc,event) ;
 		event = 0 ;
@@ -295,7 +297,7 @@ static void cfm_fsm(struct s_smc *smc, int cmd)
 		queue_event(smc,EVENT_RMT,RM_JOIN) ;/* signal RMT */
 		/* Don't do the WC-Flag changing here */
 		ACTIONS_DONE() ;
-		DB_CFMN(1, "CFM : %s", cfm_states[smc->mib.fddiSMTCF_State]);
+		DB_CFMN(1,"CFM : %s\n",cfm_states[smc->mib.fddiSMTCF_State],0) ;
 		break;
 	case SC0_ISOLATED :
 		/*SC07*/
@@ -336,7 +338,7 @@ static void cfm_fsm(struct s_smc *smc, int cmd)
 			queue_event(smc,EVENT_RMT,RM_JOIN) ;/* signal RMT */
 		}
 		ACTIONS_DONE() ;
-		DB_CFMN(1, "CFM : %s", cfm_states[smc->mib.fddiSMTCF_State]);
+		DB_CFMN(1,"CFM : %s\n",cfm_states[smc->mib.fddiSMTCF_State],0) ;
 		break ;
 	case SC9_C_WRAP_A :
 		/*SC10*/
@@ -401,7 +403,7 @@ static void cfm_fsm(struct s_smc *smc, int cmd)
 			queue_event(smc,EVENT_RMT,RM_JOIN) ;/* signal RMT */
 		}
 		ACTIONS_DONE() ;
-		DB_CFMN(1, "CFM : %s", cfm_states[smc->mib.fddiSMTCF_State]);
+		DB_CFMN(1,"CFM : %s\n",cfm_states[smc->mib.fddiSMTCF_State],0) ;
 		break ;
 	case SC10_C_WRAP_B :
 		/*SC20*/
@@ -446,7 +448,7 @@ static void cfm_fsm(struct s_smc *smc, int cmd)
 		smc->r.rm_join = TRUE ;
 		queue_event(smc,EVENT_RMT,RM_JOIN) ;/* signal RMT */
 		ACTIONS_DONE() ;
-		DB_CFMN(1, "CFM : %s", cfm_states[smc->mib.fddiSMTCF_State]);
+		DB_CFMN(1,"CFM : %s\n",cfm_states[smc->mib.fddiSMTCF_State],0) ;
 		break ;
 	case SC4_THRU_A :
 		/*SC41*/
@@ -479,7 +481,7 @@ static void cfm_fsm(struct s_smc *smc, int cmd)
 		smc->r.rm_join = TRUE ;
 		queue_event(smc,EVENT_RMT,RM_JOIN) ;/* signal RMT */
 		ACTIONS_DONE() ;
-		DB_CFMN(1, "CFM : %s", cfm_states[smc->mib.fddiSMTCF_State]);
+		DB_CFMN(1,"CFM : %s\n",cfm_states[smc->mib.fddiSMTCF_State],0) ;
 		break ;
 	case SC5_THRU_B :
 		/*SC51*/
@@ -517,7 +519,7 @@ static void cfm_fsm(struct s_smc *smc, int cmd)
 			queue_event(smc,EVENT_RMT,RM_JOIN) ;/* signal RMT */
 		}
 		ACTIONS_DONE() ;
-		DB_CFMN(1, "CFM : %s", cfm_states[smc->mib.fddiSMTCF_State]);
+		DB_CFMN(1,"CFM : %s\n",cfm_states[smc->mib.fddiSMTCF_State],0) ;
 		break ;
 	case SC11_C_WRAP_S :
 		/*SC70*/

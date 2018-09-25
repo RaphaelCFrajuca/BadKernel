@@ -11,7 +11,6 @@
  */
 #include <linux/init.h>
 #include <linux/perf_event.h>
-#include <linux/sched/signal.h>
 #include <linux/hw_breakpoint.h>
 #include <linux/percpu.h>
 #include <linux/kallsyms.h>
@@ -347,8 +346,13 @@ static int __kprobes hw_breakpoint_handler(struct die_args *args)
 
 		/* Deliver the signal to userspace */
 		if (!arch_check_bp_in_kernelspace(bp)) {
-			force_sig_fault(SIGTRAP, TRAP_HWBKPT,
-					(void __user *)NULL, current);
+			siginfo_t info;
+
+			info.si_signo = args->signr;
+			info.si_errno = notifier_to_errno(rc);
+			info.si_code = TRAP_HWBKPT;
+
+			force_sig_info(args->signr, &info, current);
 		}
 
 		rcu_read_unlock();

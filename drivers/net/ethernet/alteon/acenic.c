@@ -80,7 +80,7 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/byteorder.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
 
 #define DRV_NAME "acenic"
@@ -429,16 +429,14 @@ static const char version[] =
   "acenic.c: v0.92 08/05/2002  Jes Sorensen, linux-acenic@SunSITE.dk\n"
   "                            http://home.cern.ch/~jes/gige/acenic.html\n";
 
-static int ace_get_link_ksettings(struct net_device *,
-				  struct ethtool_link_ksettings *);
-static int ace_set_link_ksettings(struct net_device *,
-				  const struct ethtool_link_ksettings *);
+static int ace_get_settings(struct net_device *, struct ethtool_cmd *);
+static int ace_set_settings(struct net_device *, struct ethtool_cmd *);
 static void ace_get_drvinfo(struct net_device *, struct ethtool_drvinfo *);
 
 static const struct ethtool_ops ace_ethtool_ops = {
+	.get_settings = ace_get_settings,
+	.set_settings = ace_set_settings,
 	.get_drvinfo = ace_get_drvinfo,
-	.get_link_ksettings = ace_get_link_ksettings,
-	.set_link_ksettings = ace_set_link_ksettings,
 };
 
 static void ace_watchdog(struct net_device *dev);
@@ -476,8 +474,6 @@ static int acenic_probe_one(struct pci_dev *pdev,
 	dev->features |= NETIF_F_HW_VLAN_CTAG_TX | NETIF_F_HW_VLAN_CTAG_RX;
 
 	dev->watchdog_timeo = 5*HZ;
-	dev->min_mtu = 0;
-	dev->max_mtu = ACE_JUMBO_MTU;
 
 	dev->netdev_ops = &ace_netdev_ops;
 	dev->ethtool_ops = &ace_ethtool_ops;
@@ -1436,13 +1432,13 @@ static int ace_init(struct net_device *dev)
 	ace_set_txprd(regs, ap, 0);
 	writel(0, &regs->RxRetCsm);
 
-	/*
-	 * Enable DMA engine now.
-	 * If we do this sooner, Mckinley box pukes.
-	 * I assume it's because Tigon II DMA engine wants to check
-	 * *something* even before the CPU is started.
-	 */
-	writel(1, &regs->AssistState);  /* enable DMA */
+       /*
+	* Enable DMA engine now.
+	* If we do this sooner, Mckinley box pukes.
+	* I assume it's because Tigon II DMA engine wants to check
+	* *something* even before the CPU is started.
+	*/
+       writel(1, &regs->AssistState);  /* enable DMA */
 
 	/*
 	 * Start the NIC CPU
@@ -2552,6 +2548,9 @@ static int ace_change_mtu(struct net_device *dev, int new_mtu)
 	struct ace_private *ap = netdev_priv(dev);
 	struct ace_regs __iomem *regs = ap->regs;
 
+	if (new_mtu > ACE_JUMBO_MTU)
+		return -EINVAL;
+
 	writel(new_mtu + ETH_HLEN + 4, &regs->IfMtu);
 	dev->mtu = new_mtu;
 
@@ -2581,44 +2580,43 @@ static int ace_change_mtu(struct net_device *dev, int new_mtu)
 	return 0;
 }
 
-static int ace_get_link_ksettings(struct net_device *dev,
-				  struct ethtool_link_ksettings *cmd)
+static int ace_get_settings(struct net_device *dev, struct ethtool_cmd *ecmd)
 {
 	struct ace_private *ap = netdev_priv(dev);
 	struct ace_regs __iomem *regs = ap->regs;
 	u32 link;
-	u32 supported;
 
-	memset(cmd, 0, sizeof(struct ethtool_link_ksettings));
+	memset(ecmd, 0, sizeof(struct ethtool_cmd));
+	ecmd->supported =
+		(SUPPORTED_10baseT_Half | SUPPORTED_10baseT_Full |
+		 SUPPORTED_100baseT_Half | SUPPORTED_100baseT_Full |
+		 SUPPORTED_1000baseT_Half | SUPPORTED_1000baseT_Full |
+		 SUPPORTED_Autoneg | SUPPORTED_FIBRE);
 
-	supported = (SUPPORTED_10baseT_Half | SUPPORTED_10baseT_Full |
-		     SUPPORTED_100baseT_Half | SUPPORTED_100baseT_Full |
-		     SUPPORTED_1000baseT_Half | SUPPORTED_1000baseT_Full |
-		     SUPPORTED_Autoneg | SUPPORTED_FIBRE);
-
-	cmd->base.port = PORT_FIBRE;
+	ecmd->port = PORT_FIBRE;
+	ecmd->transceiver = XCVR_INTERNAL;
 
 	link = readl(&regs->GigLnkState);
-	if (link & LNK_1000MB) {
-		cmd->base.speed = SPEED_1000;
-	} else {
+	if (link & LNK_1000MB)
+		ethtool_cmd_speed_set(ecmd, SPEED_1000);
+	else {
 		link = readl(&regs->FastLnkState);
 		if (link & LNK_100MB)
-			cmd->base.speed = SPEED_100;
+			ethtool_cmd_speed_set(ecmd, SPEED_100);
 		else if (link & LNK_10MB)
-			cmd->base.speed = SPEED_10;
+			ethtool_cmd_speed_set(ecmd, SPEED_10);
 		else
-			cmd->base.speed = 0;
+			ethtool_cmd_speed_set(ecmd, 0);
 	}
 	if (link & LNK_FULL_DUPLEX)
-		cmd->base.duplex = DUPLEX_FULL;
+		ecmd->duplex = DUPLEX_FULL;
 	else
-		cmd->base.duplex = DUPLEX_HALF;
+		ecmd->duplex = DUPLEX_HALF;
 
 	if (link & LNK_NEGOTIATE)
-		cmd->base.autoneg = AUTONEG_ENABLE;
+		ecmd->autoneg = AUTONEG_ENABLE;
 	else
-		cmd->base.autoneg = AUTONEG_DISABLE;
+		ecmd->autoneg = AUTONEG_DISABLE;
 
 #if 0
 	/*
@@ -2629,15 +2627,13 @@ static int ace_get_link_ksettings(struct net_device *dev,
 	ecmd->txcoal = readl(&regs->TuneTxCoalTicks);
 	ecmd->rxcoal = readl(&regs->TuneRxCoalTicks);
 #endif
-
-	ethtool_convert_legacy_u32_to_link_mode(cmd->link_modes.supported,
-						supported);
+	ecmd->maxtxpkt = readl(&regs->TuneMaxTxDesc);
+	ecmd->maxrxpkt = readl(&regs->TuneMaxRxDesc);
 
 	return 0;
 }
 
-static int ace_set_link_ksettings(struct net_device *dev,
-				  const struct ethtool_link_ksettings *cmd)
+static int ace_set_settings(struct net_device *dev, struct ethtool_cmd *ecmd)
 {
 	struct ace_private *ap = netdev_priv(dev);
 	struct ace_regs __iomem *regs = ap->regs;
@@ -2660,11 +2656,11 @@ static int ace_set_link_ksettings(struct net_device *dev,
 		LNK_RX_FLOW_CTL_Y | LNK_NEG_FCTL;
 	if (!ACE_IS_TIGON_I(ap))
 		link |= LNK_TX_FLOW_CTL_Y;
-	if (cmd->base.autoneg == AUTONEG_ENABLE)
+	if (ecmd->autoneg == AUTONEG_ENABLE)
 		link |= LNK_NEGOTIATE;
-	if (cmd->base.speed != speed) {
+	if (ethtool_cmd_speed(ecmd) != speed) {
 		link &= ~(LNK_1000MB | LNK_100MB | LNK_10MB);
-		switch (cmd->base.speed) {
+		switch (ethtool_cmd_speed(ecmd)) {
 		case SPEED_1000:
 			link |= LNK_1000MB;
 			break;
@@ -2677,7 +2673,7 @@ static int ace_set_link_ksettings(struct net_device *dev,
 		}
 	}
 
-	if (cmd->base.duplex == DUPLEX_FULL)
+	if (ecmd->duplex == DUPLEX_FULL)
 		link |= LNK_FULL_DUPLEX;
 
 	if (link != ap->link) {

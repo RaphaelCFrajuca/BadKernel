@@ -33,7 +33,7 @@
 #include <linux/slab.h>
 #include <linux/of.h>
 #include <linux/irqdomain.h>
-#include <linux/mfd/twl.h>
+#include <linux/i2c/twl.h>
 
 #include "twl-core.h"
 
@@ -638,10 +638,8 @@ int twl4030_sih_setup(struct device *dev, int module, int irq_base)
 		}
 	}
 
-	if (status < 0) {
-		dev_err(dev, "module to setup SIH for not found\n");
+	if (status < 0)
 		return status;
-	}
 
 	agent = kzalloc(sizeof(*agent), GFP_KERNEL);
 	if (!agent)
@@ -698,7 +696,7 @@ int twl4030_init_irq(struct device *dev, int irq_num)
 	nr_irqs = TWL4030_PWR_NR_IRQS + TWL4030_CORE_NR_IRQS;
 
 	irq_base = irq_alloc_descs(-1, 0, nr_irqs, 0);
-	if (irq_base < 0) {
+	if (IS_ERR_VALUE(irq_base)) {
 		dev_err(dev, "Fail to allocate IRQ descs\n");
 		return irq_base;
 	}

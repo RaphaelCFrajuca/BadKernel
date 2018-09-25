@@ -67,7 +67,7 @@ static ssize_t opal_get_sys_param(u32 param_id, u32 length, void *buffer)
 		goto out_token;
 	}
 
-	ret = opal_error_code(opal_get_async_rc(msg));
+	ret = opal_error_code(be64_to_cpu(msg.params[1]));
 
 out_token:
 	opal_async_release_token(token);
@@ -103,7 +103,7 @@ static int opal_set_sys_param(u32 param_id, u32 length, void *buffer)
 		goto out_token;
 	}
 
-	ret = opal_error_code(opal_get_async_rc(msg));
+	ret = opal_error_code(be64_to_cpu(msg.params[1]));
 
 out_token:
 	opal_async_release_token(token);
@@ -198,21 +198,21 @@ void __init opal_sys_param_init(void)
 		goto out_param_buf;
 	}
 
-	id = kcalloc(count, sizeof(*id), GFP_KERNEL);
+	id = kzalloc(sizeof(*id) * count, GFP_KERNEL);
 	if (!id) {
 		pr_err("SYSPARAM: Failed to allocate memory to read parameter "
 				"id\n");
 		goto out_param_buf;
 	}
 
-	size = kcalloc(count, sizeof(*size), GFP_KERNEL);
+	size = kzalloc(sizeof(*size) * count, GFP_KERNEL);
 	if (!size) {
 		pr_err("SYSPARAM: Failed to allocate memory to read parameter "
 				"size\n");
 		goto out_free_id;
 	}
 
-	perm = kcalloc(count, sizeof(*perm), GFP_KERNEL);
+	perm = kzalloc(sizeof(*perm) * count, GFP_KERNEL);
 	if (!perm) {
 		pr_err("SYSPARAM: Failed to allocate memory to read supported "
 				"action on the parameter");
@@ -235,7 +235,7 @@ void __init opal_sys_param_init(void)
 		goto out_free_perm;
 	}
 
-	attr = kcalloc(count, sizeof(*attr), GFP_KERNEL);
+	attr = kzalloc(sizeof(*attr) * count, GFP_KERNEL);
 	if (!attr) {
 		pr_err("SYSPARAM: Failed to allocate memory for parameter "
 				"attributes\n");
@@ -260,13 +260,13 @@ void __init opal_sys_param_init(void)
 		/* If the parameter is read-only or read-write */
 		switch (perm[i] & 3) {
 		case OPAL_SYSPARAM_READ:
-			attr[i].kobj_attr.attr.mode = 0444;
+			attr[i].kobj_attr.attr.mode = S_IRUGO;
 			break;
 		case OPAL_SYSPARAM_WRITE:
-			attr[i].kobj_attr.attr.mode = 0200;
+			attr[i].kobj_attr.attr.mode = S_IWUSR;
 			break;
 		case OPAL_SYSPARAM_RW:
-			attr[i].kobj_attr.attr.mode = 0644;
+			attr[i].kobj_attr.attr.mode = S_IRUGO | S_IWUSR;
 			break;
 		default:
 			break;

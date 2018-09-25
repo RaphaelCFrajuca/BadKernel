@@ -1,11 +1,7 @@
 #!/bin/bash
-# SPDX-License-Identifier: GPL-2.0
 
 efivarfs_mount=/sys/firmware/efi/efivars
 test_guid=210be57c-9849-4fc7-a635-e6382d1aec27
-
-# Kselftest framework requirement - SKIP code is 4.
-ksft_skip=4
 
 check_prereqs()
 {
@@ -13,12 +9,12 @@ check_prereqs()
 
 	if [ $UID != 0 ]; then
 		echo $msg must be run as root >&2
-		exit $ksft_skip
+		exit 0
 	fi
 
 	if ! grep -q "^\S\+ $efivarfs_mount efivarfs" /proc/mounts; then
 		echo $msg efivarfs is not mounted on $efivarfs_mount >&2
-		exit $ksft_skip
+		exit 0
 	fi
 }
 

@@ -160,9 +160,8 @@ newl3state(struct l3_process *pc, int state)
 }
 
 static void
-L3ExpireTimer(struct timer_list *timer)
+L3ExpireTimer(struct L3Timer *t)
 {
-	struct L3Timer *t = from_timer(t, timer, tl);
 	t->pc->st->lli.l4l3(t->pc->st, t->event, t->pc);
 }
 
@@ -170,7 +169,9 @@ void
 L3InitTimer(struct l3_process *pc, struct L3Timer *t)
 {
 	t->pc = pc;
-	timer_setup(&t->tl, L3ExpireTimer, 0);
+	t->tl.function = (void *) L3ExpireTimer;
+	t->tl.data = (long) t;
+	init_timer(&t->tl);
 }
 
 void
@@ -187,6 +188,7 @@ L3AddTimer(struct L3Timer *t,
 		printk(KERN_WARNING "L3AddTimer: timer already active!\n");
 		return -1;
 	}
+	init_timer(&t->tl);
 	t->event = event;
 	t->tl.expires = jiffies + (millisec * HZ) / 1000;
 	add_timer(&t->tl);

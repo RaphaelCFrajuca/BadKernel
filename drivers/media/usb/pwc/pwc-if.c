@@ -146,7 +146,7 @@ static const struct v4l2_file_operations pwc_fops = {
 	.mmap =		vb2_fop_mmap,
 	.unlocked_ioctl = video_ioctl2,
 };
-static const struct video_device pwc_template = {
+static struct video_device pwc_template = {
 	.name =		"Philips Webcam",	/* Filled in later */
 	.release =	video_device_release_empty,
 	.fops =         &pwc_fops,
@@ -238,8 +238,8 @@ static void pwc_frame_complete(struct pwc_device *pdev)
 	} else {
 		/* Check for underflow first */
 		if (fbuf->filled < pdev->frame_total_size) {
-			PWC_DEBUG_FLOW("Frame buffer underflow (%d bytes); discarded.\n",
-				       fbuf->filled);
+			PWC_DEBUG_FLOW("Frame buffer underflow (%d bytes);"
+				       " discarded.\n", fbuf->filled);
 		} else {
 			fbuf->vb.field = V4L2_FIELD_NONE;
 			fbuf->vb.sequence = pdev->vframe_count;
@@ -262,8 +262,7 @@ static void pwc_isoc_handler(struct urb *urb)
 
 	if (urb->status == -ENOENT || urb->status == -ECONNRESET ||
 	    urb->status == -ESHUTDOWN) {
-		PWC_DEBUG_OPEN("URB (%p) unlinked %ssynchronously.\n",
-			       urb, urb->status == -ENOENT ? "" : "a");
+		PWC_DEBUG_OPEN("URB (%p) unlinked %ssynchronuously.\n", urb, urb->status == -ENOENT ? "" : "a");
 		return;
 	}
 
@@ -318,7 +317,8 @@ static void pwc_isoc_handler(struct urb *urb)
 			struct pwc_frame_buf *fbuf = pdev->fill_buf;
 
 			if (pdev->vsync == 1) {
-				fbuf->vb.vb2_buf.timestamp = ktime_get_ns();
+				v4l2_get_timestamp(
+					&fbuf->vb.timestamp);
 				pdev->vsync = 2;
 			}
 
@@ -411,6 +411,7 @@ retry:
 	for (i = 0; i < MAX_ISO_BUFS; i++) {
 		urb = usb_alloc_urb(ISO_FRAMES_PER_DESC, GFP_KERNEL);
 		if (urb == NULL) {
+			PWC_ERROR("Failed to allocate urb %d\n", i);
 			pwc_isoc_cleanup(pdev);
 			return -ENOMEM;
 		}
@@ -571,9 +572,9 @@ static void pwc_video_release(struct v4l2_device *v)
 /***************************************************************************/
 /* Videobuf2 operations */
 
-static int queue_setup(struct vb2_queue *vq,
+static int queue_setup(struct vb2_queue *vq, const void *parg,
 				unsigned int *nbuffers, unsigned int *nplanes,
-				unsigned int sizes[], struct device *alloc_devs[])
+				unsigned int sizes[], void *alloc_ctxs[])
 {
 	struct pwc_device *pdev = vb2_get_drv_priv(vq);
 	int size;
@@ -708,7 +709,7 @@ static void stop_streaming(struct vb2_queue *vq)
 	mutex_unlock(&pdev->v4l2_lock);
 }
 
-static const struct vb2_ops pwc_vb_queue_ops = {
+static struct vb2_ops pwc_vb_queue_ops = {
 	.queue_setup		= queue_setup,
 	.buf_init		= buffer_init,
 	.buf_prepare		= buffer_prepare,

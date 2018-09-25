@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 static int find_vdso_map(void **start, void **end)
 {
 	FILE *maps;

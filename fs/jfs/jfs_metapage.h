@@ -38,7 +38,6 @@ struct metapage {
 
 	/* implementation */
 	struct page *page;
-	struct super_block *sb;
 	unsigned int logical_size;
 
 	/* Journal management */
@@ -107,7 +106,7 @@ static inline void metapage_nohomeok(struct metapage *mp)
 	lock_page(page);
 	if (!mp->nohomeok++) {
 		mark_metapage_dirty(mp);
-		get_page(page);
+		page_cache_get(page);
 		wait_on_page_writeback(page);
 	}
 	unlock_page(page);
@@ -129,7 +128,7 @@ static inline void metapage_wait_for_io(struct metapage *mp)
 static inline void _metapage_homeok(struct metapage *mp)
 {
 	if (!--mp->nohomeok)
-		put_page(mp->page);
+		page_cache_release(mp->page);
 }
 
 static inline void metapage_homeok(struct metapage *mp)

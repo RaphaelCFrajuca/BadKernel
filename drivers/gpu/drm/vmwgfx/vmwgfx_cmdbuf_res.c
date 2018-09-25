@@ -205,7 +205,7 @@ int vmw_cmdbuf_res_add(struct vmw_cmdbuf_res_manager *man,
 	int ret;
 
 	cres = kzalloc(sizeof(*cres), GFP_KERNEL);
-	if (unlikely(!cres))
+	if (unlikely(cres == NULL))
 		return -ENOMEM;
 
 	cres->hash.key = user_key | (res_type << 24);
@@ -291,7 +291,7 @@ vmw_cmdbuf_res_man_create(struct vmw_private *dev_priv)
 	int ret;
 
 	man = kzalloc(sizeof(*man), GFP_KERNEL);
-	if (!man)
+	if (man == NULL)
 		return ERR_PTR(-ENOMEM);
 
 	man->dev_priv = dev_priv;

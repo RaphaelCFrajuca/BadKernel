@@ -1,5 +1,4 @@
 # event_analyzing_sample.py: general event handler in python
-# SPDX-License-Identifier: GPL-2.0
 #
 # Current perf report is already very powerful with the annotation integrated,
 # and this script is not trying to be as powerful as perf report, but

@@ -36,7 +36,6 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/crc32c.h>
 
 static struct crypto_shash *tfm;
 
@@ -70,12 +69,6 @@ static void __exit libcrc32c_mod_fini(void)
 {
 	crypto_free_shash(tfm);
 }
-
-const char *crc32c_impl(void)
-{
-	return crypto_shash_driver_name(tfm);
-}
-EXPORT_SYMBOL(crc32c_impl);
 
 module_init(libcrc32c_mod_init);
 module_exit(libcrc32c_mod_fini);

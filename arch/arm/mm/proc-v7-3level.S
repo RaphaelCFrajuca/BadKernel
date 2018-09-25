@@ -129,7 +129,8 @@ ENDPROC(cpu_v7_set_pte_ext)
 	.macro	v7_ttb_setup, zero, ttbr0l, ttbr0h, ttbr1, tmp
 	ldr	\tmp, =swapper_pg_dir		@ swapper_pg_dir virtual address
 	cmp	\ttbr1, \tmp, lsr #12		@ PHYS_OFFSET > PAGE_OFFSET?
-	mov	\tmp, #TTB_EAE			@ for TTB control egister
+	mrc	p15, 0, \tmp, c2, c0, 2		@ TTB control egister
+	orr	\tmp, \tmp, #TTB_EAE
 	ALT_SMP(orr	\tmp, \tmp, #TTB_FLAGS_SMP)
 	ALT_UP(orr	\tmp, \tmp, #TTB_FLAGS_UP)
 	ALT_SMP(orr	\tmp, \tmp, #TTB_FLAGS_SMP << 16)

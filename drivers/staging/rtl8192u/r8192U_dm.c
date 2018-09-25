@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*++
 Copyright-c Realtek Semiconductor Corp. All rights reserved.
 
@@ -151,7 +150,7 @@ void deinit_hal_dm(struct net_device *dev)
 #ifdef USB_RX_AGGREGATION_SUPPORT
 void dm_CheckRxAggregation(struct net_device *dev)
 {
-	struct r8192_priv *priv = ieee80211_priv(dev);
+	struct r8192_priv *priv = ieee80211_priv((struct net_device *)dev);
 	PRT_HIGH_THROUGHPUT	pHTInfo = priv->ieee80211->pHTInfo;
 	static unsigned long	lastTxOkCnt;
 	static unsigned long	lastRxOkCnt;
@@ -539,13 +538,13 @@ static void dm_TXPowerTrackingCallback_TSSI(struct net_device *dev)
 		rtStatus = SendTxCommandPacket(dev, &tx_cmd, 12);
 		if (rtStatus == RT_STATUS_FAILURE)
 			RT_TRACE(COMP_POWER_TRACKING, "Set configuration with tx cmd queue fail!\n");
-		usleep_range(1000, 2000);
+		mdelay(1);
 		/*DbgPrint("hi, vivi, strange\n");*/
 		for (i = 0; i <= 30; i++) {
 			read_nic_byte(dev, 0x1ba, &Pwr_Flag);
 
 			if (Pwr_Flag == 0) {
-				usleep_range(1000, 2000);
+				mdelay(1);
 				continue;
 			}
 			read_nic_word(dev, 0x13c, &Avg_TSSI_Meas);
@@ -599,8 +598,8 @@ static void dm_TXPowerTrackingCallback_TSSI(struct net_device *dev)
 				RT_TRACE(COMP_POWER_TRACKING, "tx power track is done\n");
 				RT_TRACE(COMP_POWER_TRACKING, "priv->rfa_txpowertrackingindex = %d\n", priv->rfa_txpowertrackingindex);
 				RT_TRACE(COMP_POWER_TRACKING, "priv->rfa_txpowertrackingindex_real = %d\n", priv->rfa_txpowertrackingindex_real);
-				RT_TRACE(COMP_POWER_TRACKING, "priv->cck_present_attenuation_difference = %d\n", priv->cck_present_attenuation_difference);
-				RT_TRACE(COMP_POWER_TRACKING, "priv->cck_present_attenuation = %d\n", priv->cck_present_attenuation);
+				RT_TRACE(COMP_POWER_TRACKING, "priv->cck_present_attentuation_difference = %d\n", priv->cck_present_attentuation_difference);
+				RT_TRACE(COMP_POWER_TRACKING, "priv->cck_present_attentuation = %d\n", priv->cck_present_attentuation);
 				return;
 			}
 			if (Avg_TSSI_Meas_from_driver < TSSI_13dBm - E_FOR_TX_POWER_TRACK) {
@@ -619,17 +618,17 @@ static void dm_TXPowerTrackingCallback_TSSI(struct net_device *dev)
 
 				}
 			}
-			priv->cck_present_attenuation_difference
+			priv->cck_present_attentuation_difference
 				= priv->rfa_txpowertrackingindex - priv->rfa_txpowertracking_default;
 
 			if (priv->CurrentChannelBW == HT_CHANNEL_WIDTH_20)
-				priv->cck_present_attenuation
-					= priv->cck_present_attenuation_20Mdefault + priv->cck_present_attenuation_difference;
+				priv->cck_present_attentuation
+					= priv->cck_present_attentuation_20Mdefault + priv->cck_present_attentuation_difference;
 			else
-				priv->cck_present_attenuation
-					= priv->cck_present_attenuation_40Mdefault + priv->cck_present_attenuation_difference;
+				priv->cck_present_attentuation
+					= priv->cck_present_attentuation_40Mdefault + priv->cck_present_attentuation_difference;
 
-			if (priv->cck_present_attenuation > -1 && priv->cck_present_attenuation < 23) {
+			if (priv->cck_present_attentuation > -1 && priv->cck_present_attentuation < 23) {
 				if (priv->ieee80211->current_network.channel == 14 && !priv->bcck_in_ch14) {
 					priv->bcck_in_ch14 = true;
 					dm_cck_txpower_adjust(dev, priv->bcck_in_ch14);
@@ -641,10 +640,10 @@ static void dm_TXPowerTrackingCallback_TSSI(struct net_device *dev)
 			}
 			RT_TRACE(COMP_POWER_TRACKING, "priv->rfa_txpowertrackingindex = %d\n", priv->rfa_txpowertrackingindex);
 			RT_TRACE(COMP_POWER_TRACKING, "priv->rfa_txpowertrackingindex_real = %d\n", priv->rfa_txpowertrackingindex_real);
-			RT_TRACE(COMP_POWER_TRACKING, "priv->cck_present_attenuation_difference = %d\n", priv->cck_present_attenuation_difference);
-			RT_TRACE(COMP_POWER_TRACKING, "priv->cck_present_attenuation = %d\n", priv->cck_present_attenuation);
+			RT_TRACE(COMP_POWER_TRACKING, "priv->cck_present_attentuation_difference = %d\n", priv->cck_present_attentuation_difference);
+			RT_TRACE(COMP_POWER_TRACKING, "priv->cck_present_attentuation = %d\n", priv->cck_present_attentuation);
 
-			if (priv->cck_present_attenuation_difference <= -12 || priv->cck_present_attenuation_difference >= 24) {
+			if (priv->cck_present_attentuation_difference <= -12 || priv->cck_present_attentuation_difference >= 24) {
 				priv->ieee80211->bdynamic_txpower_enable = true;
 				write_nic_byte(dev, 0x1ba, 0);
 				RT_TRACE(COMP_POWER_TRACKING, "tx power track--->limited\n");
@@ -726,15 +725,10 @@ static void dm_TXPowerTrackingCallback_ThermalMeter(struct net_device *dev)
 	} else {
 		tmpval = (u8)tmpRegA - priv->ThermalMeter[0];
 
-		if (tmpval >= 6) {
-			/* higher temperature */
-			tmpOFDMindex = 0;
-			tmpCCK20Mindex = 0;
-		} else {
-			/* max to +6dB */
-			tmpOFDMindex = 6 - tmpval;
-			tmpCCK20Mindex = 6 - tmpval;
-		}
+		if (tmpval >= 6) /* higher temperature */
+			tmpOFDMindex = tmpCCK20Mindex = 0; /* max to +6dB */
+		else
+			tmpOFDMindex = tmpCCK20Mindex = 6 - tmpval;
 		tmpCCK40Mindex = 0;
 	}
 	/*DbgPrint("%ddb, tmpOFDMindex = %d, tmpCCK20Mindex = %d, tmpCCK40Mindex = %d",
@@ -773,7 +767,7 @@ static void dm_TXPowerTrackingCallback_ThermalMeter(struct net_device *dev)
 
 void dm_txpower_trackingcallback(struct work_struct *work)
 {
-	struct delayed_work *dwork = to_delayed_work(work);
+	struct delayed_work *dwork = container_of(work, struct delayed_work, work);
 	struct r8192_priv *priv = container_of(dwork, struct r8192_priv, txpower_tracking_wq);
 	struct net_device *dev = priv->ieee80211->dev;
 
@@ -1385,35 +1379,35 @@ static void dm_CCKTxPowerAdjust_TSSI(struct net_device *dev, bool  bInCH14)
 	TempVal = 0;
 	if (!bInCH14) {
 		/* Write 0xa22 0xa23 */
-		TempVal =	priv->cck_txbbgain_table[priv->cck_present_attenuation].ccktxbb_valuearray[0] +
-					(priv->cck_txbbgain_table[priv->cck_present_attenuation].ccktxbb_valuearray[1]<<8);
+		TempVal =	priv->cck_txbbgain_table[priv->cck_present_attentuation].ccktxbb_valuearray[0] +
+					(priv->cck_txbbgain_table[priv->cck_present_attentuation].ccktxbb_valuearray[1]<<8);
 
 		rtl8192_setBBreg(dev, rCCK0_TxFilter1, bMaskHWord, TempVal);
 		/* Write 0xa24 ~ 0xa27 */
-		TempVal =	priv->cck_txbbgain_table[priv->cck_present_attenuation].ccktxbb_valuearray[2] +
-					(priv->cck_txbbgain_table[priv->cck_present_attenuation].ccktxbb_valuearray[3]<<8) +
-					(priv->cck_txbbgain_table[priv->cck_present_attenuation].ccktxbb_valuearray[4]<<16)+
-					(priv->cck_txbbgain_table[priv->cck_present_attenuation].ccktxbb_valuearray[5]<<24);
+		TempVal =	priv->cck_txbbgain_table[priv->cck_present_attentuation].ccktxbb_valuearray[2] +
+					(priv->cck_txbbgain_table[priv->cck_present_attentuation].ccktxbb_valuearray[3]<<8) +
+					(priv->cck_txbbgain_table[priv->cck_present_attentuation].ccktxbb_valuearray[4]<<16)+
+					(priv->cck_txbbgain_table[priv->cck_present_attentuation].ccktxbb_valuearray[5]<<24);
 		rtl8192_setBBreg(dev, rCCK0_TxFilter2, bMaskDWord, TempVal);
 		/* Write 0xa28  0xa29 */
-		TempVal =	priv->cck_txbbgain_table[priv->cck_present_attenuation].ccktxbb_valuearray[6] +
-					(priv->cck_txbbgain_table[priv->cck_present_attenuation].ccktxbb_valuearray[7]<<8);
+		TempVal =	priv->cck_txbbgain_table[priv->cck_present_attentuation].ccktxbb_valuearray[6] +
+					(priv->cck_txbbgain_table[priv->cck_present_attentuation].ccktxbb_valuearray[7]<<8);
 
 		rtl8192_setBBreg(dev, rCCK0_DebugPort, bMaskLWord, TempVal);
 	} else {
-		TempVal =	priv->cck_txbbgain_ch14_table[priv->cck_present_attenuation].ccktxbb_valuearray[0] +
-					(priv->cck_txbbgain_ch14_table[priv->cck_present_attenuation].ccktxbb_valuearray[1]<<8);
+		TempVal =	priv->cck_txbbgain_ch14_table[priv->cck_present_attentuation].ccktxbb_valuearray[0] +
+					(priv->cck_txbbgain_ch14_table[priv->cck_present_attentuation].ccktxbb_valuearray[1]<<8);
 
 		rtl8192_setBBreg(dev, rCCK0_TxFilter1, bMaskHWord, TempVal);
 		/* Write 0xa24 ~ 0xa27 */
-		TempVal =	priv->cck_txbbgain_ch14_table[priv->cck_present_attenuation].ccktxbb_valuearray[2] +
-					(priv->cck_txbbgain_ch14_table[priv->cck_present_attenuation].ccktxbb_valuearray[3]<<8) +
-					(priv->cck_txbbgain_ch14_table[priv->cck_present_attenuation].ccktxbb_valuearray[4]<<16)+
-					(priv->cck_txbbgain_ch14_table[priv->cck_present_attenuation].ccktxbb_valuearray[5]<<24);
+		TempVal =	priv->cck_txbbgain_ch14_table[priv->cck_present_attentuation].ccktxbb_valuearray[2] +
+					(priv->cck_txbbgain_ch14_table[priv->cck_present_attentuation].ccktxbb_valuearray[3]<<8) +
+					(priv->cck_txbbgain_ch14_table[priv->cck_present_attentuation].ccktxbb_valuearray[4]<<16)+
+					(priv->cck_txbbgain_ch14_table[priv->cck_present_attentuation].ccktxbb_valuearray[5]<<24);
 		rtl8192_setBBreg(dev, rCCK0_TxFilter2, bMaskDWord, TempVal);
 		/* Write 0xa28  0xa29 */
-		TempVal =	priv->cck_txbbgain_ch14_table[priv->cck_present_attenuation].ccktxbb_valuearray[6] +
-					(priv->cck_txbbgain_ch14_table[priv->cck_present_attenuation].ccktxbb_valuearray[7]<<8);
+		TempVal =	priv->cck_txbbgain_ch14_table[priv->cck_present_attentuation].ccktxbb_valuearray[6] +
+					(priv->cck_txbbgain_ch14_table[priv->cck_present_attentuation].ccktxbb_valuearray[7]<<8);
 
 		rtl8192_setBBreg(dev, rCCK0_DebugPort, bMaskLWord, TempVal);
 	}
@@ -1496,7 +1490,7 @@ static void dm_txpower_reset_recovery(
 	RT_TRACE(COMP_POWER_TRACKING, "Reset Recovery: Fill in 0xc80 is %08x\n", priv->txbbgain_table[priv->rfa_txpowertrackingindex].txbbgain_value);
 	RT_TRACE(COMP_POWER_TRACKING, "Reset Recovery: Fill in RFA_txPowerTrackingIndex is %x\n", priv->rfa_txpowertrackingindex);
 	RT_TRACE(COMP_POWER_TRACKING, "Reset Recovery : RF A I/Q Amplify Gain is %ld\n", priv->txbbgain_table[priv->rfa_txpowertrackingindex].txbb_iq_amplifygain);
-	RT_TRACE(COMP_POWER_TRACKING, "Reset Recovery: CCK Attenuation is %d dB\n", priv->cck_present_attenuation);
+	RT_TRACE(COMP_POWER_TRACKING, "Reset Recovery: CCK Attenuation is %d dB\n", priv->cck_present_attentuation);
 	dm_cck_txpower_adjust(dev, priv->bcck_in_ch14);
 
 	rtl8192_setBBreg(dev, rOFDM0_XCTxIQImbalance, bMaskDWord, priv->txbbgain_table[priv->rfc_txpowertrackingindex].txbbgain_value);
@@ -1634,75 +1628,47 @@ static void dm_bb_initialgain_backup(struct net_device *dev)
 void dm_change_dynamic_initgain_thresh(struct net_device *dev, u32 dm_type,
 				       u32 dm_value)
 {
-	switch (dm_type) {
-	case DIG_TYPE_THRESH_HIGH:
+	if (dm_type == DIG_TYPE_THRESH_HIGH) {
 		dm_digtable.rssi_high_thresh = dm_value;
-		break;
-
-	case  DIG_TYPE_THRESH_LOW:
+	} else if (dm_type == DIG_TYPE_THRESH_LOW) {
 		dm_digtable.rssi_low_thresh = dm_value;
-		break;
-
-	case  DIG_TYPE_THRESH_HIGHPWR_HIGH:
+	} else if (dm_type == DIG_TYPE_THRESH_HIGHPWR_HIGH) {
 		dm_digtable.rssi_high_power_highthresh = dm_value;
-		break;
-
-	case DIG_TYPE_THRESH_HIGHPWR_LOW:
+	} else if (dm_type == DIG_TYPE_THRESH_HIGHPWR_LOW) {
 		dm_digtable.rssi_high_power_lowthresh = dm_value;
-		break;
-
-	case DIG_TYPE_ENABLE:
+	} else if (dm_type == DIG_TYPE_ENABLE) {
 		dm_digtable.dig_state		= DM_STA_DIG_MAX;
 		dm_digtable.dig_enable_flag	= true;
-		break;
-
-	case DIG_TYPE_DISABLE:
+	} else if (dm_type == DIG_TYPE_DISABLE) {
 		dm_digtable.dig_state		= DM_STA_DIG_MAX;
 		dm_digtable.dig_enable_flag	= false;
-		break;
-
-	case DIG_TYPE_DBG_MODE:
+	} else if (dm_type == DIG_TYPE_DBG_MODE) {
 		if (dm_value >= DM_DBG_MAX)
 			dm_value = DM_DBG_OFF;
 		dm_digtable.dbg_mode		= (u8)dm_value;
-		break;
-
-	case DIG_TYPE_RSSI:
+	} else if (dm_type == DIG_TYPE_RSSI) {
 		if (dm_value > 100)
 			dm_value = 30;
 		dm_digtable.rssi_val			= (long)dm_value;
-		break;
-
-	case DIG_TYPE_ALGORITHM:
+	} else if (dm_type == DIG_TYPE_ALGORITHM) {
 		if (dm_value >= DIG_ALGO_MAX)
 			dm_value = DIG_ALGO_BY_FALSE_ALARM;
 		if (dm_digtable.dig_algorithm != (u8)dm_value)
 			dm_digtable.dig_algorithm_switch = 1;
 		dm_digtable.dig_algorithm	= (u8)dm_value;
-		break;
-
-	case DIG_TYPE_BACKOFF:
+	} else if (dm_type == DIG_TYPE_BACKOFF) {
 		if (dm_value > 30)
 			dm_value = 30;
 		dm_digtable.backoff_val		= (u8)dm_value;
-		break;
-
-	case DIG_TYPE_RX_GAIN_MIN:
+	} else if (dm_type == DIG_TYPE_RX_GAIN_MIN) {
 		if (dm_value == 0)
 			dm_value = 0x1;
 		dm_digtable.rx_gain_range_min = (u8)dm_value;
-		break;
-
-	case DIG_TYPE_RX_GAIN_MAX:
+	} else if (dm_type == DIG_TYPE_RX_GAIN_MAX) {
 		if (dm_value > 0x50)
 			dm_value = 0x50;
 		dm_digtable.rx_gain_range_max = (u8)dm_value;
-		break;
-
-	default:
-		break;
 	}
-
 }	/* DM_ChangeDynamicInitGainThresh */
 
 /*-----------------------------------------------------------------------------
@@ -2301,52 +2267,43 @@ static void dm_check_edca_turbo(
 		 * Restore original EDCA according to the declaration of AP.
 		 */
 		if (priv->bcurrent_turbo_EDCA) {
-			u8	u1bAIFS;
-			u32	u4bAcParam, op_limit, cw_max, cw_min;
-
-			struct ieee80211_qos_parameters *qos_parameters = &priv->ieee80211->current_network.qos_data.parameters;
-			u8 mode = priv->ieee80211->mode;
-
-			/*  For Each time updating EDCA parameter, reset EDCA turbo mode status. */
-			dm_init_edca_turbo(dev);
-
-			u1bAIFS = qos_parameters->aifs[0] * ((mode & (IEEE_G | IEEE_N_24G)) ? 9 : 20) + aSifsTime;
-
-			op_limit = (u32)le16_to_cpu(qos_parameters->tx_op_limit[0]);
-			cw_max   = (u32)le16_to_cpu(qos_parameters->cw_max[0]);
-			cw_min   = (u32)le16_to_cpu(qos_parameters->cw_min[0]);
-
-			op_limit <<= AC_PARAM_TXOP_LIMIT_OFFSET;
-			cw_max   <<= AC_PARAM_ECW_MAX_OFFSET;
-			cw_min   <<= AC_PARAM_ECW_MIN_OFFSET;
-			u1bAIFS  <<= AC_PARAM_AIFS_OFFSET;
-
-			u4bAcParam = op_limit | cw_max | cw_min | u1bAIFS;
-			cpu_to_le32s(&u4bAcParam);
-
-			write_nic_dword(dev, EDCAPARA_BE, u4bAcParam);
-
-
-			/*
-			 * Check ACM bit.
-			 * If it is set, immediately set ACM control bit to downgrading AC for passing WMM testplan. Annie, 2005-12-13.
-			 */
 			{
-				/*  TODO:  Modified this part and try to set acm control in only 1 IO processing!! */
+				u8		u1bAIFS;
+				u32		u4bAcParam;
+				struct ieee80211_qos_parameters *qos_parameters = &priv->ieee80211->current_network.qos_data.parameters;
+				u8 mode = priv->ieee80211->mode;
 
-				PACI_AIFSN	pAciAifsn = (PACI_AIFSN)&(qos_parameters->aifs[0]);
-				u8		AcmCtrl;
+				/*  For Each time updating EDCA parameter, reset EDCA turbo mode status. */
+				dm_init_edca_turbo(dev);
+				u1bAIFS = qos_parameters->aifs[0] * ((mode&(IEEE_G|IEEE_N_24G)) ? 9 : 20) + aSifsTime;
+				u4bAcParam = (((u32)(qos_parameters->tx_op_limit[0])) << AC_PARAM_TXOP_LIMIT_OFFSET)|
+					(((u32)(qos_parameters->cw_max[0])) << AC_PARAM_ECW_MAX_OFFSET)|
+					(((u32)(qos_parameters->cw_min[0])) << AC_PARAM_ECW_MIN_OFFSET)|
+					((u32)u1bAIFS << AC_PARAM_AIFS_OFFSET);
+				/*write_nic_dword(dev, WDCAPARA_ADD[i], u4bAcParam);*/
+				write_nic_dword(dev, EDCAPARA_BE,  u4bAcParam);
 
-				read_nic_byte(dev, AcmHwCtrl, &AcmCtrl);
+				/*
+				 * Check ACM bit.
+				 * If it is set, immediately set ACM control bit to downgrading AC for passing WMM testplan. Annie, 2005-12-13.
+				 */
+				{
+					/*  TODO:  Modified this part and try to set acm control in only 1 IO processing!! */
 
-				if (pAciAifsn->f.ACM) { /*  ACM bit is 1. */
-					AcmCtrl |= AcmHw_BeqEn;
-				} else {	/* ACM bit is 0. */
-					AcmCtrl &= (~AcmHw_BeqEn);
+					PACI_AIFSN	pAciAifsn = (PACI_AIFSN)&(qos_parameters->aifs[0]);
+					u8		AcmCtrl;
+
+					read_nic_byte(dev, AcmHwCtrl, &AcmCtrl);
+
+					if (pAciAifsn->f.ACM) { /*  ACM bit is 1. */
+						AcmCtrl |= AcmHw_BeqEn;
+					} else {	/* ACM bit is 0. */
+						AcmCtrl &= (~AcmHw_BeqEn);
+					}
+
+					RT_TRACE(COMP_QOS, "SetHwReg8190pci(): [HW_VAR_ACM_CTRL] Write 0x%X\n", AcmCtrl);
+					write_nic_byte(dev, AcmHwCtrl, AcmCtrl);
 				}
-
-				RT_TRACE(COMP_QOS, "SetHwReg8190pci(): [HW_VAR_ACM_CTRL] Write 0x%X\n", AcmCtrl);
-				write_nic_byte(dev, AcmHwCtrl, AcmCtrl);
 			}
 			priv->bcurrent_turbo_EDCA = false;
 		}
@@ -2361,7 +2318,7 @@ dm_CheckEdcaTurbo_EXIT:
 
 static void dm_init_ctstoself(struct net_device *dev)
 {
-	struct r8192_priv *priv = ieee80211_priv(dev);
+	struct r8192_priv *priv = ieee80211_priv((struct net_device *)dev);
 
 	priv->ieee80211->bCTSToSelfEnable = true;
 	priv->ieee80211->CTSToSelfTH = CTSToSelfTHVal;
@@ -2369,7 +2326,7 @@ static void dm_init_ctstoself(struct net_device *dev)
 
 static void dm_ctstoself(struct net_device *dev)
 {
-	struct r8192_priv *priv = ieee80211_priv(dev);
+	struct r8192_priv *priv = ieee80211_priv((struct net_device *)dev);
 	PRT_HIGH_THROUGHPUT	pHTInfo = priv->ieee80211->pHTInfo;
 	static unsigned long				lastTxOkCnt;
 	static unsigned long				lastRxOkCnt;
@@ -2455,7 +2412,7 @@ static	void	dm_check_pbc_gpio(struct net_device *dev)
  *---------------------------------------------------------------------------*/
 void dm_rf_pathcheck_workitemcallback(struct work_struct *work)
 {
-	struct delayed_work *dwork = to_delayed_work(work);
+	struct delayed_work *dwork = container_of(work, struct delayed_work, work);
 	struct r8192_priv *priv = container_of(dwork, struct r8192_priv, rfpath_check_wq);
 	struct net_device *dev = priv->ieee80211->dev;
 	/*bool bactually_set = false;*/
@@ -2730,7 +2687,8 @@ static void dm_init_fsync(struct net_device *dev)
 	priv->ieee80211->fsync_seconddiff_ratethreshold = 200;
 	priv->ieee80211->fsync_state = Default_Fsync;
 	priv->framesyncMonitor = 1;	/* current default 0xc38 monitor on */
-	timer_setup(&priv->fsync_timer, dm_fsync_timer_callback, 0);
+	setup_timer(&priv->fsync_timer, dm_fsync_timer_callback,
+		    (unsigned long)dev);
 }
 
 static void dm_deInit_fsync(struct net_device *dev)
@@ -2740,10 +2698,10 @@ static void dm_deInit_fsync(struct net_device *dev)
 	del_timer_sync(&priv->fsync_timer);
 }
 
-void dm_fsync_timer_callback(struct timer_list *t)
+void dm_fsync_timer_callback(unsigned long data)
 {
-	struct r8192_priv *priv = from_timer(priv, t, fsync_timer);
-	struct net_device *dev = priv->ieee80211->dev;
+	struct net_device *dev = (struct net_device *)data;
+	struct r8192_priv *priv = ieee80211_priv((struct net_device *)data);
 	u32 rate_index, rate_count = 0, rate_count_diff = 0;
 	bool		bSwitchFromCountDiff = false;
 	bool		bDoubleTimeInterval = false;
@@ -2811,14 +2769,12 @@ void dm_fsync_timer_callback(struct timer_list *t)
 		if (bDoubleTimeInterval) {
 			if (timer_pending(&priv->fsync_timer))
 				del_timer_sync(&priv->fsync_timer);
-			priv->fsync_timer.expires = jiffies +
-				msecs_to_jiffies(priv->ieee80211->fsync_time_interval*priv->ieee80211->fsync_multiple_timeinterval);
+			priv->fsync_timer.expires = jiffies + MSECS(priv->ieee80211->fsync_time_interval*priv->ieee80211->fsync_multiple_timeinterval);
 			add_timer(&priv->fsync_timer);
 		} else {
 			if (timer_pending(&priv->fsync_timer))
 				del_timer_sync(&priv->fsync_timer);
-			priv->fsync_timer.expires = jiffies +
-				msecs_to_jiffies(priv->ieee80211->fsync_time_interval);
+			priv->fsync_timer.expires = jiffies + MSECS(priv->ieee80211->fsync_time_interval);
 			add_timer(&priv->fsync_timer);
 		}
 	} else {
@@ -2891,8 +2847,7 @@ static void dm_StartSWFsync(struct net_device *dev)
 	}
 	if (timer_pending(&priv->fsync_timer))
 		del_timer_sync(&priv->fsync_timer);
-	priv->fsync_timer.expires = jiffies +
-			msecs_to_jiffies(priv->ieee80211->fsync_time_interval);
+	priv->fsync_timer.expires = jiffies + MSECS(priv->ieee80211->fsync_time_interval);
 	add_timer(&priv->fsync_timer);
 
 	write_nic_dword(dev, rOFDM0_RxDetector2, 0x465c12cd);

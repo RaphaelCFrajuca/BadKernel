@@ -27,6 +27,8 @@
 #include <asm/mach-types.h>
 #include "pxa2xx-i2s.h"
 
+#include "../codecs/ak4641.h"
+
 static struct snd_soc_jack hs_jack;
 
 /* Headphones jack detection DAPM pin */
@@ -79,7 +81,7 @@ static int hx4700_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static const struct snd_soc_ops hx4700_ops = {
+static struct snd_soc_ops hx4700_ops = {
 	.hw_params = hx4700_hw_params,
 };
 
@@ -138,6 +140,13 @@ static int hx4700_ak4641_init(struct snd_soc_pcm_runtime *rtd)
 	return err;
 }
 
+static int hx4700_card_remove(struct snd_soc_card *card)
+{
+	snd_soc_jack_free_gpios(&hs_jack, 1, &hs_jack_gpio);
+
+	return 0;
+}
+
 /* hx4700 digital audio interface glue - connects codec <--> CPU */
 static struct snd_soc_dai_link hx4700_dai = {
 	.name = "ak4641",
@@ -156,6 +165,7 @@ static struct snd_soc_dai_link hx4700_dai = {
 static struct snd_soc_card snd_soc_card_hx4700 = {
 	.name			= "iPAQ hx4700",
 	.owner			= THIS_MODULE,
+	.remove			= hx4700_card_remove,
 	.dai_link		= &hx4700_dai,
 	.num_links		= 1,
 	.dapm_widgets		= hx4700_dapm_widgets,

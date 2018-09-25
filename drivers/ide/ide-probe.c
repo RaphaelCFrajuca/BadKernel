@@ -36,7 +36,7 @@
 
 #include <asm/byteorder.h>
 #include <asm/irq.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/io.h>
 
 /**
@@ -741,14 +741,6 @@ static void ide_port_tune_devices(ide_hwif_t *hwif)
 	}
 }
 
-static void ide_initialize_rq(struct request *rq)
-{
-	struct ide_request *req = blk_mq_rq_to_pdu(rq);
-
-	scsi_req_init(&req->sreq);
-	req->sreq.sense = req->sense;
-}
-
 /*
  * init request queue
  */
@@ -766,18 +758,10 @@ static int ide_init_queue(ide_drive_t *drive)
 	 *	limits and LBA48 we could raise it but as yet
 	 *	do not.
 	 */
-	q = blk_alloc_queue_node(GFP_KERNEL, hwif_to_node(hwif), NULL);
+
+	q = blk_init_queue_node(do_ide_request, NULL, hwif_to_node(hwif));
 	if (!q)
 		return 1;
-
-	q->request_fn = do_ide_request;
-	q->initialize_rq_fn = ide_initialize_rq;
-	q->cmd_size = sizeof(struct ide_request);
-	blk_queue_flag_set(QUEUE_FLAG_SCSI_PASSTHROUGH, q);
-	if (blk_init_allocated_queue(q) < 0) {
-		blk_cleanup_queue(q);
-		return 1;
-	}
 
 	q->queuedata = drive;
 	blk_queue_segment_boundary(q, 0xffff);
@@ -796,13 +780,17 @@ static int ide_init_queue(ide_drive_t *drive)
 	 * This will be fixed once we teach pci_map_sg() about our boundary
 	 * requirements, hopefully soon. *FIXME*
 	 */
-	max_sg_entries >>= 1;
+	if (!PCI_DMA_BUS_IS_PHYS)
+		max_sg_entries >>= 1;
 #endif /* CONFIG_PCI */
 
 	blk_queue_max_segments(q, max_sg_entries);
 
 	/* assign drive queue */
 	drive->queue = q;
+
+	/* needs drive->queue to be set */
+	ide_toggle_bounce(drive, 1);
 
 	return 0;
 }
@@ -924,7 +912,7 @@ static int exact_lock(dev_t dev, void *data)
 {
 	struct gendisk *p = data;
 
-	if (!get_disk_and_module(p))
+	if (!get_disk(p))
 		return -1;
 	return 0;
 }
@@ -985,9 +973,8 @@ static int hwif_init(ide_hwif_t *hwif)
 	if (!hwif->sg_max_nents)
 		hwif->sg_max_nents = PRD_ENTRIES;
 
-	hwif->sg_table = kmalloc_array(hwif->sg_max_nents,
-				       sizeof(struct scatterlist),
-				       GFP_KERNEL);
+	hwif->sg_table = kmalloc(sizeof(struct scatterlist)*hwif->sg_max_nents,
+				 GFP_KERNEL);
 	if (!hwif->sg_table) {
 		printk(KERN_ERR "%s: unable to allocate SG table.\n", hwif->name);
 		goto out;
@@ -1144,12 +1131,10 @@ static void ide_port_init_devices_data(ide_hwif_t *hwif)
 	ide_port_for_each_dev(i, drive, hwif) {
 		u8 j = (hwif->index * MAX_DRIVES) + i;
 		u16 *saved_id = drive->id;
-		struct request *saved_sense_rq = drive->sense_rq;
 
 		memset(drive, 0, sizeof(*drive));
 		memset(saved_id, 0, SECTOR_SIZE);
 		drive->id = saved_id;
-		drive->sense_rq = saved_sense_rq;
 
 		drive->media			= ide_disk;
 		drive->select			= (i << 4) | ATA_DEVICE_OBS;
@@ -1181,7 +1166,9 @@ static void ide_init_port_data(ide_hwif_t *hwif, unsigned int index)
 
 	spin_lock_init(&hwif->lock);
 
-	timer_setup(&hwif->timer, ide_timer_expiry, 0);
+	init_timer(&hwif->timer);
+	hwif->timer.function = &ide_timer_expiry;
+	hwif->timer.data = (unsigned long)hwif;
 
 	init_completion(&hwif->gendev_rel_comp);
 
@@ -1254,7 +1241,6 @@ static void ide_port_free_devices(ide_hwif_t *hwif)
 	int i;
 
 	ide_port_for_each_dev(i, drive, hwif) {
-		kfree(drive->sense_rq);
 		kfree(drive->id);
 		kfree(drive);
 	}
@@ -1262,10 +1248,11 @@ static void ide_port_free_devices(ide_hwif_t *hwif)
 
 static int ide_port_alloc_devices(ide_hwif_t *hwif, int node)
 {
-	ide_drive_t *drive;
 	int i;
 
 	for (i = 0; i < MAX_DRIVES; i++) {
+		ide_drive_t *drive;
+
 		drive = kzalloc_node(sizeof(*drive), GFP_KERNEL, node);
 		if (drive == NULL)
 			goto out_nomem;
@@ -1280,21 +1267,12 @@ static int ide_port_alloc_devices(ide_hwif_t *hwif, int node)
 		 */
 		drive->id = kzalloc_node(SECTOR_SIZE, GFP_KERNEL, node);
 		if (drive->id == NULL)
-			goto out_free_drive;
-
-		drive->sense_rq = kmalloc(sizeof(struct request) +
-				sizeof(struct ide_request), GFP_KERNEL);
-		if (!drive->sense_rq)
-			goto out_free_id;
+			goto out_nomem;
 
 		hwif->devices[i] = drive;
 	}
 	return 0;
 
-out_free_id:
-	kfree(drive->id);
-out_free_drive:
-	kfree(drive);
 out_nomem:
 	ide_port_free_devices(hwif);
 	return -ENOMEM;
@@ -1448,7 +1426,6 @@ int ide_host_register(struct ide_host *host, const struct ide_port_info *d,
 		if (hwif_init(hwif) == 0) {
 			printk(KERN_INFO "%s: failed to initialize IDE "
 					 "interface\n", hwif->name);
-			device_unregister(hwif->portdev);
 			device_unregister(&hwif->gendev);
 			ide_disable_port(hwif);
 			continue;

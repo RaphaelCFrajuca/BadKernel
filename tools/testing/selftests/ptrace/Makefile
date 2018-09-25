@@ -1,5 +1,11 @@
 CFLAGS += -iquote../../../../include/uapi -Wall
+peeksiginfo: peeksiginfo.c
 
-TEST_GEN_PROGS := peeksiginfo
+all: peeksiginfo
+
+clean:
+	rm -f peeksiginfo
+
+TEST_PROGS := peeksiginfo
 
 include ../lib.mk

@@ -16,7 +16,7 @@
 /*
  * Prototype:
  *
- *	size_t raw_copy_to_user(void *to, const void *from, size_t n)
+ *	size_t __copy_to_user(void *to, const void *from, size_t n)
  *
  * Purpose:
  *
@@ -79,11 +79,11 @@
 
 	.text
 
-WEAK(raw_copy_to_user)
+WEAK(__copy_to_user)
 
 #include "copy_template.S"
 
-ENDPROC(raw_copy_to_user)
+ENDPROC(__copy_to_user)
 
 	.pushsection .fixup,"ax"
 	.align 0

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef BOARD_BCM963XX_H_
 #define BOARD_BCM963XX_H_
 

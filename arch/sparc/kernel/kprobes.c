@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* arch/sparc64/kernel/kprobes.c
  *
  * Copyright (C) 2004 David S. Miller <davem@davemloft.net>
@@ -6,13 +5,13 @@
 
 #include <linux/kernel.h>
 #include <linux/kprobes.h>
-#include <linux/extable.h>
+#include <linux/module.h>
 #include <linux/kdebug.h>
 #include <linux/slab.h>
 #include <linux/context_tracking.h>
 #include <asm/signal.h>
 #include <asm/cacheflush.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
 /* We do not have hardware single-stepping on sparc64.
  * So we implement software single-stepping with breakpoint

@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __SPARC_PCI_H
 #define __SPARC_PCI_H
 
@@ -16,6 +15,12 @@
 #define PCIBIOS_MIN_MEM		0UL
 
 #define PCI_IRQ_NONE		0xffffffff
+
+/* Dynamic DMA mapping stuff.
+ */
+#define PCI_DMA_BUS_IS_PHYS	(0)
+
+struct pci_dev;
 
 #endif /* __KERNEL__ */
 

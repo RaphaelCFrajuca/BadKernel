@@ -30,6 +30,7 @@
 #include <linux/err.h>
 
 #define NUM_INT_REG 2
+#define TOTAL_NUM_REG 0x18
 
 #define TPS65090_INT1_MASK_VAC_STATUS_CHANGE		1
 #define TPS65090_INT1_MASK_VSYS_STATUS_CHANGE		2
@@ -160,8 +161,8 @@ static bool is_volatile_reg(struct device *dev, unsigned int reg)
 static const struct regmap_config tps65090_regmap_config = {
 	.reg_bits = 8,
 	.val_bits = 8,
-	.max_register = TPS65090_MAX_REG,
-	.num_reg_defaults_raw = TPS65090_NUM_REGS,
+	.max_register = TOTAL_NUM_REG,
+	.num_reg_defaults_raw = TOTAL_NUM_REG,
 	.cache_type = REGCACHE_RBTREE,
 	.volatile_reg = is_volatile_reg,
 };
@@ -192,8 +193,10 @@ static int tps65090_i2c_probe(struct i2c_client *client,
 		irq_base = pdata->irq_base;
 
 	tps65090 = devm_kzalloc(&client->dev, sizeof(*tps65090), GFP_KERNEL);
-	if (!tps65090)
+	if (!tps65090) {
+		dev_err(&client->dev, "mem alloc for tps65090 failed\n");
 		return -ENOMEM;
+	}
 
 	tps65090->dev = &client->dev;
 	i2c_set_clientdata(client, tps65090);

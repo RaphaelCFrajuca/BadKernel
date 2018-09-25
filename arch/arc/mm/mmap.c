@@ -13,8 +13,7 @@
 #include <linux/fs.h>
 #include <linux/mm.h>
 #include <linux/mman.h>
-#include <linux/sched/mm.h>
-
+#include <linux/sched.h>
 #include <asm/cacheflush.h>
 
 #define COLOUR_ALIGN(addr, pgoff)			\

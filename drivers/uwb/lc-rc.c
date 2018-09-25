@@ -228,7 +228,7 @@ static struct attribute *rc_attrs[] = {
 		NULL,
 };
 
-static const struct attribute_group rc_attr_group = {
+static struct attribute_group rc_attr_group = {
 	.attrs = rc_attrs,
 };
 

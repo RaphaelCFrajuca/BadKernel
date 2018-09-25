@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  Copyright (C) 1994-1998	   Linus Torvalds & authors (see below)
  *  Copyright (C) 1998-2002	   Linux ATA Development
@@ -32,7 +31,7 @@
 
 #include <asm/byteorder.h>
 #include <asm/irq.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/div64.h>
 
@@ -185,9 +184,9 @@ static ide_startstop_t ide_do_rw_disk(ide_drive_t *drive, struct request *rq,
 	ide_hwif_t *hwif = drive->hwif;
 
 	BUG_ON(drive->dev_flags & IDE_DFLAG_BLOCKED);
-	BUG_ON(blk_rq_is_passthrough(rq));
+	BUG_ON(rq->cmd_type != REQ_TYPE_FS);
 
-	ledtrig_disk_activity(rq_data_dir(rq) == WRITE);
+	ledtrig_ide_activity();
 
 	pr_debug("%s: %sing: block=%llu, sectors=%u\n",
 		 drive->name, rq_data_dir(rq) == READ ? "read" : "writ",
@@ -432,7 +431,7 @@ static int idedisk_prep_fn(struct request_queue *q, struct request *rq)
 	ide_drive_t *drive = q->queuedata;
 	struct ide_cmd *cmd;
 
-	if (req_op(rq) != REQ_OP_FLUSH)
+	if (!(rq->cmd_flags & REQ_FLUSH))
 		return BLKPREP_OK;
 
 	if (rq->special) {
@@ -453,9 +452,8 @@ static int idedisk_prep_fn(struct request_queue *q, struct request *rq)
 	cmd->valid.out.tf = IDE_VALID_OUT_TF | IDE_VALID_DEVICE;
 	cmd->tf_flags = IDE_TFLAG_DYN;
 	cmd->protocol = ATA_PROT_NODATA;
-	rq->cmd_flags &= ~REQ_OP_MASK;
-	rq->cmd_flags |= REQ_OP_DRV_OUT;
-	ide_req(rq)->type = ATA_PRIV_TASKFILE;
+
+	rq->cmd_type = REQ_TYPE_ATA_TASKFILE;
 	rq->special = cmd;
 	cmd->rq = rq;
 
@@ -471,6 +469,7 @@ ide_devset_get(multcount, mult_count);
 static int set_multcount(ide_drive_t *drive, int arg)
 {
 	struct request *rq;
+	int error;
 
 	if (arg < 0 || arg > (drive->id[ATA_ID_MAX_MULTSECT] & 0xff))
 		return -EINVAL;
@@ -478,12 +477,12 @@ static int set_multcount(ide_drive_t *drive, int arg)
 	if (drive->special_flags & IDE_SFLAG_SET_MULTMODE)
 		return -EBUSY;
 
-	rq = blk_get_request(drive->queue, REQ_OP_DRV_IN, 0);
-	ide_req(rq)->type = ATA_PRIV_TASKFILE;
+	rq = blk_get_request(drive->queue, READ, __GFP_RECLAIM);
+	rq->cmd_type = REQ_TYPE_ATA_TASKFILE;
 
 	drive->mult_req = arg;
 	drive->special_flags |= IDE_SFLAG_SET_MULTMODE;
-	blk_execute_rq(drive->queue, NULL, rq, 0);
+	error = blk_execute_rq(drive->queue, NULL, rq, 0);
 	blk_put_request(rq);
 
 	return (drive->mult_count == arg) ? 0 : -EIO;
@@ -523,7 +522,7 @@ static int ide_do_setfeature(ide_drive_t *drive, u8 feature, u8 nsect)
 static void update_flush(ide_drive_t *drive)
 {
 	u16 *id = drive->id;
-	bool wc = false;
+	unsigned flush = 0;
 
 	if (drive->dev_flags & IDE_DFLAG_WCACHE) {
 		unsigned long long capacity;
@@ -547,12 +546,12 @@ static void update_flush(ide_drive_t *drive)
 		       drive->name, barrier ? "" : "not ");
 
 		if (barrier) {
-			wc = true;
+			flush = REQ_FLUSH;
 			blk_queue_prep_rq(drive->queue, idedisk_prep_fn);
 		}
 	}
 
-	blk_queue_write_cache(drive->queue, wc, false);
+	blk_queue_flush(drive->queue, flush);
 }
 
 ide_devset_get_flag(wcache, IDE_DFLAG_WCACHE);
@@ -687,8 +686,8 @@ static void ide_disk_setup(ide_drive_t *drive)
 	       queue_max_sectors(q) / 2);
 
 	if (ata_id_is_ssd(id)) {
-		blk_queue_flag_set(QUEUE_FLAG_NONROT, q);
-		blk_queue_flag_clear(QUEUE_FLAG_ADD_RANDOM, q);
+		queue_flag_set_unlocked(QUEUE_FLAG_NONROT, q);
+		queue_flag_clear_unlocked(QUEUE_FLAG_ADD_RANDOM, q);
 	}
 
 	/* calculate drive capacity, and select LBA if possible */

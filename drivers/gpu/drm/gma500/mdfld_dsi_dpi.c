@@ -979,7 +979,11 @@ struct mdfld_dsi_encoder *mdfld_dsi_dpi_init(struct drm_device *dev,
 		return NULL;
 	}
 
-	dpi_output->panel_on = 0;
+	if (dsi_connector->pipe)
+		dpi_output->panel_on = 0;
+	else
+		dpi_output->panel_on = 0;
+
 	dpi_output->dev = dev;
 	if (mdfld_get_panel_type(dev, pipe) != TC35876X)
 		dpi_output->p_funcs = p_funcs;
@@ -994,7 +998,7 @@ struct mdfld_dsi_encoder *mdfld_dsi_dpi_init(struct drm_device *dev,
 	drm_encoder_init(dev,
 			encoder,
 			p_funcs->encoder_funcs,
-			DRM_MODE_ENCODER_LVDS, NULL);
+			DRM_MODE_ENCODER_LVDS);
 	drm_encoder_helper_add(encoder,
 				p_funcs->encoder_helper_funcs);
 

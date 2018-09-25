@@ -12,8 +12,6 @@
  *                        SPEEDSTEP - DEFINITIONS                    *
  *********************************************************************/
 
-#define pr_fmt(fmt) "cpufreq: " fmt
-
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
@@ -206,8 +204,9 @@ static void speedstep_set_state(unsigned int state)
 			(speedstep_freqs[new_state].frequency / 1000),
 			retry, result);
 	else
-		pr_err("change to state %u failed with new_state %u and result %u\n",
-		       state, new_state, result);
+		printk(KERN_ERR "cpufreq: change to state %u "
+			"failed with new_state %u and result %u\n",
+			state, new_state, result);
 
 	return;
 }
@@ -266,9 +265,8 @@ static int speedstep_cpu_init(struct cpufreq_policy *policy)
 			pr_debug("workaround worked.\n");
 	}
 
-	policy->freq_table = speedstep_freqs;
-
-	return 0;
+	policy->cpuinfo.transition_latency = CPUFREQ_ETERNAL;
+	return cpufreq_table_validate_and_show(policy, speedstep_freqs);
 }
 
 static unsigned int speedstep_get(unsigned int cpu)
@@ -291,7 +289,6 @@ static int speedstep_resume(struct cpufreq_policy *policy)
 
 static struct cpufreq_driver speedstep_driver = {
 	.name		= "speedstep-smi",
-	.flags		= CPUFREQ_NO_AUTO_DYNAMIC_SWITCHING,
 	.verify		= cpufreq_generic_frequency_table_verify,
 	.target_index	= speedstep_target,
 	.init		= speedstep_cpu_init,
@@ -380,7 +377,7 @@ static void __exit speedstep_exit(void)
 	cpufreq_unregister_driver(&speedstep_driver);
 }
 
-module_param_hw(smi_port, int, ioport, 0444);
+module_param(smi_port, int, 0444);
 module_param(smi_cmd,  int, 0444);
 module_param(smi_sig, uint, 0444);
 

@@ -293,17 +293,27 @@ static inline struct e4000_dev *e4000_subdev_to_dev(struct v4l2_subdev *sd)
 	return container_of(sd, struct e4000_dev, sd);
 }
 
-static int e4000_standby(struct v4l2_subdev *sd)
+static int e4000_s_power(struct v4l2_subdev *sd, int on)
 {
 	struct e4000_dev *dev = e4000_subdev_to_dev(sd);
+	struct i2c_client *client = dev->client;
 	int ret;
 
-	ret = e4000_sleep(dev);
+	dev_dbg(&client->dev, "on=%d\n", on);
+
+	if (on)
+		ret = e4000_init(dev);
+	else
+		ret = e4000_sleep(dev);
 	if (ret)
 		return ret;
 
 	return e4000_set_params(dev);
 }
+
+static const struct v4l2_subdev_core_ops e4000_subdev_core_ops = {
+	.s_power                  = e4000_s_power,
+};
 
 static int e4000_g_tuner(struct v4l2_subdev *sd, struct v4l2_tuner *v)
 {
@@ -372,7 +382,6 @@ static int e4000_enum_freq_bands(struct v4l2_subdev *sd,
 }
 
 static const struct v4l2_subdev_tuner_ops e4000_subdev_tuner_ops = {
-	.standby                  = e4000_standby,
 	.g_tuner                  = e4000_g_tuner,
 	.s_tuner                  = e4000_s_tuner,
 	.g_frequency              = e4000_g_frequency,
@@ -381,6 +390,7 @@ static const struct v4l2_subdev_tuner_ops e4000_subdev_tuner_ops = {
 };
 
 static const struct v4l2_subdev_ops e4000_subdev_ops = {
+	.core                     = &e4000_subdev_core_ops,
 	.tuner                    = &e4000_subdev_tuner_ops,
 };
 

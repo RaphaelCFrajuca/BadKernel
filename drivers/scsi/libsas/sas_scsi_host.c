@@ -27,7 +27,6 @@
 #include <linux/firmware.h>
 #include <linux/export.h>
 #include <linux/ctype.h>
-#include <linux/kernel.h>
 
 #include "sas_internal.h"
 
@@ -480,28 +479,18 @@ static int sas_queue_reset(struct domain_device *dev, int reset_type,
 
 int sas_eh_abort_handler(struct scsi_cmnd *cmd)
 {
-	int res = TMF_RESP_FUNC_FAILED;
+	int res;
 	struct sas_task *task = TO_SAS_TASK(cmd);
 	struct Scsi_Host *host = cmd->device->host;
-	struct domain_device *dev = cmd_to_domain_dev(cmd);
 	struct sas_internal *i = to_sas_internal(host->transportt);
-	unsigned long flags;
+
+	if (current != host->ehandler)
+		return FAILED;
 
 	if (!i->dft->lldd_abort_task)
 		return FAILED;
 
-	spin_lock_irqsave(host->host_lock, flags);
-	/* We cannot do async aborts for SATA devices */
-	if (dev_is_sata(dev) && !host->host_eh_scheduled) {
-		spin_unlock_irqrestore(host->host_lock, flags);
-		return FAILED;
-	}
-	spin_unlock_irqrestore(host->host_lock, flags);
-
-	if (task)
-		res = i->dft->lldd_abort_task(task);
-	else
-		SAS_DPRINTK("no task to abort\n");
+	res = i->dft->lldd_abort_task(task);
 	if (res == TMF_RESP_FUNC_SUCC || res == TMF_RESP_FUNC_COMPLETE)
 		return SUCCESS;
 
@@ -533,7 +522,7 @@ int sas_eh_device_reset_handler(struct scsi_cmnd *cmd)
 	return FAILED;
 }
 
-int sas_eh_target_reset_handler(struct scsi_cmnd *cmd)
+int sas_eh_bus_reset_handler(struct scsi_cmnd *cmd)
 {
 	int res;
 	struct Scsi_Host *host = cmd->device->host;
@@ -561,15 +550,15 @@ static int try_to_reset_cmd_device(struct scsi_cmnd *cmd)
 	struct Scsi_Host *shost = cmd->device->host;
 
 	if (!shost->hostt->eh_device_reset_handler)
-		goto try_target_reset;
+		goto try_bus_reset;
 
 	res = shost->hostt->eh_device_reset_handler(cmd);
 	if (res == SUCCESS)
 		return res;
 
-try_target_reset:
-	if (shost->hostt->eh_target_reset_handler)
-		return shost->hostt->eh_target_reset_handler(cmd);
+try_bus_reset:
+	if (shost->hostt->eh_bus_reset_handler)
+		return shost->hostt->eh_bus_reset_handler(cmd);
 
 	return FAILED;
 }
@@ -619,6 +608,8 @@ static void sas_eh_handle_sas_errors(struct Scsi_Host *shost, struct list_head *
 
 		SAS_DPRINTK("trying to find task 0x%p\n", task);
 		res = sas_scsi_find_task(task);
+
+		cmd->eh_eflags = 0;
 
 		switch (res) {
 		case TASK_IS_DONE:
@@ -805,6 +796,13 @@ out:
 		    shost->host_failed, tries);
 }
 
+enum blk_eh_timer_return sas_scsi_timed_out(struct scsi_cmnd *cmd)
+{
+	scmd_dbg(cmd, "command %p timed out\n", cmd);
+
+	return BLK_EH_NOT_HANDLED;
+}
+
 int sas_ioctl(struct scsi_device *sdev, int cmd, void __user *arg)
 {
 	struct domain_device *dev = sdev_to_domain_dev(sdev);
@@ -862,6 +860,7 @@ int sas_target_alloc(struct scsi_target *starget)
 int sas_slave_configure(struct scsi_device *scsi_dev)
 {
 	struct domain_device *dev = sdev_to_domain_dev(scsi_dev);
+	struct sas_ha_struct *sas_ha;
 
 	BUG_ON(dev->rphy->identify.device_type != SAS_END_DEVICE);
 
@@ -869,6 +868,8 @@ int sas_slave_configure(struct scsi_device *scsi_dev)
 		ata_sas_slave_configure(scsi_dev, dev->sata_dev.ap);
 		return 0;
 	}
+
+	sas_ha = dev->port->ha;
 
 	sas_read_port_mode_page(scsi_dev);
 
@@ -926,7 +927,7 @@ void sas_task_abort(struct sas_task *task)
 			return;
 		if (!del_timer(&slow->timer))
 			return;
-		slow->timer.function(&slow->timer);
+		slow->timer.function(slow->timer.data);
 		return;
 	}
 
@@ -953,6 +954,21 @@ void sas_target_destroy(struct scsi_target *starget)
 	sas_put_device(found_dev);
 }
 
+static void sas_parse_addr(u8 *sas_addr, const char *p)
+{
+	int i;
+	for (i = 0; i < SAS_ADDR_SIZE; i++) {
+		u8 h, l;
+		if (!*p)
+			break;
+		h = isdigit(*p) ? *p-'0' : toupper(*p)-'A'+10;
+		p++;
+		l = isdigit(*p) ? *p-'0' : toupper(*p)-'A'+10;
+		p++;
+		sas_addr[i] = (h<<4) | l;
+	}
+}
+
 #define SAS_STRING_ADDR_SIZE	16
 
 int sas_request_addr(struct Scsi_Host *shost, u8 *addr)
@@ -969,9 +985,7 @@ int sas_request_addr(struct Scsi_Host *shost, u8 *addr)
 		goto out;
 	}
 
-	res = hex2bin(addr, fw->data, strnlen(fw->data, SAS_ADDR_SIZE * 2) / 2);
-	if (res)
-		goto out;
+	sas_parse_addr(addr, fw->data);
 
 out:
 	release_firmware(fw);
@@ -987,6 +1001,6 @@ EXPORT_SYMBOL_GPL(sas_bios_param);
 EXPORT_SYMBOL_GPL(sas_task_abort);
 EXPORT_SYMBOL_GPL(sas_phy_reset);
 EXPORT_SYMBOL_GPL(sas_eh_device_reset_handler);
-EXPORT_SYMBOL_GPL(sas_eh_target_reset_handler);
+EXPORT_SYMBOL_GPL(sas_eh_bus_reset_handler);
 EXPORT_SYMBOL_GPL(sas_target_destroy);
 EXPORT_SYMBOL_GPL(sas_ioctl);

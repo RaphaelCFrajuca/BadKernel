@@ -9,7 +9,6 @@
  * published by the Free Software Foundation.
  */
 
-#include <linux/export.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/irqflags.h>
@@ -145,7 +144,7 @@ extern unsigned long mcpm_entry_vectors[MAX_NR_CLUSTERS][MAX_CPUS_PER_CLUSTER];
 
 void mcpm_set_entry_vector(unsigned cpu, unsigned cluster, void *ptr)
 {
-	unsigned long val = ptr ? __pa_symbol(ptr) : 0;
+	unsigned long val = ptr ? virt_to_phys(ptr) : 0;
 	mcpm_entry_vectors[cluster][cpu] = val;
 	sync_cache_w(&mcpm_entry_vectors[cluster][cpu]);
 }
@@ -175,7 +174,6 @@ bool mcpm_is_available(void)
 {
 	return (platform_ops) ? true : false;
 }
-EXPORT_SYMBOL_GPL(mcpm_is_available);
 
 /*
  * We can't use regular spinlocks. In the switcher case, it is possible
@@ -237,7 +235,7 @@ int mcpm_cpu_power_up(unsigned int cpu, unsigned int cluster)
 	return ret;
 }
 
-typedef typeof(cpu_reset) phys_reset_t;
+typedef void (*phys_reset_t)(unsigned long);
 
 void mcpm_cpu_power_down(void)
 {
@@ -301,8 +299,8 @@ void mcpm_cpu_power_down(void)
 	 * the kernel as if the power_up method just had deasserted reset
 	 * on the CPU.
 	 */
-	phys_reset = (phys_reset_t)(unsigned long)__pa_symbol(cpu_reset);
-	phys_reset(__pa_symbol(mcpm_entry_point), false);
+	phys_reset = (phys_reset_t)(unsigned long)virt_to_phys(cpu_reset);
+	phys_reset(virt_to_phys(mcpm_entry_point));
 
 	/* should never get here */
 	BUG();
@@ -390,8 +388,8 @@ static int __init nocache_trampoline(unsigned long _arg)
 	__mcpm_outbound_leave_critical(cluster, CLUSTER_DOWN);
 	__mcpm_cpu_down(cpu, cluster);
 
-	phys_reset = (phys_reset_t)(unsigned long)__pa_symbol(cpu_reset);
-	phys_reset(__pa_symbol(mcpm_entry_point), false);
+	phys_reset = (phys_reset_t)(unsigned long)virt_to_phys(cpu_reset);
+	phys_reset(virt_to_phys(mcpm_entry_point));
 	BUG();
 }
 
@@ -451,7 +449,7 @@ int __init mcpm_sync_init(
 	sync_cache_w(&mcpm_sync);
 
 	if (power_up_setup) {
-		mcpm_power_up_setup_phys = __pa_symbol(power_up_setup);
+		mcpm_power_up_setup_phys = virt_to_phys(power_up_setup);
 		sync_cache_w(&mcpm_power_up_setup_phys);
 	}
 

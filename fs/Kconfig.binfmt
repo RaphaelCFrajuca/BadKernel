@@ -1,7 +1,6 @@
 config BINFMT_ELF
 	bool "Kernel support for ELF binaries"
-	depends on MMU
-	select ELFCORE
+	depends on MMU && (BROKEN || !FRV)
 	default y
 	---help---
 	  ELF (Executable and Linkable Format) is a format for libraries and
@@ -27,16 +26,14 @@ config BINFMT_ELF
 config COMPAT_BINFMT_ELF
 	bool
 	depends on COMPAT && BINFMT_ELF
-	select ELFCORE
 
 config ARCH_BINFMT_ELF_STATE
 	bool
 
 config BINFMT_ELF_FDPIC
 	bool "Kernel support for FDPIC ELF binaries"
-	default y if !BINFMT_ELF
-	depends on (ARM || (SUPERH32 && !MMU) || C6X)
-	select ELFCORE
+	default y
+	depends on (FRV || BLACKFIN || (SUPERH32 && !MMU) || C6X)
 	help
 	  ELF FDPIC binaries are based on ELF, but allow the individual load
 	  segments of a binary to be located in memory independently of each
@@ -45,11 +42,6 @@ config BINFMT_ELF_FDPIC
 	  even if data segments are not.
 
 	  It is also possible to run FDPIC ELF binaries on MMU linux also.
-
-config ELFCORE
-	bool
-	help
-	  This option enables kernel/elfcore.o.
 
 config CORE_DUMP_DEFAULT_ELF_HEADERS
 	bool "Write ELF core dumps with partial segments"
@@ -89,7 +81,7 @@ config BINFMT_SCRIPT
 
 config BINFMT_FLAT
 	bool "Kernel support for flat binaries"
-	depends on !MMU || ARM || M68K
+	depends on !MMU && (!FRV || BROKEN)
 	help
 	  Support uClinux FLAT format binaries.
 
@@ -168,9 +160,9 @@ config BINFMT_MISC
 	  will automatically feed it to the correct interpreter.
 
 	  You can do other nice things, too. Read the file
-	  <file:Documentation/admin-guide/binfmt-misc.rst> to learn how to use this
-	  feature, <file:Documentation/admin-guide/java.rst> for information about how
-	  to include Java support. and <file:Documentation/admin-guide/mono.rst> for
+	  <file:Documentation/binfmt_misc.txt> to learn how to use this
+	  feature, <file:Documentation/java.txt> for information about how
+	  to include Java support. and <file:Documentation/mono.txt> for
           information about how to include Mono-based .NET support.
 
           To use binfmt_misc, you will need to mount it:

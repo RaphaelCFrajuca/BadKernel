@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_X86_SYNC_BITOPS_H
 #define _ASM_X86_SYNC_BITOPS_H
 
@@ -80,10 +79,10 @@ static inline void sync_change_bit(long nr, volatile unsigned long *addr)
  */
 static inline int sync_test_and_set_bit(long nr, volatile unsigned long *addr)
 {
-	unsigned char oldbit;
+	int oldbit;
 
-	asm volatile("lock; bts %2,%1\n\tsetc %0"
-		     : "=qm" (oldbit), "+m" (ADDR)
+	asm volatile("lock; bts %2,%1\n\tsbbl %0,%0"
+		     : "=r" (oldbit), "+m" (ADDR)
 		     : "Ir" (nr) : "memory");
 	return oldbit;
 }
@@ -98,10 +97,10 @@ static inline int sync_test_and_set_bit(long nr, volatile unsigned long *addr)
  */
 static inline int sync_test_and_clear_bit(long nr, volatile unsigned long *addr)
 {
-	unsigned char oldbit;
+	int oldbit;
 
-	asm volatile("lock; btr %2,%1\n\tsetc %0"
-		     : "=qm" (oldbit), "+m" (ADDR)
+	asm volatile("lock; btr %2,%1\n\tsbbl %0,%0"
+		     : "=r" (oldbit), "+m" (ADDR)
 		     : "Ir" (nr) : "memory");
 	return oldbit;
 }
@@ -116,10 +115,10 @@ static inline int sync_test_and_clear_bit(long nr, volatile unsigned long *addr)
  */
 static inline int sync_test_and_change_bit(long nr, volatile unsigned long *addr)
 {
-	unsigned char oldbit;
+	int oldbit;
 
-	asm volatile("lock; btc %2,%1\n\tsetc %0"
-		     : "=qm" (oldbit), "+m" (ADDR)
+	asm volatile("lock; btc %2,%1\n\tsbbl %0,%0"
+		     : "=r" (oldbit), "+m" (ADDR)
 		     : "Ir" (nr) : "memory");
 	return oldbit;
 }

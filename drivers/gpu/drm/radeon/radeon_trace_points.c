@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* Copyright Red Hat Inc 2010.
  * Author : Dave Airlie <airlied@redhat.com>
  */

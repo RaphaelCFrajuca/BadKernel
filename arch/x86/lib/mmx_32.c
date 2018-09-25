@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *	MMX 3DNow! library helper functions
  *
@@ -19,7 +18,7 @@
  */
 #include <linux/hardirq.h>
 #include <linux/string.h>
-#include <linux/export.h>
+#include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/types.h>
 

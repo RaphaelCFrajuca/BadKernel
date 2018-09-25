@@ -25,9 +25,9 @@
 
 #include <asm/sibyte/sb1250.h>
 
-static u64 bcm1480_hpt_read(struct clocksource *cs)
+static cycle_t bcm1480_hpt_read(struct clocksource *cs)
 {
-	return (u64) __raw_readq(IOADDR(A_SCD_ZBBUS_CYCLE_COUNT));
+	return (cycle_t) __raw_readq(IOADDR(A_SCD_ZBBUS_CYCLE_COUNT));
 }
 
 struct clocksource bcm1480_clocksource = {

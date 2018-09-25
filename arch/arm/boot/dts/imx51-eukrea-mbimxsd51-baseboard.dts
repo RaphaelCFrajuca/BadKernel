@@ -41,7 +41,7 @@
 			label = "BP1";
 			gpios = <&gpio3 31 GPIO_ACTIVE_LOW>;
 			linux,code = <256>;
-			wakeup-source;
+			gpio-key,wakeup;
 			linux,input-type = <1>;
 		};
 	};
@@ -94,7 +94,6 @@
 			clocks = <&clks IMX5_CLK_USB_PHY_GATE>;
 			clock-names = "main_clk";
 			clock-frequency = <19200000>;
-			#phy-cells = <0>;
 		};
 	};
 };
@@ -115,6 +114,7 @@
 &ecspi1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_ecspi1>;
+	fsl,spi-num-chipselects = <1>;
 	cs-gpios = <&gpio4 24 GPIO_ACTIVE_LOW>;
 	status = "okay";
 
@@ -261,14 +261,14 @@
 &uart1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_uart1>;
-	uart-has-rtscts;
+	fsl,uart-has-rtscts;
 	status = "okay";
 };
 
 &uart3 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_uart3 &pinctrl_uart3_rtscts>;
-	uart-has-rtscts;
+	fsl,uart-has-rtscts;
 	status = "okay";
 };
 

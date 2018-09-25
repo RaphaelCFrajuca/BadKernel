@@ -1,5 +1,4 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-2.0
 
 if [ $# -eq 1 ]  ; then
 	OUTPUT=$1

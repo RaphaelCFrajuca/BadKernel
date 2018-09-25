@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Contains register definitions for the Freescale Embedded Performance
  * Monitor.

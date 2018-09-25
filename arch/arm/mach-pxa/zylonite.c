@@ -26,10 +26,10 @@
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
-#include "pxa3xx.h"
+#include <mach/pxa3xx.h>
 #include <mach/audio.h>
 #include <linux/platform_data/video-pxafb.h>
-#include "zylonite.h"
+#include <mach/zylonite.h>
 #include <linux/platform_data/mmc-pxamci.h>
 #include <linux/platform_data/usb-ohci-pxa27x.h>
 #include <linux/platform_data/keypad-pxa27x.h>
@@ -338,7 +338,7 @@ static void __init zylonite_init_keypad(void)
 static inline void zylonite_init_keypad(void) {}
 #endif
 
-#if IS_ENABLED(CONFIG_MTD_NAND_MARVELL)
+#if defined(CONFIG_MTD_NAND_PXA3xx) || defined(CONFIG_MTD_NAND_PXA3xx_MODULE)
 static struct mtd_partition zylonite_nand_partitions[] = {
 	[0] = {
 		.name        = "Bootloader",
@@ -376,8 +376,10 @@ static struct mtd_partition zylonite_nand_partitions[] = {
 };
 
 static struct pxa3xx_nand_platform_data zylonite_nand_info = {
-	.parts		= zylonite_nand_partitions,
-	.nr_parts	= ARRAY_SIZE(zylonite_nand_partitions),
+	.enable_arbiter	= 1,
+	.num_cs		= 1,
+	.parts[0]	= zylonite_nand_partitions,
+	.nr_parts[0]	= ARRAY_SIZE(zylonite_nand_partitions),
 };
 
 static void __init zylonite_init_nand(void)
@@ -386,7 +388,7 @@ static void __init zylonite_init_nand(void)
 }
 #else
 static inline void zylonite_init_nand(void) {}
-#endif /* IS_ENABLED(CONFIG_MTD_NAND_MARVELL) */
+#endif /* CONFIG_MTD_NAND_PXA3xx || CONFIG_MTD_NAND_PXA3xx_MODULE */
 
 #if defined(CONFIG_USB_OHCI_HCD) || defined(CONFIG_USB_OHCI_HCD_MODULE)
 static struct pxaohci_platform_data zylonite_ohci_info = {

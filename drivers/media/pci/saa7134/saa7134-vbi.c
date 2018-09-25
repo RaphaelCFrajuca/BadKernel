@@ -14,6 +14,10 @@
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include "saa7134.h"
@@ -134,9 +138,9 @@ static int buffer_prepare(struct vb2_buffer *vb2)
 				    saa7134_buffer_startpage(buf));
 }
 
-static int queue_setup(struct vb2_queue *q,
+static int queue_setup(struct vb2_queue *q, const void *parg,
 			   unsigned int *nbuffers, unsigned int *nplanes,
-			   unsigned int sizes[], struct device *alloc_devs[])
+			   unsigned int sizes[], void *alloc_ctxs[])
 {
 	struct saa7134_dmaqueue *dmaq = q->drv_priv;
 	struct saa7134_dev *dev = dmaq->dev;
@@ -151,6 +155,7 @@ static int queue_setup(struct vb2_queue *q,
 	*nbuffers = saa7134_buffer_count(size, *nbuffers);
 	*nplanes = 1;
 	sizes[0] = size;
+	alloc_ctxs[0] = dev->alloc_ctx;
 	return 0;
 }
 
@@ -165,7 +170,7 @@ static int buffer_init(struct vb2_buffer *vb2)
 	return 0;
 }
 
-const struct vb2_ops saa7134_vbi_qops = {
+struct vb2_ops saa7134_vbi_qops = {
 	.queue_setup	= queue_setup,
 	.buf_init	= buffer_init,
 	.buf_prepare	= buffer_prepare,
@@ -181,7 +186,9 @@ const struct vb2_ops saa7134_vbi_qops = {
 int saa7134_vbi_init1(struct saa7134_dev *dev)
 {
 	INIT_LIST_HEAD(&dev->vbi_q.queue);
-	timer_setup(&dev->vbi_q.timeout, saa7134_buffer_timeout, 0);
+	init_timer(&dev->vbi_q.timeout);
+	dev->vbi_q.timeout.function = saa7134_buffer_timeout;
+	dev->vbi_q.timeout.data     = (unsigned long)(&dev->vbi_q);
 	dev->vbi_q.dev              = dev;
 
 	if (vbibufs < 2)

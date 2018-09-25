@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 
 /*
  * Directory operations for Coda filesystem
@@ -110,7 +109,7 @@ static inline void coda_dir_update_mtime(struct inode *dir)
 	/* optimistically we can also act as if our nose bleeds. The
 	 * granularity of the mtime is coarse anyways so we might actually be
 	 * right most of the time. Note: we only do this for directories. */
-	dir->i_mtime = dir->i_ctime = current_time(dir);
+	dir->i_mtime = dir->i_ctime = CURRENT_TIME_SEC;
 #endif
 }
 
@@ -292,17 +291,13 @@ static int coda_rmdir(struct inode *dir, struct dentry *de)
 
 /* rename */
 static int coda_rename(struct inode *old_dir, struct dentry *old_dentry,
-		       struct inode *new_dir, struct dentry *new_dentry,
-		       unsigned int flags)
+		       struct inode *new_dir, struct dentry *new_dentry)
 {
 	const char *old_name = old_dentry->d_name.name;
 	const char *new_name = new_dentry->d_name.name;
 	int old_length = old_dentry->d_name.len;
 	int new_length = new_dentry->d_name.len;
 	int error;
-
-	if (flags)
-		return -EINVAL;
 
 	error = venus_rename(old_dir->i_sb, coda_i2f(old_dir),
 			     coda_i2f(new_dir), old_length, new_length,
@@ -369,10 +364,9 @@ static int coda_venus_readdir(struct file *coda_file, struct dir_context *ctx)
 		goto out;
 
 	while (1) {
-		loff_t pos = ctx->pos - 2;
-
 		/* read entries from the directory file */
-		ret = kernel_read(host_file, vdir, sizeof(*vdir), &pos);
+		ret = kernel_read(host_file, ctx->pos - 2, (char *)vdir,
+				  sizeof(*vdir));
 		if (ret < 0) {
 			pr_err("%s: read dir %s failed %d\n",
 			       __func__, coda_f2s(&cii->c_fid), ret);
@@ -430,22 +424,16 @@ static int coda_readdir(struct file *coda_file, struct dir_context *ctx)
 	BUG_ON(!cfi || cfi->cfi_magic != CODA_MAGIC);
 	host_file = cfi->cfi_container;
 
-	if (host_file->f_op->iterate || host_file->f_op->iterate_shared) {
+	if (host_file->f_op->iterate) {
 		struct inode *host_inode = file_inode(host_file);
+
+		mutex_lock(&host_inode->i_mutex);
 		ret = -ENOENT;
 		if (!IS_DEADDIR(host_inode)) {
-			if (host_file->f_op->iterate_shared) {
-				inode_lock_shared(host_inode);
-				ret = host_file->f_op->iterate_shared(host_file, ctx);
-				file_accessed(host_file);
-				inode_unlock_shared(host_inode);
-			} else {
-				inode_lock(host_inode);
-				ret = host_file->f_op->iterate(host_file, ctx);
-				file_accessed(host_file);
-				inode_unlock(host_inode);
-			}
+			ret = host_file->f_op->iterate(host_file, ctx);
+			file_accessed(host_file);
 		}
+		mutex_unlock(&host_inode->i_mutex);
 		return ret;
 	}
 	/* Venus: we must read Venus dirents from a file */

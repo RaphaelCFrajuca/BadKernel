@@ -23,7 +23,6 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
-#include <linux/compat.h>
 #include <sound/core.h>
 #include <sound/minors.h>
 #include <sound/initval.h>
@@ -59,7 +58,7 @@ static int odev_release(struct inode *inode, struct file *file);
 static ssize_t odev_read(struct file *file, char __user *buf, size_t count, loff_t *offset);
 static ssize_t odev_write(struct file *file, const char __user *buf, size_t count, loff_t *offset);
 static long odev_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
-static __poll_t odev_poll(struct file *file, poll_table * wait);
+static unsigned int odev_poll(struct file *file, poll_table * wait);
 
 
 /*
@@ -188,16 +187,12 @@ odev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 }
 
 #ifdef CONFIG_COMPAT
-static long odev_ioctl_compat(struct file *file, unsigned int cmd,
-			      unsigned long arg)
-{
-	return odev_ioctl(file, cmd, (unsigned long)compat_ptr(arg));
-}
+#define odev_ioctl_compat	odev_ioctl
 #else
 #define odev_ioctl_compat	NULL
 #endif
 
-static __poll_t
+static unsigned int
 odev_poll(struct file *file, poll_table * wait)
 {
 	struct seq_oss_devinfo *dp;

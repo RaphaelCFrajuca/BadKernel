@@ -23,7 +23,6 @@
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 */
 
-#include <linux/crypto.h>
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/fs.h>
@@ -69,22 +68,35 @@ str_to_key(unsigned char *str, unsigned char *key)
 static int
 smbhash(unsigned char *out, const unsigned char *in, unsigned char *key)
 {
+	int rc;
 	unsigned char key2[8];
-	struct crypto_cipher *tfm_des;
+	struct crypto_blkcipher *tfm_des;
+	struct scatterlist sgin, sgout;
+	struct blkcipher_desc desc;
 
 	str_to_key(key, key2);
 
-	tfm_des = crypto_alloc_cipher("des", 0, 0);
+	tfm_des = crypto_alloc_blkcipher("ecb(des)", 0, CRYPTO_ALG_ASYNC);
 	if (IS_ERR(tfm_des)) {
+		rc = PTR_ERR(tfm_des);
 		cifs_dbg(VFS, "could not allocate des crypto API\n");
-		return PTR_ERR(tfm_des);
+		goto smbhash_err;
 	}
 
-	crypto_cipher_setkey(tfm_des, key2, 8);
-	crypto_cipher_encrypt_one(tfm_des, out, in);
-	crypto_free_cipher(tfm_des);
+	desc.tfm = tfm_des;
 
-	return 0;
+	crypto_blkcipher_setkey(tfm_des, key2, 8);
+
+	sg_init_one(&sgin, in, 8);
+	sg_init_one(&sgout, out, 8);
+
+	rc = crypto_blkcipher_encrypt(&desc, &sgout, &sgin, 8);
+	if (rc)
+		cifs_dbg(VFS, "could not encrypt crypt key rc: %d\n", rc);
+
+	crypto_free_blkcipher(tfm_des);
+smbhash_err:
+	return rc;
 }
 
 static int
@@ -121,12 +133,25 @@ int
 mdfour(unsigned char *md4_hash, unsigned char *link_str, int link_len)
 {
 	int rc;
-	struct crypto_shash *md4 = NULL;
-	struct sdesc *sdescmd4 = NULL;
+	unsigned int size;
+	struct crypto_shash *md4;
+	struct sdesc *sdescmd4;
 
-	rc = cifs_alloc_hash("md4", &md4, &sdescmd4);
-	if (rc)
+	md4 = crypto_alloc_shash("md4", 0, 0);
+	if (IS_ERR(md4)) {
+		rc = PTR_ERR(md4);
+		cifs_dbg(VFS, "%s: Crypto md4 allocation error %d\n",
+			 __func__, rc);
+		return rc;
+	}
+	size = sizeof(struct shash_desc) + crypto_shash_descsize(md4);
+	sdescmd4 = kmalloc(size, GFP_KERNEL);
+	if (!sdescmd4) {
+		rc = -ENOMEM;
 		goto mdfour_err;
+	}
+	sdescmd4->shash.tfm = md4;
+	sdescmd4->shash.flags = 0x0;
 
 	rc = crypto_shash_init(&sdescmd4->shash);
 	if (rc) {
@@ -143,7 +168,9 @@ mdfour(unsigned char *md4_hash, unsigned char *link_str, int link_len)
 		cifs_dbg(VFS, "%s: Could not generate md4 hash\n", __func__);
 
 mdfour_err:
-	cifs_free_hash(&md4, &sdescmd4);
+	crypto_free_shash(md4);
+	kfree(sdescmd4);
+
 	return rc;
 }
 

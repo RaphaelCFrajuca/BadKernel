@@ -49,7 +49,8 @@ uint oid_rt_get_signal_quality_hdl(struct oid_par_priv *poid_par_priv)
 
 uint oid_rt_get_small_packet_crc_hdl(struct oid_par_priv *poid_par_priv)
 {
-	struct _adapter *padapter = poid_par_priv->adapter_context;
+	struct _adapter *padapter = (struct _adapter *)
+				    (poid_par_priv->adapter_context);
 
 	if (poid_par_priv->type_of_oid != QUERY_OID)
 		return RNDIS_STATUS_NOT_ACCEPTED;
@@ -65,7 +66,8 @@ uint oid_rt_get_small_packet_crc_hdl(struct oid_par_priv *poid_par_priv)
 
 uint oid_rt_get_middle_packet_crc_hdl(struct oid_par_priv *poid_par_priv)
 {
-	struct _adapter *padapter = poid_par_priv->adapter_context;
+	struct _adapter *padapter = (struct _adapter *)
+				    (poid_par_priv->adapter_context);
 
 	if (poid_par_priv->type_of_oid != QUERY_OID)
 		return RNDIS_STATUS_NOT_ACCEPTED;
@@ -81,7 +83,8 @@ uint oid_rt_get_middle_packet_crc_hdl(struct oid_par_priv *poid_par_priv)
 
 uint oid_rt_get_large_packet_crc_hdl(struct oid_par_priv *poid_par_priv)
 {
-	struct _adapter *padapter = poid_par_priv->adapter_context;
+	struct _adapter *padapter = (struct _adapter *)
+				    (poid_par_priv->adapter_context);
 
 	if (poid_par_priv->type_of_oid != QUERY_OID)
 		return RNDIS_STATUS_NOT_ACCEPTED;
@@ -112,7 +115,8 @@ uint oid_rt_get_rx_retry_hdl(struct oid_par_priv *poid_par_priv)
 
 uint oid_rt_get_rx_total_packet_hdl(struct oid_par_priv *poid_par_priv)
 {
-	struct _adapter *padapter = poid_par_priv->adapter_context;
+	struct _adapter *padapter = (struct _adapter *)
+				    (poid_par_priv->adapter_context);
 
 	if (poid_par_priv->type_of_oid != QUERY_OID)
 		return RNDIS_STATUS_NOT_ACCEPTED;
@@ -143,7 +147,8 @@ uint oid_rt_get_tx_beacon_err_hdl(struct oid_par_priv *poid_par_priv)
 
 uint oid_rt_get_rx_icv_err_hdl(struct oid_par_priv *poid_par_priv)
 {
-	struct _adapter *padapter = poid_par_priv->adapter_context;
+	struct _adapter *padapter = (struct _adapter *)
+				    (poid_par_priv->adapter_context);
 
 	if (poid_par_priv->type_of_oid != QUERY_OID)
 		return RNDIS_STATUS_NOT_ACCEPTED;
@@ -167,7 +172,8 @@ uint oid_rt_set_encryption_algorithm_hdl(struct oid_par_priv
 
 uint oid_rt_get_preamble_mode_hdl(struct oid_par_priv *poid_par_priv)
 {
-	struct _adapter *padapter = poid_par_priv->adapter_context;
+	struct _adapter *padapter = (struct _adapter *)
+				    (poid_par_priv->adapter_context);
 	u32 preamblemode = 0;
 
 	if (poid_par_priv->type_of_oid != QUERY_OID)
@@ -196,7 +202,8 @@ uint oid_rt_get_ap_ip_hdl(struct oid_par_priv *poid_par_priv)
 
 uint oid_rt_get_channelplan_hdl(struct oid_par_priv *poid_par_priv)
 {
-	struct _adapter *padapter = poid_par_priv->adapter_context;
+	struct _adapter *padapter = (struct _adapter *)
+				    (poid_par_priv->adapter_context);
 	struct eeprom_priv *peeprompriv = &padapter->eeprompriv;
 
 	if (poid_par_priv->type_of_oid != QUERY_OID)
@@ -209,7 +216,8 @@ uint oid_rt_get_channelplan_hdl(struct oid_par_priv *poid_par_priv)
 uint oid_rt_set_channelplan_hdl(struct oid_par_priv
 				       *poid_par_priv)
 {
-	struct _adapter *padapter = poid_par_priv->adapter_context;
+	struct _adapter *padapter = (struct _adapter *)
+				    (poid_par_priv->adapter_context);
 	struct eeprom_priv *peeprompriv = &padapter->eeprompriv;
 
 	if (poid_par_priv->type_of_oid != SET_OID)
@@ -221,7 +229,8 @@ uint oid_rt_set_channelplan_hdl(struct oid_par_priv
 uint oid_rt_set_preamble_mode_hdl(struct oid_par_priv
 					 *poid_par_priv)
 {
-	struct _adapter *padapter = poid_par_priv->adapter_context;
+	struct _adapter *padapter = (struct _adapter *)
+				    (poid_par_priv->adapter_context);
 	u32 preamblemode = 0;
 
 	if (poid_par_priv->type_of_oid != SET_OID)
@@ -258,7 +267,8 @@ uint oid_rt_dedicate_probe_hdl(struct oid_par_priv
 uint oid_rt_get_total_tx_bytes_hdl(struct oid_par_priv
 					  *poid_par_priv)
 {
-	struct _adapter *padapter = poid_par_priv->adapter_context;
+	struct _adapter *padapter = (struct _adapter *)
+				    (poid_par_priv->adapter_context);
 
 	if (poid_par_priv->type_of_oid != QUERY_OID)
 		return RNDIS_STATUS_NOT_ACCEPTED;
@@ -275,14 +285,16 @@ uint oid_rt_get_total_tx_bytes_hdl(struct oid_par_priv
 uint oid_rt_get_total_rx_bytes_hdl(struct oid_par_priv
 					  *poid_par_priv)
 {
-	struct _adapter *padapter = poid_par_priv->adapter_context;
+	struct _adapter *padapter = (struct _adapter *)
+				    (poid_par_priv->adapter_context);
 
 	if (poid_par_priv->type_of_oid != QUERY_OID)
 		return RNDIS_STATUS_NOT_ACCEPTED;
 	if (poid_par_priv->information_buf_len >= sizeof(u32)) {
 		*(u32 *)poid_par_priv->information_buf =
 					   padapter->recvpriv.rx_bytes;
-		*poid_par_priv->bytes_rw = poid_par_priv->information_buf_len;
+		*poid_par_priv->bytes_rw = poid_par_priv->
+					   information_buf_len;
 	} else {
 		return RNDIS_STATUS_INVALID_LENGTH;
 	}
@@ -313,7 +325,8 @@ uint oid_rt_get_enc_key_match_count_hdl(struct oid_par_priv
 
 uint oid_rt_get_channel_hdl(struct oid_par_priv *poid_par_priv)
 {
-	struct _adapter *padapter = poid_par_priv->adapter_context;
+	struct _adapter *padapter = (struct _adapter *)
+				    (poid_par_priv->adapter_context);
 	struct	mlme_priv *pmlmepriv = &padapter->mlmepriv;
 	struct NDIS_802_11_CONFIGURATION *pnic_Config;
 	u32   channelnum;
@@ -324,7 +337,8 @@ uint oid_rt_get_channel_hdl(struct oid_par_priv *poid_par_priv)
 	    check_fwstate(pmlmepriv, WIFI_ADHOC_MASTER_STATE))
 		pnic_Config = &pmlmepriv->cur_network.network.Configuration;
 	else
-		pnic_Config = &padapter->registrypriv.dev_network.Configuration;
+		pnic_Config = &padapter->registrypriv.dev_network.
+			      Configuration;
 	channelnum = pnic_Config->DSConfig;
 	*(u32 *)poid_par_priv->information_buf = channelnum;
 	*poid_par_priv->bytes_rw = poid_par_priv->information_buf_len;
@@ -435,7 +449,8 @@ uint oid_rt_pro_rf_write_registry_hdl(struct oid_par_priv*
 					     poid_par_priv)
 {
 	uint status = RNDIS_STATUS_SUCCESS;
-	struct _adapter *Adapter = poid_par_priv->adapter_context;
+	struct _adapter *Adapter = (struct _adapter *)
+			(poid_par_priv->adapter_context);
 
 	if (poid_par_priv->type_of_oid != SET_OID) /* QUERY_OID */
 		return RNDIS_STATUS_NOT_ACCEPTED;
@@ -455,7 +470,8 @@ uint oid_rt_pro_rf_write_registry_hdl(struct oid_par_priv*
 uint oid_rt_pro_rf_read_registry_hdl(struct oid_par_priv *poid_par_priv)
 {
 	uint status = RNDIS_STATUS_SUCCESS;
-	struct _adapter *Adapter = poid_par_priv->adapter_context;
+	struct _adapter *Adapter = (struct _adapter *)
+			(poid_par_priv->adapter_context);
 
 	if (poid_par_priv->type_of_oid != SET_OID) /* QUERY_OID */
 		return RNDIS_STATUS_NOT_ACCEPTED;
@@ -481,8 +497,8 @@ uint oid_rt_pro_rf_read_registry_hdl(struct oid_par_priv *poid_par_priv)
 		 */
 			if (!r8712_getrfreg_cmd(Adapter,
 			    *(unsigned char *)poid_par_priv->information_buf,
-			    (unsigned char *)&Adapter->mppriv.workparam.io_value
-			    ))
+			    (unsigned char *)&Adapter->mppriv.workparam.
+			    io_value))
 				status = RNDIS_STATUS_NOT_ACCEPTED;
 		}
 	} else {
@@ -500,7 +516,8 @@ enum _CONNECT_STATE_ {
 
 uint oid_rt_get_connect_state_hdl(struct oid_par_priv *poid_par_priv)
 {
-	struct _adapter *padapter = poid_par_priv->adapter_context;
+	struct _adapter *padapter = (struct _adapter *)
+				     (poid_par_priv->adapter_context);
 	struct mlme_priv *pmlmepriv = &(padapter->mlmepriv);
 	u32 ulInfo;
 

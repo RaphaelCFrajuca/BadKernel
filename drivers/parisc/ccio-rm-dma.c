@@ -40,7 +40,7 @@
 #include <linux/pci.h>
 #include <linux/gfp.h>
 
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 
 #include <asm/io.h>
 #include <asm/hardware.h>
@@ -163,7 +163,7 @@ static struct pci_dma_ops ccio_ops = {
 ** If so, initialize the chip and tell other partners in crime they
 ** have work to do.
 */
-static int __init
+static int
 ccio_probe(struct parisc_device *dev)
 {
 	printk(KERN_INFO "%s found %s at 0x%lx\n", MODULE_NAME,
@@ -184,13 +184,13 @@ ccio_probe(struct parisc_device *dev)
 	return 0;
 }
 
-static const struct parisc_device_id ccio_tbl[] __initconst = {
+static struct parisc_device_id ccio_tbl[] = {
 	{ HPHW_BCPORT, HVERSION_REV_ANY_ID, U2_BC_GSC, 0xc },
 	{ HPHW_BCPORT, HVERSION_REV_ANY_ID, UTURN_BC_GSC, 0xc },
 	{ 0, }
 };
 
-static struct parisc_driver ccio_driver __refdata = {
+static struct parisc_driver ccio_driver = {
 	.name =		"U2/Uturn",
 	.id_table =	ccio_tbl,
 	.probe =	ccio_probe,

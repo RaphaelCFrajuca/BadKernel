@@ -11,8 +11,6 @@
 *******************************************************************************
 ******************************************************************************/
 
-#include <linux/module.h>
-
 #include "dlm_internal.h"
 #include "lockspace.h"
 #include "member.h"
@@ -235,7 +233,7 @@ static int dlm_uevent(struct kset *kset, struct kobject *kobj,
 	return 0;
 }
 
-static const struct kset_uevent_ops dlm_uevent_ops = {
+static struct kset_uevent_ops dlm_uevent_ops = {
 	.uevent = dlm_uevent,
 };
 
@@ -453,14 +451,9 @@ static int new_lockspace(const char *name, const char *cluster,
 			*ops_result = 0;
 	}
 
-	if (!cluster)
-		log_print("dlm cluster name '%s' is being used without an application provided cluster name",
-			  dlm_config.ci_cluster_name);
-
 	if (dlm_config.ci_recover_callbacks && cluster &&
 	    strncmp(cluster, dlm_config.ci_cluster_name, DLM_LOCKSPACE_LEN)) {
-		log_print("dlm cluster name '%s' does not match "
-			  "the application cluster name '%s'",
+		log_print("dlm cluster name %s mismatch %s",
 			  dlm_config.ci_cluster_name, cluster);
 		error = -EBADR;
 		goto out;
@@ -517,7 +510,7 @@ static int new_lockspace(const char *name, const char *cluster,
 	size = dlm_config.ci_rsbtbl_size;
 	ls->ls_rsbtbl_size = size;
 
-	ls->ls_rsbtbl = vmalloc(array_size(size, sizeof(struct dlm_rsbtable)));
+	ls->ls_rsbtbl = vmalloc(sizeof(struct dlm_rsbtable) * size);
 	if (!ls->ls_rsbtbl)
 		goto out_lsfree;
 	for (i = 0; i < size; i++) {

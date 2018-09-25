@@ -53,5 +53,7 @@ $(obj)/%.dtb: $(src)/dts/%.dts FORCE
 
 $(obj)/dtbs: $(addprefix $(obj)/, $(dtb-y))
 
+clean-files := *.dtb
+
 install:
 	sh $(srctree)/$(src)/install.sh $(KERNELRELEASE) $(BOOTIMAGE) System.map "$(INSTALL_PATH)"

@@ -41,7 +41,7 @@ void flush_hash_entry(struct mm_struct *mm, pte_t *ptep, unsigned long addr)
 {
 	unsigned long ptephys;
 
-	if (Hash) {
+	if (Hash != 0) {
 		ptephys = __pa(ptep) & PAGE_MASK;
 		flush_hash_pages(mm->context.id, addr, ptephys, 1);
 	}
@@ -49,12 +49,23 @@ void flush_hash_entry(struct mm_struct *mm, pte_t *ptep, unsigned long addr)
 EXPORT_SYMBOL(flush_hash_entry);
 
 /*
+ * Called by ptep_set_access_flags, must flush on CPUs for which the
+ * DSI handler can't just "fixup" the TLB on a write fault
+ */
+void flush_tlb_page_nohash(struct vm_area_struct *vma, unsigned long addr)
+{
+	if (Hash != 0)
+		return;
+	_tlbie(addr);
+}
+
+/*
  * Called at the end of a mmu_gather operation to make sure the
  * TLB flush is completely done.
  */
 void tlb_flush(struct mmu_gather *tlb)
 {
-	if (!Hash) {
+	if (Hash == 0) {
 		/*
 		 * 603 needs to flush the whole TLB here since
 		 * it doesn't use a hash table.
@@ -84,7 +95,7 @@ static void flush_range(struct mm_struct *mm, unsigned long start,
 	int count;
 	unsigned int ctx = mm->context.id;
 
-	if (!Hash) {
+	if (Hash == 0) {
 		_tlbia();
 		return;
 	}
@@ -124,7 +135,7 @@ void flush_tlb_mm(struct mm_struct *mm)
 {
 	struct vm_area_struct *mp;
 
-	if (!Hash) {
+	if (Hash == 0) {
 		_tlbia();
 		return;
 	}
@@ -145,7 +156,7 @@ void flush_tlb_page(struct vm_area_struct *vma, unsigned long vmaddr)
 	struct mm_struct *mm;
 	pmd_t *pmd;
 
-	if (!Hash) {
+	if (Hash == 0) {
 		_tlbie(vmaddr);
 		return;
 	}

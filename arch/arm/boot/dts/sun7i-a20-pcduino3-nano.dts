@@ -58,17 +58,6 @@
 		stdout-path = "serial0:115200n8";
 	};
 
-	hdmi-connector {
-		compatible = "hdmi-connector";
-		type = "a";
-
-		port {
-			hdmi_con_in: endpoint {
-				remote-endpoint = <&hdmi_out_con>;
-			};
-		};
-	};
-
 	leds {
 		compatible = "gpio-leds";
 		pinctrl-names = "default";
@@ -93,16 +82,8 @@
 	status = "okay";
 };
 
-&codec {
-	status = "okay";
-};
-
 &cpu0 {
 	cpu-supply = <&reg_dcdc2>;
-};
-
-&de {
-	status = "okay";
 };
 
 &ehci0 {
@@ -122,16 +103,6 @@
 
 	phy1: ethernet-phy@1 {
 		reg = <1>;
-	};
-};
-
-&hdmi {
-	status = "okay";
-};
-
-&hdmi_out {
-	hdmi_out_con: endpoint {
-		remote-endpoint = <&hdmi_con_in>;
 	};
 };
 
@@ -155,10 +126,11 @@
 
 &mmc0 {
 	pinctrl-names = "default";
-	pinctrl-0 = <&mmc0_pins_a>;
+	pinctrl-0 = <&mmc0_pins_a>, <&mmc0_cd_pin_reference_design>;
 	vmmc-supply = <&reg_vcc3v3>;
 	bus-width = <4>;
-	cd-gpios = <&pio 7 1 GPIO_ACTIVE_LOW>; /* PH1 */
+	cd-gpios = <&pio 7 1 GPIO_ACTIVE_HIGH>; /* PH1 */
+	cd-inverted;
 	status = "okay";
 };
 
@@ -176,24 +148,31 @@
 
 &pio {
 	ahci_pwr_pin_pcduino3_nano: ahci_pwr_pin@0 {
-		pins = "PH2";
-		function = "gpio_out";
+		allwinner,pins = "PH2";
+		allwinner,function = "gpio_out";
+		allwinner,drive = <SUN4I_PINCTRL_10_MA>;
+		allwinner,pull = <SUN4I_PINCTRL_NO_PULL>;
 	};
 
 	led_pins_pcduino3_nano: led_pins@0 {
-		pins = "PH16", "PH15";
-		function = "gpio_out";
+		allwinner,pins = "PH16", "PH15";
+		allwinner,function = "gpio_out";
+		allwinner,drive = <SUN4I_PINCTRL_10_MA>;
+		allwinner,pull = <SUN4I_PINCTRL_NO_PULL>;
 	};
 
 	usb0_id_detect_pin: usb0_id_detect_pin@0 {
-		pins = "PH4";
-		function = "gpio_in";
-		bias-pull-up;
+		allwinner,pins = "PH4";
+		allwinner,function = "gpio_in";
+		allwinner,drive = <SUN4I_PINCTRL_10_MA>;
+		allwinner,pull = <SUN4I_PINCTRL_PULL_UP>;
 	};
 
 	usb1_vbus_pin_pcduino3_nano: usb1_vbus_pin@0 {
-		pins = "PD2";
-		function = "gpio_out";
+		allwinner,pins = "PD2";
+		allwinner,function = "gpio_out";
+		allwinner,drive = <SUN4I_PINCTRL_10_MA>;
+		allwinner,pull = <SUN4I_PINCTRL_NO_PULL>;
 	};
 };
 

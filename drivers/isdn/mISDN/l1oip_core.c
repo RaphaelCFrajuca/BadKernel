@@ -234,8 +234,6 @@
 #include <linux/workqueue.h>
 #include <linux/kthread.h>
 #include <linux/slab.h>
-#include <linux/sched/signal.h>
-
 #include <net/sock.h>
 #include "core.h"
 #include "l1oip.h"
@@ -279,7 +277,7 @@ l1oip_socket_send(struct l1oip *hc, u8 localcodec, u8 channel, u32 chanmask,
 		  u16 timebase, u8 *buf, int len)
 {
 	u8 *p;
-	u8 frame[MAX_DFRAME_LEN_L1 + 32];
+	u8 frame[len + 32];
 	struct socket *socket = NULL;
 
 	if (debug & DEBUG_L1OIP_MSG)
@@ -440,8 +438,14 @@ l1oip_socket_recv(struct l1oip *hc, u8 remotecodec, u8 channel, u16 timebase,
 
 #ifdef REORDER_DEBUG
 		if (hc->chan[channel].disorder_flag) {
-			swap(hc->chan[channel].disorder_skb, nskb);
-			swap(hc->chan[channel].disorder_cnt, rx_counter);
+			struct sk_buff *skb;
+			int cnt;
+			skb = hc->chan[channel].disorder_skb;
+			hc->chan[channel].disorder_skb = nskb;
+			nskb = skb;
+			cnt = hc->chan[channel].disorder_cnt;
+			hc->chan[channel].disorder_cnt = rx_counter;
+			rx_counter = cnt;
 		}
 		hc->chan[channel].disorder_flag ^= 1;
 		if (nskb)
@@ -645,10 +649,8 @@ l1oip_socket_thread(void *data)
 {
 	struct l1oip *hc = (struct l1oip *)data;
 	int ret = 0;
+	struct msghdr msg;
 	struct sockaddr_in sin_rx;
-	struct kvec iov;
-	struct msghdr msg = {.msg_name = &sin_rx,
-			     .msg_namelen = sizeof(sin_rx)};
 	unsigned char *recvbuf;
 	size_t recvbuf_size = 1500;
 	int recvlen;
@@ -662,9 +664,6 @@ l1oip_socket_thread(void *data)
 		ret = -ENOMEM;
 		goto fail;
 	}
-
-	iov.iov_base = recvbuf;
-	iov.iov_len = recvbuf_size;
 
 	/* make daemon */
 	allow_signal(SIGTERM);
@@ -702,6 +701,12 @@ l1oip_socket_thread(void *data)
 		goto fail;
 	}
 
+	/* build receive message */
+	msg.msg_name = &sin_rx;
+	msg.msg_namelen = sizeof(sin_rx);
+	msg.msg_control = NULL;
+	msg.msg_controllen = 0;
+
 	/* build send message */
 	hc->sendmsg.msg_name = &hc->sin_remote;
 	hc->sendmsg.msg_namelen = sizeof(hc->sin_remote);
@@ -718,9 +723,12 @@ l1oip_socket_thread(void *data)
 		printk(KERN_DEBUG "%s: socket created and open\n",
 		       __func__);
 	while (!signal_pending(current)) {
-		iov_iter_kvec(&msg.msg_iter, READ | ITER_KVEC, &iov, 1,
-				recvbuf_size);
-		recvlen = sock_recvmsg(socket, &msg, 0);
+		struct kvec iov = {
+			.iov_base = recvbuf,
+			.iov_len = recvbuf_size,
+		};
+		recvlen = kernel_recvmsg(socket, &msg, &iov, 1,
+					 recvbuf_size, 0);
 		if (recvlen > 0) {
 			l1oip_socket_parse(hc, &sin_rx, recvbuf, recvlen);
 		} else {
@@ -832,18 +840,17 @@ l1oip_send_bh(struct work_struct *work)
  * timer stuff
  */
 static void
-l1oip_keepalive(struct timer_list *t)
+l1oip_keepalive(void *data)
 {
-	struct l1oip *hc = from_timer(hc, t, keep_tl);
+	struct l1oip *hc = (struct l1oip *)data;
 
 	schedule_work(&hc->workq);
 }
 
 static void
-l1oip_timeout(struct timer_list *t)
+l1oip_timeout(void *data)
 {
-	struct l1oip			*hc = from_timer(hc, t,
-								  timeout_tl);
+	struct l1oip			*hc = (struct l1oip *)data;
 	struct dchannel		*dch = hc->chan[hc->d_idx].dch;
 
 	if (debug & DEBUG_L1OIP_MSG)
@@ -902,11 +909,7 @@ handle_dmsg(struct mISDNchannel *ch, struct sk_buff *skb)
 		p = skb->data;
 		l = skb->len;
 		while (l) {
-			/*
-			 * This is technically bounded by L1OIP_MAX_PERFRAME but
-			 * MAX_DFRAME_LEN_L1 < L1OIP_MAX_PERFRAME
-			 */
-			ll = (l < MAX_DFRAME_LEN_L1) ? l : MAX_DFRAME_LEN_L1;
+			ll = (l < L1OIP_MAX_PERFRAME) ? l : L1OIP_MAX_PERFRAME;
 			l1oip_socket_send(hc, 0, dch->slot, 0,
 					  hc->chan[dch->slot].tx_counter++, p, ll);
 			p += ll;
@@ -1144,11 +1147,7 @@ handle_bmsg(struct mISDNchannel *ch, struct sk_buff *skb)
 		p = skb->data;
 		l = skb->len;
 		while (l) {
-			/*
-			 * This is technically bounded by L1OIP_MAX_PERFRAME but
-			 * MAX_DFRAME_LEN_L1 < L1OIP_MAX_PERFRAME
-			 */
-			ll = (l < MAX_DFRAME_LEN_L1) ? l : MAX_DFRAME_LEN_L1;
+			ll = (l < L1OIP_MAX_PERFRAME) ? l : L1OIP_MAX_PERFRAME;
 			l1oip_socket_send(hc, hc->codec, bch->slot, 0,
 					  hc->chan[bch->slot].tx_counter, p, ll);
 			hc->chan[bch->slot].tx_counter += ll;
@@ -1436,11 +1435,15 @@ init_card(struct l1oip *hc, int pri, int bundle)
 	if (ret)
 		return ret;
 
-	timer_setup(&hc->keep_tl, l1oip_keepalive, 0);
+	hc->keep_tl.function = (void *)l1oip_keepalive;
+	hc->keep_tl.data = (ulong)hc;
+	init_timer(&hc->keep_tl);
 	hc->keep_tl.expires = jiffies + 2 * HZ; /* two seconds first time */
 	add_timer(&hc->keep_tl);
 
-	timer_setup(&hc->timeout_tl, l1oip_timeout, 0);
+	hc->timeout_tl.function = (void *)l1oip_timeout;
+	hc->timeout_tl.data = (ulong)hc;
+	init_timer(&hc->timeout_tl);
 	hc->timeout_on = 0; /* state that we have timer off */
 
 	return 0;

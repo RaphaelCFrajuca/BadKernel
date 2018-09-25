@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * driver for channel subsystem
  *
@@ -11,7 +10,7 @@
 #define KMSG_COMPONENT "cio"
 #define pr_fmt(fmt) KMSG_COMPONENT ": " fmt
 
-#include <linux/export.h>
+#include <linux/module.h>
 #include <linux/init.h>
 #include <linux/device.h>
 #include <linux/slab.h>
@@ -35,8 +34,7 @@
 int css_init_done = 0;
 int max_ssid;
 
-#define MAX_CSS_IDX 0
-struct channel_subsystem *channel_subsystems[MAX_CSS_IDX + 1];
+struct channel_subsystem *channel_subsystems[__MAX_CSSID + 1];
 static struct bus_type css_bus_type;
 
 int
@@ -268,7 +266,7 @@ static ssize_t type_show(struct device *dev, struct device_attribute *attr,
 	return sprintf(buf, "%01x\n", sch->st);
 }
 
-static DEVICE_ATTR_RO(type);
+static DEVICE_ATTR(type, 0444, type_show, NULL);
 
 static ssize_t modalias_show(struct device *dev, struct device_attribute *attr,
 			     char *buf)
@@ -278,7 +276,7 @@ static ssize_t modalias_show(struct device *dev, struct device_attribute *attr,
 	return sprintf(buf, "css:t%01X\n", sch->st);
 }
 
-static DEVICE_ATTR_RO(modalias);
+static DEVICE_ATTR(modalias, 0444, modalias_show, NULL);
 
 static struct attribute *subch_attrs[] = {
 	&dev_attr_type.attr,
@@ -295,51 +293,6 @@ static const struct attribute_group *default_subch_attr_groups[] = {
 	NULL,
 };
 
-static ssize_t chpids_show(struct device *dev,
-			   struct device_attribute *attr,
-			   char *buf)
-{
-	struct subchannel *sch = to_subchannel(dev);
-	struct chsc_ssd_info *ssd = &sch->ssd_info;
-	ssize_t ret = 0;
-	int mask;
-	int chp;
-
-	for (chp = 0; chp < 8; chp++) {
-		mask = 0x80 >> chp;
-		if (ssd->path_mask & mask)
-			ret += sprintf(buf + ret, "%02x ", ssd->chpid[chp].id);
-		else
-			ret += sprintf(buf + ret, "00 ");
-	}
-	ret += sprintf(buf + ret, "\n");
-	return ret;
-}
-static DEVICE_ATTR_RO(chpids);
-
-static ssize_t pimpampom_show(struct device *dev,
-			      struct device_attribute *attr,
-			      char *buf)
-{
-	struct subchannel *sch = to_subchannel(dev);
-	struct pmcw *pmcw = &sch->schib.pmcw;
-
-	return sprintf(buf, "%02x %02x %02x\n",
-		       pmcw->pim, pmcw->pam, pmcw->pom);
-}
-static DEVICE_ATTR_RO(pimpampom);
-
-static struct attribute *io_subchannel_type_attrs[] = {
-	&dev_attr_chpids.attr,
-	&dev_attr_pimpampom.attr,
-	NULL,
-};
-ATTRIBUTE_GROUPS(io_subchannel_type);
-
-static const struct device_type io_subchannel_type = {
-	.groups = io_subchannel_type_groups,
-};
-
 int css_register_subchannel(struct subchannel *sch)
 {
 	int ret;
@@ -348,10 +301,6 @@ int css_register_subchannel(struct subchannel *sch)
 	sch->dev.parent = &channel_subsystems[0]->device;
 	sch->dev.bus = &css_bus_type;
 	sch->dev.groups = default_subch_attr_groups;
-
-	if (sch->st == SUBCHANNEL_TYPE_IO)
-		sch->dev.type = &io_subchannel_type;
-
 	/*
 	 * We don't want to generate uevents for I/O subchannels that don't
 	 * have a working ccw device behind them since they will be
@@ -441,7 +390,7 @@ static int css_evaluate_new_subchannel(struct subchannel_id schid, int slow)
 		/* Will be done on the slow path. */
 		return -EAGAIN;
 	}
-	if (stsch(schid, &schib)) {
+	if (stsch_err(schid, &schib)) {
 		/* Subchannel is not provided. */
 		return -ENXIO;
 	}
@@ -751,8 +700,7 @@ css_generate_pgid(struct channel_subsystem *css, u32 tod_high)
 
 	if (css_general_characteristics.mcss) {
 		css->global_pgid.pgid_high.ext_cssid.version = 0x80;
-		css->global_pgid.pgid_high.ext_cssid.cssid =
-			(css->cssid < 0) ? 0 : css->cssid;
+		css->global_pgid.pgid_high.ext_cssid.cssid = css->cssid;
 	} else {
 		css->global_pgid.pgid_high.cpu_addr = stap();
 	}
@@ -762,44 +710,43 @@ css_generate_pgid(struct channel_subsystem *css, u32 tod_high)
 	css->global_pgid.tod_high = tod_high;
 }
 
-static void channel_subsystem_release(struct device *dev)
+static void
+channel_subsystem_release(struct device *dev)
 {
-	struct channel_subsystem *css = to_css(dev);
+	struct channel_subsystem *css;
 
+	css = to_css(dev);
 	mutex_destroy(&css->mutex);
+	if (css->pseudo_subchannel) {
+		/* Implies that it has been generated but never registered. */
+		css_subchannel_release(&css->pseudo_subchannel->dev);
+		css->pseudo_subchannel = NULL;
+	}
 	kfree(css);
 }
 
-static ssize_t real_cssid_show(struct device *dev, struct device_attribute *a,
-			       char *buf)
-{
-	struct channel_subsystem *css = to_css(dev);
-
-	if (css->cssid < 0)
-		return -EINVAL;
-
-	return sprintf(buf, "%x\n", css->cssid);
-}
-static DEVICE_ATTR_RO(real_cssid);
-
-static ssize_t cm_enable_show(struct device *dev, struct device_attribute *a,
-			      char *buf)
+static ssize_t
+css_cm_enable_show(struct device *dev, struct device_attribute *attr,
+		   char *buf)
 {
 	struct channel_subsystem *css = to_css(dev);
 	int ret;
 
+	if (!css)
+		return 0;
 	mutex_lock(&css->mutex);
 	ret = sprintf(buf, "%x\n", css->cm_enabled);
 	mutex_unlock(&css->mutex);
 	return ret;
 }
 
-static ssize_t cm_enable_store(struct device *dev, struct device_attribute *a,
-			       const char *buf, size_t count)
+static ssize_t
+css_cm_enable_store(struct device *dev, struct device_attribute *attr,
+		    const char *buf, size_t count)
 {
 	struct channel_subsystem *css = to_css(dev);
-	unsigned long val;
 	int ret;
+	unsigned long val;
 
 	ret = kstrtoul(buf, 16, &val);
 	if (ret)
@@ -818,104 +765,51 @@ static ssize_t cm_enable_store(struct device *dev, struct device_attribute *a,
 	mutex_unlock(&css->mutex);
 	return ret < 0 ? ret : count;
 }
-static DEVICE_ATTR_RW(cm_enable);
 
-static umode_t cm_enable_mode(struct kobject *kobj, struct attribute *attr,
-			      int index)
-{
-	return css_chsc_characteristics.secm ? attr->mode : 0;
-}
-
-static struct attribute *cssdev_attrs[] = {
-	&dev_attr_real_cssid.attr,
-	NULL,
-};
-
-static struct attribute_group cssdev_attr_group = {
-	.attrs = cssdev_attrs,
-};
-
-static struct attribute *cssdev_cm_attrs[] = {
-	&dev_attr_cm_enable.attr,
-	NULL,
-};
-
-static struct attribute_group cssdev_cm_attr_group = {
-	.attrs = cssdev_cm_attrs,
-	.is_visible = cm_enable_mode,
-};
-
-static const struct attribute_group *cssdev_attr_groups[] = {
-	&cssdev_attr_group,
-	&cssdev_cm_attr_group,
-	NULL,
-};
+static DEVICE_ATTR(cm_enable, 0644, css_cm_enable_show, css_cm_enable_store);
 
 static int __init setup_css(int nr)
 {
-	struct channel_subsystem *css;
+	u32 tod_high;
 	int ret;
+	struct channel_subsystem *css;
 
-	css = kzalloc(sizeof(*css), GFP_KERNEL);
-	if (!css)
+	css = channel_subsystems[nr];
+	memset(css, 0, sizeof(struct channel_subsystem));
+	css->pseudo_subchannel =
+		kzalloc(sizeof(*css->pseudo_subchannel), GFP_KERNEL);
+	if (!css->pseudo_subchannel)
 		return -ENOMEM;
-
-	channel_subsystems[nr] = css;
-	dev_set_name(&css->device, "css%x", nr);
-	css->device.groups = cssdev_attr_groups;
-	css->device.release = channel_subsystem_release;
-
-	mutex_init(&css->mutex);
-	css->cssid = chsc_get_cssid(nr);
-	css_generate_pgid(css, (u32) (get_tod_clock() >> 32));
-
-	ret = device_register(&css->device);
-	if (ret) {
-		put_device(&css->device);
-		goto out_err;
-	}
-
-	css->pseudo_subchannel = kzalloc(sizeof(*css->pseudo_subchannel),
-					 GFP_KERNEL);
-	if (!css->pseudo_subchannel) {
-		device_unregister(&css->device);
-		ret = -ENOMEM;
-		goto out_err;
-	}
-
 	css->pseudo_subchannel->dev.parent = &css->device;
 	css->pseudo_subchannel->dev.release = css_subchannel_release;
+	dev_set_name(&css->pseudo_subchannel->dev, "defunct");
 	mutex_init(&css->pseudo_subchannel->reg_mutex);
 	ret = css_sch_create_locks(css->pseudo_subchannel);
 	if (ret) {
 		kfree(css->pseudo_subchannel);
-		device_unregister(&css->device);
-		goto out_err;
+		return ret;
 	}
-
-	dev_set_name(&css->pseudo_subchannel->dev, "defunct");
-	ret = device_register(&css->pseudo_subchannel->dev);
-	if (ret) {
-		put_device(&css->pseudo_subchannel->dev);
-		device_unregister(&css->device);
-		goto out_err;
-	}
-
-	return ret;
-out_err:
-	channel_subsystems[nr] = NULL;
-	return ret;
+	mutex_init(&css->mutex);
+	css->valid = 1;
+	css->cssid = nr;
+	dev_set_name(&css->device, "css%x", nr);
+	css->device.release = channel_subsystem_release;
+	tod_high = (u32) (get_tod_clock() >> 32);
+	css_generate_pgid(css, tod_high);
+	return 0;
 }
 
 static int css_reboot_event(struct notifier_block *this,
 			    unsigned long event,
 			    void *ptr)
 {
-	struct channel_subsystem *css;
-	int ret;
+	int ret, i;
 
 	ret = NOTIFY_DONE;
-	for_each_css(css) {
+	for (i = 0; i <= __MAX_CSSID; i++) {
+		struct channel_subsystem *css;
+
+		css = channel_subsystems[i];
 		mutex_lock(&css->mutex);
 		if (css->cm_enabled)
 			if (chsc_secm(css, 0))
@@ -939,14 +833,16 @@ static struct notifier_block css_reboot_notifier = {
 static int css_power_event(struct notifier_block *this, unsigned long event,
 			   void *ptr)
 {
-	struct channel_subsystem *css;
-	int ret;
+	int ret, i;
 
 	switch (event) {
 	case PM_HIBERNATION_PREPARE:
 	case PM_SUSPEND_PREPARE:
 		ret = NOTIFY_DONE;
-		for_each_css(css) {
+		for (i = 0; i <= __MAX_CSSID; i++) {
+			struct channel_subsystem *css;
+
+			css = channel_subsystems[i];
 			mutex_lock(&css->mutex);
 			if (!css->cm_enabled) {
 				mutex_unlock(&css->mutex);
@@ -960,7 +856,10 @@ static int css_power_event(struct notifier_block *this, unsigned long event,
 	case PM_POST_HIBERNATION:
 	case PM_POST_SUSPEND:
 		ret = NOTIFY_DONE;
-		for_each_css(css) {
+		for (i = 0; i <= __MAX_CSSID; i++) {
+			struct channel_subsystem *css;
+
+			css = channel_subsystems[i];
 			mutex_lock(&css->mutex);
 			if (!css->cm_enabled) {
 				mutex_unlock(&css->mutex);
@@ -1015,10 +914,36 @@ static int __init css_bus_init(void)
 		goto out;
 
 	/* Setup css structure. */
-	for (i = 0; i <= MAX_CSS_IDX; i++) {
-		ret = setup_css(i);
-		if (ret)
+	for (i = 0; i <= __MAX_CSSID; i++) {
+		struct channel_subsystem *css;
+
+		css = kmalloc(sizeof(struct channel_subsystem), GFP_KERNEL);
+		if (!css) {
+			ret = -ENOMEM;
 			goto out_unregister;
+		}
+		channel_subsystems[i] = css;
+		ret = setup_css(i);
+		if (ret) {
+			kfree(channel_subsystems[i]);
+			goto out_unregister;
+		}
+		ret = device_register(&css->device);
+		if (ret) {
+			put_device(&css->device);
+			goto out_unregister;
+		}
+		if (css_chsc_characteristics.secm) {
+			ret = device_create_file(&css->device,
+						 &dev_attr_cm_enable);
+			if (ret)
+				goto out_device;
+		}
+		ret = device_register(&css->pseudo_subchannel->dev);
+		if (ret) {
+			put_device(&css->pseudo_subchannel->dev);
+			goto out_file;
+		}
 	}
 	ret = register_reboot_notifier(&css_reboot_notifier);
 	if (ret)
@@ -1034,10 +959,23 @@ static int __init css_bus_init(void)
 	isc_register(IO_SCH_ISC);
 
 	return 0;
+out_file:
+	if (css_chsc_characteristics.secm)
+		device_remove_file(&channel_subsystems[i]->device,
+				   &dev_attr_cm_enable);
+out_device:
+	device_unregister(&channel_subsystems[i]->device);
 out_unregister:
-	while (i-- > 0) {
-		struct channel_subsystem *css = channel_subsystems[i];
+	while (i > 0) {
+		struct channel_subsystem *css;
+
+		i--;
+		css = channel_subsystems[i];
 		device_unregister(&css->pseudo_subchannel->dev);
+		css->pseudo_subchannel = NULL;
+		if (css_chsc_characteristics.secm)
+			device_remove_file(&css->device,
+					   &dev_attr_cm_enable);
 		device_unregister(&css->device);
 	}
 	bus_unregister(&css_bus_type);
@@ -1053,9 +991,14 @@ out:
 static void __init css_bus_cleanup(void)
 {
 	struct channel_subsystem *css;
+	int i;
 
-	for_each_css(css) {
+	for (i = 0; i <= __MAX_CSSID; i++) {
+		css = channel_subsystems[i];
 		device_unregister(&css->pseudo_subchannel->dev);
+		css->pseudo_subchannel = NULL;
+		if (css_chsc_characteristics.secm)
+			device_remove_file(&css->device, &dev_attr_cm_enable);
 		device_unregister(&css->device);
 	}
 	bus_unregister(&css_bus_type);
@@ -1342,3 +1285,5 @@ void css_driver_unregister(struct css_driver *cdrv)
 	driver_unregister(&cdrv->drv);
 }
 EXPORT_SYMBOL_GPL(css_driver_unregister);
+
+MODULE_LICENSE("GPL");

@@ -1150,7 +1150,7 @@ static void mpt_work_wrapper(struct work_struct *work)
 	}
 	shost_printk(KERN_INFO, shost, MYIOC_s_FMT
 	    "Integrated RAID detects new device %d\n", ioc->name, disk);
-	scsi_scan_target(&ioc->sh->shost_gendev, 1, disk, 0, SCSI_SCAN_RESCAN);
+	scsi_scan_target(&ioc->sh->shost_gendev, 1, disk, 0, 1);
 }
 
 
@@ -1548,19 +1548,11 @@ out_mptspi_probe:
 	return error;
 }
 
-static void mptspi_remove(struct pci_dev *pdev)
-{
-	MPT_ADAPTER *ioc = pci_get_drvdata(pdev);
-
-	scsi_remove_host(ioc->sh);
-	mptscsih_remove(pdev);
-}
-
 static struct pci_driver mptspi_driver = {
 	.name		= "mptspi",
 	.id_table	= mptspi_pci_table,
 	.probe		= mptspi_probe,
-	.remove		= mptspi_remove,
+	.remove		= mptscsih_remove,
 	.shutdown	= mptscsih_shutdown,
 #ifdef CONFIG_PM
 	.suspend	= mptscsih_suspend,

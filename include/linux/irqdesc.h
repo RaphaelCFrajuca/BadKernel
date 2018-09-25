@@ -1,10 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_IRQDESC_H
 #define _LINUX_IRQDESC_H
-
-#include <linux/rcupdate.h>
-#include <linux/kobject.h>
-#include <linux/mutex.h>
 
 /*
  * Core internal functions to deal with irq descriptors
@@ -45,11 +40,7 @@ struct pt_regs;
  *			IRQF_NO_SUSPEND set
  * @force_resume_depth:	number of irqactions on a irq descriptor with
  *			IRQF_FORCE_RESUME set
- * @rcu:		rcu head for delayed free
- * @kobj:		kobject used to represent this struct in sysfs
- * @request_mutex:	mutex to protect request/free before locking desc->lock
  * @dir:		/proc/irq/ procfs entry
- * @debugfs_file:	dentry for the debugfs file
  * @name:		flow handler name for /proc/interrupts output
  */
 struct irq_desc {
@@ -72,7 +63,6 @@ struct irq_desc {
 	int			threads_handled_last;
 	raw_spinlock_t		lock;
 	struct cpumask		*percpu_enabled;
-	const struct cpumask	*percpu_affinity;
 #ifdef CONFIG_SMP
 	const struct cpumask	*affinity_hint;
 	struct irq_affinity_notify *affinity_notify;
@@ -92,15 +82,6 @@ struct irq_desc {
 #ifdef CONFIG_PROC_FS
 	struct proc_dir_entry	*dir;
 #endif
-#ifdef CONFIG_GENERIC_IRQ_DEBUGFS
-	struct dentry		*debugfs_file;
-	const char		*dev_name;
-#endif
-#ifdef CONFIG_SPARSE_IRQ
-	struct rcu_head		rcu;
-	struct kobject		kobj;
-#endif
-	struct mutex		request_mutex;
 	int			parent_irq;
 	struct module		*owner;
 	const char		*name;
@@ -143,6 +124,11 @@ static inline void *irq_desc_get_chip_data(struct irq_desc *desc)
 static inline void *irq_desc_get_handler_data(struct irq_desc *desc)
 {
 	return desc->irq_common_data.handler_data;
+}
+
+static inline struct msi_desc *irq_desc_get_msi_desc(struct irq_desc *desc)
+{
+	return desc->irq_common_data.msi_desc;
 }
 
 /*
@@ -225,7 +211,7 @@ irq_set_chip_handler_name_locked(struct irq_data *data, struct irq_chip *chip,
 	data->chip = chip;
 }
 
-static inline bool irq_balancing_disabled(unsigned int irq)
+static inline int irq_balancing_disabled(unsigned int irq)
 {
 	struct irq_desc *desc;
 
@@ -233,7 +219,7 @@ static inline bool irq_balancing_disabled(unsigned int irq)
 	return desc->status_use_accessors & IRQ_NO_BALANCING_MASK;
 }
 
-static inline bool irq_is_percpu(unsigned int irq)
+static inline int irq_is_percpu(unsigned int irq)
 {
 	struct irq_desc *desc;
 
@@ -241,24 +227,13 @@ static inline bool irq_is_percpu(unsigned int irq)
 	return desc->status_use_accessors & IRQ_PER_CPU;
 }
 
-static inline bool irq_is_percpu_devid(unsigned int irq)
-{
-	struct irq_desc *desc;
-
-	desc = irq_to_desc(irq);
-	return desc->status_use_accessors & IRQ_PER_CPU_DEVID;
-}
-
 static inline void
-irq_set_lockdep_class(unsigned int irq, struct lock_class_key *lock_class,
-		      struct lock_class_key *request_class)
+irq_set_lockdep_class(unsigned int irq, struct lock_class_key *class)
 {
 	struct irq_desc *desc = irq_to_desc(irq);
 
-	if (desc) {
-		lockdep_set_class(&desc->lock, lock_class);
-		lockdep_set_class(&desc->request_mutex, request_class);
-	}
+	if (desc)
+		lockdep_set_class(&desc->lock, class);
 }
 
 #ifdef CONFIG_IRQ_PREFLOW_FASTEOI

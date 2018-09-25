@@ -127,6 +127,7 @@ static const struct attribute_group *iio_sysfs_trigger_attr_groups[] = {
 };
 
 static const struct iio_trigger_ops iio_sysfs_trigger_ops = {
+	.owner = THIS_MODULE,
 };
 
 static int iio_sysfs_trigger_probe(int id)

@@ -110,7 +110,7 @@ static void do_fm_api(struct esas2r_adapter *a, struct esas2r_flash_img *fi)
 {
 	struct esas2r_request *rq;
 
-	if (mutex_lock_interruptible(&a->fm_api_mutex)) {
+	if (down_interruptible(&a->fm_api_semaphore)) {
 		fi->status = FI_STAT_BUSY;
 		return;
 	}
@@ -173,7 +173,7 @@ all_done:
 free_req:
 	esas2r_free_request(a, (struct esas2r_request *)rq);
 free_sem:
-	mutex_unlock(&a->fm_api_mutex);
+	up(&a->fm_api_semaphore);
 	return;
 
 }
@@ -1289,13 +1289,32 @@ int esas2r_ioctl_handler(void *hostdata, int cmd, void __user *arg)
 	    || (cmd > EXPRESS_IOCTL_MAX))
 		return -ENOTSUPP;
 
-	ioctl = memdup_user(arg, sizeof(struct atto_express_ioctl));
-	if (IS_ERR(ioctl)) {
+	if (!access_ok(VERIFY_WRITE, arg, sizeof(struct atto_express_ioctl))) {
 		esas2r_log(ESAS2R_LOG_WARN,
 			   "ioctl_handler access_ok failed for cmd %d, "
 			   "address %p", cmd,
 			   arg);
-		return PTR_ERR(ioctl);
+		return -EFAULT;
+	}
+
+	/* allocate a kernel memory buffer for the IOCTL data */
+	ioctl = kzalloc(sizeof(struct atto_express_ioctl), GFP_KERNEL);
+	if (ioctl == NULL) {
+		esas2r_log(ESAS2R_LOG_WARN,
+			   "ioctl_handler kzalloc failed for %d bytes",
+			   sizeof(struct atto_express_ioctl));
+		return -ENOMEM;
+	}
+
+	err = __copy_from_user(ioctl, arg, sizeof(struct atto_express_ioctl));
+	if (err != 0) {
+		esas2r_log(ESAS2R_LOG_WARN,
+			   "copy_from_user didn't copy everything (err %d, cmd %d)",
+			   err,
+			   cmd);
+		kfree(ioctl);
+
+		return -EFAULT;
 	}
 
 	/* verify the signature */
@@ -1341,15 +1360,14 @@ int esas2r_ioctl_handler(void *hostdata, int cmd, void __user *arg)
 	if (ioctl->header.channel == 0xFF) {
 		a = (struct esas2r_adapter *)hostdata;
 	} else {
-		if (ioctl->header.channel >= MAX_ADAPTERS ||
-			esas2r_adapters[ioctl->header.channel] == NULL) {
+		a = esas2r_adapters[ioctl->header.channel];
+		if (ioctl->header.channel >= MAX_ADAPTERS || (a == NULL)) {
 			ioctl->header.return_code = IOCTL_BAD_CHANNEL;
 			esas2r_log(ESAS2R_LOG_WARN, "bad channel value");
 			kfree(ioctl);
 
 			return -ENOTSUPP;
 		}
-		a = esas2r_adapters[ioctl->header.channel];
 	}
 
 	switch (cmd) {
@@ -1849,7 +1867,7 @@ int esas2r_read_vda(struct esas2r_adapter *a, char *buf, long off, int count)
 		/* allocate a request */
 		rq = esas2r_alloc_request(a);
 		if (rq == NULL) {
-			esas2r_debug("esas2r_read_vda: out of requests");
+			esas2r_debug("esas2r_read_vda: out of requestss");
 			return -EBUSY;
 		}
 
@@ -1962,7 +1980,7 @@ int esas2r_read_fs(struct esas2r_adapter *a, char *buf, long off, int count)
 			(struct esas2r_ioctl_fs *)a->fs_api_buffer;
 
 		/* If another flash request is already in progress, return. */
-		if (mutex_lock_interruptible(&a->fs_api_mutex)) {
+		if (down_interruptible(&a->fs_api_semaphore)) {
 busy:
 			fs->status = ATTO_STS_OUT_OF_RSRC;
 			return -EBUSY;
@@ -1978,7 +1996,7 @@ busy:
 		rq = esas2r_alloc_request(a);
 		if (rq == NULL) {
 			esas2r_debug("esas2r_read_fs: out of requests");
-			mutex_unlock(&a->fs_api_mutex);
+			up(&a->fs_api_semaphore);
 			goto busy;
 		}
 
@@ -2006,7 +2024,7 @@ busy:
 		;
 dont_wait:
 		/* Free the request and keep going */
-		mutex_unlock(&a->fs_api_mutex);
+		up(&a->fs_api_semaphore);
 		esas2r_free_request(a, (struct esas2r_request *)rq);
 
 		/* Pick up possible error code from above */

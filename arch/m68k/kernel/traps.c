@@ -19,7 +19,6 @@
  */
 
 #include <linux/sched.h>
-#include <linux/sched/debug.h>
 #include <linux/signal.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
@@ -33,7 +32,7 @@
 
 #include <asm/setup.h>
 #include <asm/fpu.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/traps.h>
 #include <asm/pgalloc.h>
 #include <asm/machdep.h>
@@ -1007,43 +1006,38 @@ void bad_super_trap (struct frame *fp)
 
 asmlinkage void trap_c(struct frame *fp)
 {
-	int sig, si_code;
-	void __user *addr;
+	int sig;
 	int vector = (fp->ptregs.vector >> 2) & 0xff;
+	siginfo_t info;
 
 	if (fp->ptregs.sr & PS_S) {
 		if (vector == VEC_TRACE) {
 			/* traced a trapping instruction on a 68020/30,
 			 * real exception will be executed afterwards.
 			 */
-			return;
-		}
-#ifdef CONFIG_MMU
-		if (fixup_exception(&fp->ptregs))
-			return;
-#endif
-		bad_super_trap(fp);
+		} else if (!handle_kernel_fault(&fp->ptregs))
+			bad_super_trap(fp);
 		return;
 	}
 
 	/* send the appropriate signal to the user program */
 	switch (vector) {
 	    case VEC_ADDRERR:
-		si_code = BUS_ADRALN;
+		info.si_code = BUS_ADRALN;
 		sig = SIGBUS;
 		break;
 	    case VEC_ILLEGAL:
 	    case VEC_LINE10:
 	    case VEC_LINE11:
-		si_code = ILL_ILLOPC;
+		info.si_code = ILL_ILLOPC;
 		sig = SIGILL;
 		break;
 	    case VEC_PRIV:
-		si_code = ILL_PRVOPC;
+		info.si_code = ILL_PRVOPC;
 		sig = SIGILL;
 		break;
 	    case VEC_COPROC:
-		si_code = ILL_COPROC;
+		info.si_code = ILL_COPROC;
 		sig = SIGILL;
 		break;
 	    case VEC_TRAP1:
@@ -1060,74 +1054,76 @@ asmlinkage void trap_c(struct frame *fp)
 	    case VEC_TRAP12:
 	    case VEC_TRAP13:
 	    case VEC_TRAP14:
-		si_code = ILL_ILLTRP;
+		info.si_code = ILL_ILLTRP;
 		sig = SIGILL;
 		break;
 	    case VEC_FPBRUC:
 	    case VEC_FPOE:
 	    case VEC_FPNAN:
-		si_code = FPE_FLTINV;
+		info.si_code = FPE_FLTINV;
 		sig = SIGFPE;
 		break;
 	    case VEC_FPIR:
-		si_code = FPE_FLTRES;
+		info.si_code = FPE_FLTRES;
 		sig = SIGFPE;
 		break;
 	    case VEC_FPDIVZ:
-		si_code = FPE_FLTDIV;
+		info.si_code = FPE_FLTDIV;
 		sig = SIGFPE;
 		break;
 	    case VEC_FPUNDER:
-		si_code = FPE_FLTUND;
+		info.si_code = FPE_FLTUND;
 		sig = SIGFPE;
 		break;
 	    case VEC_FPOVER:
-		si_code = FPE_FLTOVF;
+		info.si_code = FPE_FLTOVF;
 		sig = SIGFPE;
 		break;
 	    case VEC_ZERODIV:
-		si_code = FPE_INTDIV;
+		info.si_code = FPE_INTDIV;
 		sig = SIGFPE;
 		break;
 	    case VEC_CHK:
 	    case VEC_TRAP:
-		si_code = FPE_INTOVF;
+		info.si_code = FPE_INTOVF;
 		sig = SIGFPE;
 		break;
 	    case VEC_TRACE:		/* ptrace single step */
-		si_code = TRAP_TRACE;
+		info.si_code = TRAP_TRACE;
 		sig = SIGTRAP;
 		break;
 	    case VEC_TRAP15:		/* breakpoint */
-		si_code = TRAP_BRKPT;
+		info.si_code = TRAP_BRKPT;
 		sig = SIGTRAP;
 		break;
 	    default:
-		si_code = ILL_ILLOPC;
+		info.si_code = ILL_ILLOPC;
 		sig = SIGILL;
 		break;
 	}
+	info.si_signo = sig;
+	info.si_errno = 0;
 	switch (fp->ptregs.format) {
 	    default:
-		addr = (void __user *) fp->ptregs.pc;
+		info.si_addr = (void *) fp->ptregs.pc;
 		break;
 	    case 2:
-		addr = (void __user *) fp->un.fmt2.iaddr;
+		info.si_addr = (void *) fp->un.fmt2.iaddr;
 		break;
 	    case 7:
-		addr = (void __user *) fp->un.fmt7.effaddr;
+		info.si_addr = (void *) fp->un.fmt7.effaddr;
 		break;
 	    case 9:
-		addr = (void __user *) fp->un.fmt9.iaddr;
+		info.si_addr = (void *) fp->un.fmt9.iaddr;
 		break;
 	    case 10:
-		addr = (void __user *) fp->un.fmta.daddr;
+		info.si_addr = (void *) fp->un.fmta.daddr;
 		break;
 	    case 11:
-		addr = (void __user*) fp->un.fmtb.daddr;
+		info.si_addr = (void *) fp->un.fmtb.daddr;
 		break;
 	}
-	force_sig_fault(sig, si_code, addr, current);
+	force_sig_info (sig, &info, current);
 }
 
 void die_if_kernel (char *str, struct pt_regs *fp, int nr)
@@ -1159,6 +1155,12 @@ asmlinkage void fpsp040_die(void)
 #ifdef CONFIG_M68KFPU_EMU
 asmlinkage void fpemu_signal(int signal, int code, void *addr)
 {
-	force_sig_fault(signal, code, addr, current);
+	siginfo_t info;
+
+	info.si_signo = signal;
+	info.si_errno = 0;
+	info.si_code = code;
+	info.si_addr = addr;
+	force_sig_info(signal, &info, current);
 }
 #endif

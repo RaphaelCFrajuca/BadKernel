@@ -1,25 +1,19 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2015 Davidlohr Bueso.
  */
 
-/* For the CLR_() macros */
-#include <string.h>
-#include <pthread.h>
-
-#include <signal.h>
+#include "../perf.h"
+#include "../util/util.h"
 #include "../util/stat.h"
-#include <subcmd/parse-options.h>
-#include <linux/compiler.h>
-#include <linux/kernel.h>
-#include <errno.h>
+#include "../util/parse-options.h"
+#include "../util/header.h"
 #include "bench.h"
 #include "futex.h"
-#include "cpumap.h"
 
 #include <err.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <pthread.h>
 
 struct worker {
 	int tid;
@@ -33,7 +27,7 @@ static struct worker *worker;
 static unsigned int nsecs = 10;
 static bool silent = false, multi = false;
 static bool done = false, fshared = false;
-static unsigned int nthreads = 0;
+static unsigned int ncpus, nthreads = 0;
 static int futex_flag = 0;
 struct timeval start, end, runtime;
 static pthread_mutex_t thread_lock;
@@ -51,7 +45,7 @@ static const struct option options[] = {
 };
 
 static const char * const bench_futex_lock_pi_usage[] = {
-	"perf bench futex lock-pi <options>",
+	"perf bench futex requeue <options>",
 	NULL
 };
 
@@ -78,7 +72,6 @@ static void toggle_done(int sig __maybe_unused,
 static void *workerfn(void *arg)
 {
 	struct worker *w = (struct worker *) arg;
-	unsigned long ops = w->ops;
 
 	pthread_mutex_lock(&thread_lock);
 	threads_starting--;
@@ -90,7 +83,7 @@ static void *workerfn(void *arg)
 	do {
 		int ret;
 	again:
-		ret = futex_lock_pi(w->futex, NULL, futex_flag);
+		ret = futex_lock_pi(w->futex, NULL, 0, futex_flag);
 
 		if (ret) { /* handle lock acquisition */
 			if (!silent)
@@ -107,17 +100,15 @@ static void *workerfn(void *arg)
 		if (ret && !silent)
 			warn("thread %d: Could not unlock pi-lock for %p (%d)",
 			     w->tid, w->futex, ret);
-		ops++; /* account for thread's share of work */
+		w->ops++; /* account for thread's share of work */
 	}  while (!done);
 
-	w->ops = ops;
 	return NULL;
 }
 
-static void create_threads(struct worker *w, pthread_attr_t thread_attr,
-			   struct cpu_map *cpu)
+static void create_threads(struct worker *w, pthread_attr_t thread_attr)
 {
-	cpu_set_t cpuset;
+	cpu_set_t cpu;
 	unsigned int i;
 
 	threads_starting = nthreads;
@@ -132,10 +123,10 @@ static void create_threads(struct worker *w, pthread_attr_t thread_attr,
 		} else
 			worker[i].futex = &global_futex;
 
-		CPU_ZERO(&cpuset);
-		CPU_SET(cpu->map[i % cpu->nr], &cpuset);
+		CPU_ZERO(&cpu);
+		CPU_SET(i % ncpus, &cpu);
 
-		if (pthread_attr_setaffinity_np(&thread_attr, sizeof(cpu_set_t), &cpuset))
+		if (pthread_attr_setaffinity_np(&thread_attr, sizeof(cpu_set_t), &cpu))
 			err(EXIT_FAILURE, "pthread_attr_setaffinity_np");
 
 		if (pthread_create(&w[i].thread, &thread_attr, workerfn, &worker[i]))
@@ -143,28 +134,26 @@ static void create_threads(struct worker *w, pthread_attr_t thread_attr,
 	}
 }
 
-int bench_futex_lock_pi(int argc, const char **argv)
+int bench_futex_lock_pi(int argc, const char **argv,
+			const char *prefix __maybe_unused)
 {
 	int ret = 0;
 	unsigned int i;
 	struct sigaction act;
 	pthread_attr_t thread_attr;
-	struct cpu_map *cpu;
 
 	argc = parse_options(argc, argv, options, bench_futex_lock_pi_usage, 0);
 	if (argc)
 		goto err;
 
-	cpu = cpu_map__new(NULL);
-	if (!cpu)
-		err(EXIT_FAILURE, "calloc");
+	ncpus = sysconf(_SC_NPROCESSORS_ONLN);
 
 	sigfillset(&act.sa_mask);
 	act.sa_sigaction = toggle_done;
 	sigaction(SIGINT, &act, NULL);
 
 	if (!nthreads)
-		nthreads = cpu->nr;
+		nthreads = ncpus;
 
 	worker = calloc(nthreads, sizeof(*worker));
 	if (!worker)
@@ -185,7 +174,7 @@ int bench_futex_lock_pi(int argc, const char **argv)
 	pthread_attr_init(&thread_attr);
 	gettimeofday(&start, NULL);
 
-	create_threads(worker, thread_attr, cpu);
+	create_threads(worker, thread_attr);
 	pthread_attr_destroy(&thread_attr);
 
 	pthread_mutex_lock(&thread_lock);

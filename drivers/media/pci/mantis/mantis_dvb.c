@@ -26,11 +26,11 @@
 #include <linux/pci.h>
 #include <linux/i2c.h>
 
-#include <media/dmxdev.h>
-#include <media/dvbdev.h>
-#include <media/dvb_demux.h>
-#include <media/dvb_frontend.h>
-#include <media/dvb_net.h>
+#include "dmxdev.h"
+#include "dvbdev.h"
+#include "dvb_demux.h"
+#include "dvb_frontend.h"
+#include "dvb_net.h"
 
 #include "mantis_common.h"
 #include "mantis_dma.h"
@@ -226,12 +226,11 @@ int mantis_dvb_init(struct mantis_pci *mantis)
 			goto err5;
 		} else {
 			if (mantis->fe == NULL) {
-				result = -ENOMEM;
 				dprintk(MANTIS_ERROR, 1, "FE <NULL>");
 				goto err5;
 			}
-			result = dvb_register_frontend(&mantis->dvb_adapter, mantis->fe);
-			if (result) {
+
+			if (dvb_register_frontend(&mantis->dvb_adapter, mantis->fe)) {
 				dprintk(MANTIS_ERROR, 1, "ERROR: Frontend registration failed");
 
 				if (mantis->fe->ops.release)

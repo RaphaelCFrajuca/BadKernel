@@ -30,7 +30,6 @@
 char kdb_prompt_str[CMD_BUFLEN];
 
 int kdb_trap_printk;
-int kdb_printf_cpu = -1;
 
 static int kgdb_transition_check(char *buffer)
 {
@@ -563,26 +562,31 @@ int vkdb_printf(enum kdb_msgsrc src, const char *fmt, va_list ap)
 	int linecount;
 	int colcount;
 	int logging, saved_loglevel = 0;
+	int saved_trap_printk;
+	int got_printf_lock = 0;
 	int retlen = 0;
 	int fnd, len;
-	int this_cpu, old_cpu;
 	char *cp, *cp2, *cphold = NULL, replaced_byte = ' ';
 	char *moreprompt = "more> ";
 	struct console *c = console_drivers;
+	static DEFINE_SPINLOCK(kdb_printf_lock);
 	unsigned long uninitialized_var(flags);
+
+	preempt_disable();
+	saved_trap_printk = kdb_trap_printk;
+	kdb_trap_printk = 0;
 
 	/* Serialize kdb_printf if multiple cpus try to write at once.
 	 * But if any cpu goes recursive in kdb, just print the output,
 	 * even if it is interleaved with any other text.
 	 */
-	local_irq_save(flags);
-	this_cpu = smp_processor_id();
-	for (;;) {
-		old_cpu = cmpxchg(&kdb_printf_cpu, -1, this_cpu);
-		if (old_cpu == -1 || old_cpu == this_cpu)
-			break;
-
-		cpu_relax();
+	if (!KDB_STATE(PRINTF_LOCK)) {
+		KDB_STATE_SET(PRINTF_LOCK);
+		spin_lock_irqsave(&kdb_printf_lock, flags);
+		got_printf_lock = 1;
+		atomic_inc(&kdb_event);
+	} else {
+		__acquire(kdb_printf_lock);
 	}
 
 	diag = kdbgetintenv("LINES", &linecount);
@@ -701,7 +705,7 @@ kdb_printit:
 	 * Write to all consoles.
 	 */
 	retlen = strlen(kdb_buffer);
-	cp = (char *) printk_skip_headers(kdb_buffer);
+	cp = (char *) printk_skip_level(kdb_buffer);
 	if (!dbg_kdb_mode && kgdb_connected) {
 		gdbstub_msg_write(cp, retlen - (cp - kdb_buffer));
 	} else {
@@ -851,9 +855,16 @@ kdb_print_out:
 	suspend_grep = 0; /* end of what may have been a recursive call */
 	if (logging)
 		console_loglevel = saved_loglevel;
-	/* kdb_printf_cpu locked the code above. */
-	smp_store_release(&kdb_printf_cpu, old_cpu);
-	local_irq_restore(flags);
+	if (KDB_STATE(PRINTF_LOCK) && got_printf_lock) {
+		got_printf_lock = 0;
+		spin_unlock_irqrestore(&kdb_printf_lock, flags);
+		KDB_STATE_CLEAR(PRINTF_LOCK);
+		atomic_dec(&kdb_event);
+	} else {
+		__release(kdb_printf_lock);
+	}
+	kdb_trap_printk = saved_trap_printk;
+	preempt_enable();
 	return retlen;
 }
 

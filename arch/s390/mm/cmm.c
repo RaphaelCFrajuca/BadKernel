@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *  Collaborative memory management interface.
  *
@@ -11,7 +10,6 @@
 #include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/module.h>
-#include <linux/moduleparam.h>
 #include <linux/gfp.h>
 #include <linux/sched.h>
 #include <linux/sysctl.h>
@@ -57,10 +55,10 @@ static DEFINE_SPINLOCK(cmm_lock);
 
 static struct task_struct *cmm_thread_ptr;
 static DECLARE_WAIT_QUEUE_HEAD(cmm_thread_wait);
+static DEFINE_TIMER(cmm_timer, NULL, 0, 0);
 
-static void cmm_timer_fn(struct timer_list *);
+static void cmm_timer_fn(unsigned long);
 static void cmm_set_timer(void);
-static DEFINE_TIMER(cmm_timer, cmm_timer_fn);
 
 static long cmm_alloc_pages(long nr, long *counter,
 			    struct cmm_page_array **list)
@@ -195,11 +193,13 @@ static void cmm_set_timer(void)
 		if (mod_timer(&cmm_timer, jiffies + cmm_timeout_seconds*HZ))
 			return;
 	}
+	cmm_timer.function = cmm_timer_fn;
+	cmm_timer.data = 0;
 	cmm_timer.expires = jiffies + cmm_timeout_seconds*HZ;
 	add_timer(&cmm_timer);
 }
 
-static void cmm_timer_fn(struct timer_list *unused)
+static void cmm_timer_fn(unsigned long ignored)
 {
 	long nr;
 

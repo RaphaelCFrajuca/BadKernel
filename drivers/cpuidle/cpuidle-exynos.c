@@ -14,7 +14,7 @@
 #include <linux/cpuidle.h>
 #include <linux/cpu_pm.h>
 #include <linux/export.h>
-#include <linux/init.h>
+#include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/platform_data/cpuidle-exynos.h>
@@ -117,8 +117,7 @@ static int exynos_cpuidle_probe(struct platform_device *pdev)
 	int ret;
 
 	if (IS_ENABLED(CONFIG_SMP) &&
-	    (of_machine_is_compatible("samsung,exynos4210") ||
-	     of_machine_is_compatible("samsung,exynos3250"))) {
+	    of_machine_is_compatible("samsung,exynos4210")) {
 		exynos_cpuidle_pdata = pdev->dev.platform_data;
 
 		ret = cpuidle_register(&exynos_coupled_idle_driver,
@@ -143,4 +142,5 @@ static struct platform_driver exynos_cpuidle_driver = {
 		.name = "exynos_cpuidle",
 	},
 };
-builtin_platform_driver(exynos_cpuidle_driver);
+
+module_platform_driver(exynos_cpuidle_driver);

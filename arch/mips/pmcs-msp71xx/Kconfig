@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 choice
 	prompt "PMC-Sierra MSP SOC type"
 	depends on PMC_MSP

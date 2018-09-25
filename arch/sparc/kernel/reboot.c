@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /* reboot.c: reboot/shutdown/halt/poweroff handling
  *
  * Copyright (C) 2008 David S. Miller <davem@davemloft.net>

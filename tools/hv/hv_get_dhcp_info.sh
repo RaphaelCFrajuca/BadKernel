@@ -1,5 +1,4 @@
 #!/bin/bash
-# SPDX-License-Identifier: GPL-2.0
 
 # This example script retrieves the DHCP state of a given interface.
 # In the interest of keeping the KVP daemon code free of distro specific

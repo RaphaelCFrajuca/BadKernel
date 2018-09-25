@@ -1,5 +1,7 @@
 /*
- * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/
+ * drivers/gpu/drm/omapdrm/omap_encoder.c
+ *
+ * Copyright (C) 2011 Texas Instruments
  * Author: Rob Clark <rob@ti.com>
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -83,8 +85,7 @@ static void omap_encoder_mode_set(struct drm_encoder *encoder,
 	if (hdmi_mode && dssdev->driver->set_hdmi_infoframe) {
 		struct hdmi_avi_infoframe avi;
 
-		r = drm_hdmi_avi_infoframe_from_display_mode(&avi, adjusted_mode,
-							     false);
+		r = drm_hdmi_avi_infoframe_from_display_mode(&avi, adjusted_mode);
 		if (r == 0)
 			dssdev->driver->set_hdmi_infoframe(dssdev, &avi);
 	}
@@ -101,7 +102,7 @@ static void omap_encoder_disable(struct drm_encoder *encoder)
 
 static int omap_encoder_update(struct drm_encoder *encoder,
 			       enum omap_channel channel,
-			       struct videomode *vm)
+			       struct omap_video_timings *timings)
 {
 	struct drm_device *dev = encoder->dev;
 	struct omap_encoder *omap_encoder = to_omap_encoder(encoder);
@@ -109,14 +110,16 @@ static int omap_encoder_update(struct drm_encoder *encoder,
 	struct omap_dss_driver *dssdrv = dssdev->driver;
 	int ret;
 
+	dssdev->src->manager = omap_dss_get_overlay_manager(channel);
+
 	if (dssdrv->check_timings) {
-		ret = dssdrv->check_timings(dssdev, vm);
+		ret = dssdrv->check_timings(dssdev, timings);
 	} else {
-		struct videomode t = {0};
+		struct omap_video_timings t = {0};
 
 		dssdrv->get_timings(dssdev, &t);
 
-		if (memcmp(vm, &t, sizeof(*vm)))
+		if (memcmp(timings, &t, sizeof(struct omap_video_timings)))
 			ret = -EINVAL;
 		else
 			ret = 0;
@@ -128,7 +131,7 @@ static int omap_encoder_update(struct drm_encoder *encoder,
 	}
 
 	if (dssdrv->set_timings)
-		dssdrv->set_timings(dssdev, vm);
+		dssdrv->set_timings(dssdev, timings);
 
 	return 0;
 }
@@ -138,16 +141,11 @@ static void omap_encoder_enable(struct drm_encoder *encoder)
 	struct omap_encoder *omap_encoder = to_omap_encoder(encoder);
 	struct omap_dss_device *dssdev = omap_encoder->dssdev;
 	struct omap_dss_driver *dssdrv = dssdev->driver;
-	int r;
 
 	omap_encoder_update(encoder, omap_crtc_channel(encoder->crtc),
 			    omap_crtc_timings(encoder->crtc));
 
-	r = dssdrv->enable(dssdev);
-	if (r)
-		dev_err(encoder->dev->dev,
-			"Failed to enable display '%s': %d\n",
-			dssdev->name, r);
+	dssdrv->enable(dssdev);
 }
 
 static int omap_encoder_atomic_check(struct drm_encoder *encoder,
@@ -180,7 +178,7 @@ struct drm_encoder *omap_encoder_init(struct drm_device *dev,
 	encoder = &omap_encoder->base;
 
 	drm_encoder_init(dev, encoder, &omap_encoder_funcs,
-			 DRM_MODE_ENCODER_TMDS, NULL);
+			 DRM_MODE_ENCODER_TMDS);
 	drm_encoder_helper_add(encoder, &omap_encoder_helper_funcs);
 
 	return encoder;

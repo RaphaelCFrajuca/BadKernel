@@ -1,11 +1,9 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _NF_CONNTRACK_TIMEOUT_H
 #define _NF_CONNTRACK_TIMEOUT_H
 
 #include <net/net_namespace.h>
 #include <linux/netfilter/nf_conntrack_common.h>
 #include <linux/netfilter/nf_conntrack_tuple_common.h>
-#include <linux/refcount.h>
 #include <net/netfilter/nf_conntrack.h>
 #include <net/netfilter/nf_conntrack_extend.h>
 
@@ -14,10 +12,10 @@
 struct ctnl_timeout {
 	struct list_head	head;
 	struct rcu_head		rcu_head;
-	refcount_t		refcnt;
+	atomic_t		refcnt;
 	char			name[CTNL_TIMEOUT_NAME_MAX];
 	__u16			l3num;
-	const struct nf_conntrack_l4proto *l4proto;
+	struct nf_conntrack_l4proto *l4proto;
 	char			data[0];
 };
 
@@ -69,7 +67,7 @@ struct nf_conn_timeout *nf_ct_timeout_ext_add(struct nf_conn *ct,
 
 static inline unsigned int *
 nf_ct_timeout_lookup(struct net *net, struct nf_conn *ct,
-		     const struct nf_conntrack_l4proto *l4proto)
+		     struct nf_conntrack_l4proto *l4proto)
 {
 #ifdef CONFIG_NF_CONNTRACK_TIMEOUT
 	struct nf_conn_timeout *timeout_ext;
@@ -106,7 +104,7 @@ static inline void nf_conntrack_timeout_fini(void)
 #endif /* CONFIG_NF_CONNTRACK_TIMEOUT */
 
 #ifdef CONFIG_NF_CONNTRACK_TIMEOUT
-extern struct ctnl_timeout *(*nf_ct_timeout_find_get_hook)(struct net *net, const char *name);
+extern struct ctnl_timeout *(*nf_ct_timeout_find_get_hook)(const char *name);
 extern void (*nf_ct_timeout_put_hook)(struct ctnl_timeout *timeout);
 #endif
 

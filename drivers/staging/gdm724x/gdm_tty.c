@@ -1,5 +1,15 @@
-// SPDX-License-Identifier: GPL-2.0
-/* Copyright (c) 2012 GCT Semiconductor, Inc. All rights reserved. */
+/*
+ * Copyright (c) 2012 GCT Semiconductor, Inc. All rights reserved.
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
@@ -27,6 +37,13 @@
 
 #define MUX_TX_MAX_SIZE 2048
 
+#define gdm_tty_send(n, d, l, i, c, b) (\
+	n->tty_dev->send_func(n->tty_dev->priv_dev, d, l, i, c, b))
+#define gdm_tty_recv(n, c) (\
+	n->tty_dev->recv_func(n->tty_dev->priv_dev, c))
+#define gdm_tty_send_control(n, r, v, d, l) (\
+	n->tty_dev->send_control(n->tty_dev->priv_dev, r, v, d, l))
+
 #define GDM_TTY_READY(gdm) (gdm && gdm->tty_dev && gdm->port.count)
 
 static struct tty_driver *gdm_driver[TTY_MAX_COUNT];
@@ -47,7 +64,7 @@ static void gdm_port_destruct(struct tty_port *port)
 	kfree(gdm);
 }
 
-static const struct tty_port_operations gdm_port_ops = {
+static struct tty_port_operations gdm_port_ops = {
 	.destruct = gdm_port_destruct,
 };
 
@@ -129,8 +146,7 @@ static int gdm_tty_recv_complete(void *data,
 
 	if (!GDM_TTY_READY(gdm)) {
 		if (complete == RECV_PACKET_PROCESS_COMPLETE)
-			gdm->tty_dev->recv_func(gdm->tty_dev->priv_dev,
-						gdm_tty_recv_complete);
+			gdm_tty_recv(gdm, gdm_tty_recv_complete);
 		return TO_HOST_PORT_CLOSE;
 	}
 
@@ -144,8 +160,7 @@ static int gdm_tty_recv_complete(void *data,
 	}
 
 	if (complete == RECV_PACKET_PROCESS_COMPLETE)
-		gdm->tty_dev->recv_func(gdm->tty_dev->priv_dev,
-					gdm_tty_recv_complete);
+		gdm_tty_recv(gdm, gdm_tty_recv_complete);
 
 	return 0;
 }
@@ -175,13 +190,15 @@ static int gdm_tty_write(struct tty_struct *tty, const unsigned char *buf,
 		return 0;
 
 	while (1) {
-		sending_len = min(MUX_TX_MAX_SIZE, remain);
-		gdm->tty_dev->send_func(gdm->tty_dev->priv_dev,
-					(void *)(buf + sent_len),
-					sending_len,
-					gdm->index,
-					gdm_tty_send_complete,
-					gdm);
+		sending_len = remain > MUX_TX_MAX_SIZE ? MUX_TX_MAX_SIZE :
+							 remain;
+		gdm_tty_send(gdm,
+			     (void *)(buf + sent_len),
+			     sending_len,
+			     gdm->index,
+			     gdm_tty_send_complete,
+			     gdm
+			    );
 		sent_len += sending_len;
 		remain -= sending_len;
 		if (remain <= 0)
@@ -208,6 +225,7 @@ int register_lte_tty_device(struct tty_dev *tty_dev, struct device *device)
 	int j;
 
 	for (i = 0; i < TTY_MAX_COUNT; i++) {
+
 		gdm = kmalloc(sizeof(*gdm), GFP_KERNEL);
 		if (!gdm)
 			return -ENOMEM;
@@ -240,8 +258,7 @@ int register_lte_tty_device(struct tty_dev *tty_dev, struct device *device)
 	}
 
 	for (i = 0; i < MAX_ISSUE_NUM; i++)
-		gdm->tty_dev->recv_func(gdm->tty_dev->priv_dev,
-					gdm_tty_recv_complete);
+		gdm_tty_recv(gdm, gdm_tty_recv_complete);
 
 	return 0;
 }

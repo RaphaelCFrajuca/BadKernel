@@ -63,10 +63,11 @@ static void gapspci_fixup_resources(struct pci_dev *dev)
 		res.end = GAPSPCI_DMA_BASE + GAPSPCI_DMA_SIZE - 1;
 		res.flags = IORESOURCE_MEM;
 		pcibios_resource_to_bus(dev->bus, &region, &res);
-		BUG_ON(dma_declare_coherent_memory(&dev->dev,
+		BUG_ON(!dma_declare_coherent_memory(&dev->dev,
 						res.start,
 						region.start,
 						resource_size(&res),
+						DMA_MEMORY_MAP |
 						DMA_MEMORY_EXCLUSIVE));
 		break;
 	default:
@@ -75,7 +76,7 @@ static void gapspci_fixup_resources(struct pci_dev *dev)
 }
 DECLARE_PCI_FIXUP_HEADER(PCI_ANY_ID, PCI_ANY_ID, gapspci_fixup_resources);
 
-int pcibios_map_platform_irq(const struct pci_dev *dev, u8 slot, u8 pin)
+int __init pcibios_map_platform_irq(const struct pci_dev *dev, u8 slot, u8 pin)
 {
 	/*
 	 * The interrupt routing semantics here are quite trivial.

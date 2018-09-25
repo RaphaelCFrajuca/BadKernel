@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef FS_ENET_FEC_H
 #define FS_ENET_FEC_H
 

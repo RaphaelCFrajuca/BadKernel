@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #if !defined(_TRACE_ARM64_KVM_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _TRACE_ARM64_KVM_H
 
@@ -93,8 +92,6 @@ TRACE_EVENT(kvm_arm_set_dreg32,
 
 	TP_printk("%s: 0x%08x", __entry->name, __entry->value)
 );
-
-TRACE_DEFINE_SIZEOF(__u64);
 
 TRACE_EVENT(kvm_arm_set_regset,
 	TP_PROTO(const char *type, int len, __u64 *control, __u64 *value),

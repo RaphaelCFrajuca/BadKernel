@@ -17,8 +17,10 @@
 #include <linux/init.h>
 #include <linux/spinlock.h>
 #include <linux/slab.h>
+#include <linux/kmsg_dump.h>
+#include <linux/pstore.h>
 #include <linux/ctype.h>
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/nvram.h>
 #include <asm/rtas.h>
 #include <asm/prom.h>

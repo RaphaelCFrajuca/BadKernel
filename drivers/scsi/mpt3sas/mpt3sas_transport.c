@@ -300,6 +300,7 @@ _transport_expander_report_manufacture(struct MPT3SAS_ADAPTER *ioc,
 	int rc;
 	u16 smid;
 	u32 ioc_state;
+	unsigned long timeleft;
 	void *psge;
 	u8 issue_reset = 0;
 	void *data_out = NULL;
@@ -393,7 +394,8 @@ _transport_expander_report_manufacture(struct MPT3SAS_ADAPTER *ioc,
 		ioc->name, (unsigned long long)sas_address));
 	init_completion(&ioc->transport_cmds.done);
 	mpt3sas_base_put_smid_default(ioc, smid);
-	wait_for_completion_timeout(&ioc->transport_cmds.done, 10*HZ);
+	timeleft = wait_for_completion_timeout(&ioc->transport_cmds.done,
+	    10*HZ);
 
 	if (!(ioc->transport_cmds.status & MPT3_CMD_COMPLETE)) {
 		pr_err(MPT3SAS_FMT "%s: timeout\n",
@@ -444,7 +446,8 @@ _transport_expander_report_manufacture(struct MPT3SAS_ADAPTER *ioc,
 
  issue_host_reset:
 	if (issue_reset)
-		mpt3sas_base_hard_reset_handler(ioc, FORCE_BIG_HAMMER);
+		mpt3sas_base_hard_reset_handler(ioc, CAN_SLEEP,
+		    FORCE_BIG_HAMMER);
  out:
 	ioc->transport_cmds.status = MPT3_CMD_NOT_USED;
 	if (data_out)
@@ -702,11 +705,6 @@ mpt3sas_transport_port_add(struct MPT3SAS_ADAPTER *ioc, u16 handle,
 		goto out_fail;
 	}
 
-	if (!sas_node->parent_dev) {
-		pr_err(MPT3SAS_FMT "failure at %s:%d/%s()!\n",
-		    ioc->name, __FILE__, __LINE__, __func__);
-		goto out_fail;
-	}
 	port = sas_port_alloc_num(sas_node->parent_dev);
 	if ((sas_port_add(port))) {
 		pr_err(MPT3SAS_FMT "failure at %s:%d/%s()!\n",
@@ -1104,6 +1102,7 @@ _transport_get_expander_phy_error_log(struct MPT3SAS_ADAPTER *ioc,
 	int rc;
 	u16 smid;
 	u32 ioc_state;
+	unsigned long timeleft;
 	void *psge;
 	u8 issue_reset = 0;
 	void *data_out = NULL;
@@ -1199,7 +1198,8 @@ _transport_get_expander_phy_error_log(struct MPT3SAS_ADAPTER *ioc,
 		phy->number));
 	init_completion(&ioc->transport_cmds.done);
 	mpt3sas_base_put_smid_default(ioc, smid);
-	wait_for_completion_timeout(&ioc->transport_cmds.done, 10*HZ);
+	timeleft = wait_for_completion_timeout(&ioc->transport_cmds.done,
+	    10*HZ);
 
 	if (!(ioc->transport_cmds.status & MPT3_CMD_COMPLETE)) {
 		pr_err(MPT3SAS_FMT "%s: timeout\n",
@@ -1248,7 +1248,8 @@ _transport_get_expander_phy_error_log(struct MPT3SAS_ADAPTER *ioc,
 
  issue_host_reset:
 	if (issue_reset)
-		mpt3sas_base_hard_reset_handler(ioc, FORCE_BIG_HAMMER);
+		mpt3sas_base_hard_reset_handler(ioc, CAN_SLEEP,
+		    FORCE_BIG_HAMMER);
  out:
 	ioc->transport_cmds.status = MPT3_CMD_NOT_USED;
 	if (data_out)
@@ -1415,7 +1416,9 @@ _transport_expander_phy_control(struct MPT3SAS_ADAPTER *ioc,
 	int rc;
 	u16 smid;
 	u32 ioc_state;
+	unsigned long timeleft;
 	void *psge;
+	u32 sgl_flags;
 	u8 issue_reset = 0;
 	void *data_out = NULL;
 	dma_addr_t data_out_dma;
@@ -1504,10 +1507,24 @@ _transport_expander_phy_control(struct MPT3SAS_ADAPTER *ioc,
 	    cpu_to_le16(sizeof(struct phy_error_log_request));
 	psge = &mpi_request->SGL;
 
-	ioc->build_sg(ioc, psge, data_out_dma,
-			    sizeof(struct phy_control_request),
-	    data_out_dma + sizeof(struct phy_control_request),
-	    sizeof(struct phy_control_reply));
+	/* WRITE sgel first */
+	sgl_flags = (MPI2_SGE_FLAGS_SIMPLE_ELEMENT |
+	    MPI2_SGE_FLAGS_END_OF_BUFFER | MPI2_SGE_FLAGS_HOST_TO_IOC);
+	sgl_flags = sgl_flags << MPI2_SGE_FLAGS_SHIFT;
+	ioc->base_add_sg_single(psge, sgl_flags |
+	    sizeof(struct phy_control_request), data_out_dma);
+
+	/* incr sgel */
+	psge += ioc->sge_size;
+
+	/* READ sgel last */
+	sgl_flags = (MPI2_SGE_FLAGS_SIMPLE_ELEMENT |
+	    MPI2_SGE_FLAGS_LAST_ELEMENT | MPI2_SGE_FLAGS_END_OF_BUFFER |
+	    MPI2_SGE_FLAGS_END_OF_LIST);
+	sgl_flags = sgl_flags << MPI2_SGE_FLAGS_SHIFT;
+	ioc->base_add_sg_single(psge, sgl_flags |
+	    sizeof(struct phy_control_reply), data_out_dma +
+	    sizeof(struct phy_control_request));
 
 	dtransportprintk(ioc, pr_info(MPT3SAS_FMT
 		"phy_control - send to sas_addr(0x%016llx), phy(%d), opcode(%d)\n",
@@ -1515,7 +1532,8 @@ _transport_expander_phy_control(struct MPT3SAS_ADAPTER *ioc,
 		phy->number, phy_operation));
 	init_completion(&ioc->transport_cmds.done);
 	mpt3sas_base_put_smid_default(ioc, smid);
-	wait_for_completion_timeout(&ioc->transport_cmds.done, 10*HZ);
+	timeleft = wait_for_completion_timeout(&ioc->transport_cmds.done,
+	    10*HZ);
 
 	if (!(ioc->transport_cmds.status & MPT3_CMD_COMPLETE)) {
 		pr_err(MPT3SAS_FMT "%s: timeout\n",
@@ -1556,7 +1574,8 @@ _transport_expander_phy_control(struct MPT3SAS_ADAPTER *ioc,
 
  issue_host_reset:
 	if (issue_reset)
-		mpt3sas_base_hard_reset_handler(ioc, FORCE_BIG_HAMMER);
+		mpt3sas_base_hard_reset_handler(ioc, CAN_SLEEP,
+		    FORCE_BIG_HAMMER);
  out:
 	ioc->transport_cmds.status = MPT3_CMD_NOT_USED;
 	if (data_out)
@@ -1596,7 +1615,7 @@ _transport_phy_reset(struct sas_phy *phy, int hard_reset)
 		    SMP_PHY_CONTROL_LINK_RESET);
 
 	/* handle hba phys */
-	memset(&mpi_request, 0, sizeof(Mpi2SasIoUnitControlRequest_t));
+	memset(&mpi_request, 0, sizeof(Mpi2SasIoUnitControlReply_t));
 	mpi_request.Function = MPI2_FUNCTION_SAS_IO_UNIT_CONTROL;
 	mpi_request.Operation = hard_reset ?
 	    MPI2_SAS_OP_PHY_HARD_RESET : MPI2_SAS_OP_PHY_LINK_RESET;
@@ -1870,38 +1889,6 @@ _transport_phy_speed(struct sas_phy *phy, struct sas_phy_linkrates *rates)
 	return rc;
 }
 
-static int
-_transport_map_smp_buffer(struct device *dev, struct bsg_buffer *buf,
-		dma_addr_t *dma_addr, size_t *dma_len, void **p)
-{
-	/* Check if the request is split across multiple segments */
-	if (buf->sg_cnt > 1) {
-		*p = dma_alloc_coherent(dev, buf->payload_len, dma_addr,
-				GFP_KERNEL);
-		if (!*p)
-			return -ENOMEM;
-		*dma_len = buf->payload_len;
-	} else {
-		if (!dma_map_sg(dev, buf->sg_list, 1, DMA_BIDIRECTIONAL))
-			return -ENOMEM;
-		*dma_addr = sg_dma_address(buf->sg_list);
-		*dma_len = sg_dma_len(buf->sg_list);
-		*p = NULL;
-	}
-
-	return 0;
-}
-
-static void
-_transport_unmap_smp_buffer(struct device *dev, struct bsg_buffer *buf,
-		dma_addr_t dma_addr, void *p)
-{
-	if (p)
-		dma_free_coherent(dev, buf->payload_len, p, dma_addr);
-	else
-		dma_unmap_sg(dev, buf->sg_list, 1, DMA_BIDIRECTIONAL);
-}
-
 /**
  * _transport_smp_handler - transport portal for smp passthru
  * @shost: shost object
@@ -1912,9 +1899,9 @@ _transport_unmap_smp_buffer(struct device *dev, struct bsg_buffer *buf,
  * Example:
  *           smp_rep_general /sys/class/bsg/expander-5:0
  */
-static void
-_transport_smp_handler(struct bsg_job *job, struct Scsi_Host *shost,
-		struct sas_rphy *rphy)
+static int
+_transport_smp_handler(struct Scsi_Host *shost, struct sas_rphy *rphy,
+	struct request *req)
 {
 	struct MPT3SAS_ADAPTER *ioc = shost_priv(shost);
 	Mpi2SmpPassthroughRequest_t *mpi_request;
@@ -1922,26 +1909,35 @@ _transport_smp_handler(struct bsg_job *job, struct Scsi_Host *shost,
 	int rc;
 	u16 smid;
 	u32 ioc_state;
+	unsigned long timeleft;
 	void *psge;
-	dma_addr_t dma_addr_in;
-	dma_addr_t dma_addr_out;
-	void *addr_in = NULL;
-	void *addr_out = NULL;
-	size_t dma_len_in;
-	size_t dma_len_out;
+	u8 issue_reset = 0;
+	dma_addr_t dma_addr_in = 0;
+	dma_addr_t dma_addr_out = 0;
+	dma_addr_t pci_dma_in = 0;
+	dma_addr_t pci_dma_out = 0;
+	void *pci_addr_in = NULL;
+	void *pci_addr_out = NULL;
 	u16 wait_state_count;
-	unsigned int reslen = 0;
+	struct request *rsp = req->next_rq;
+	struct bio_vec bvec;
+	struct bvec_iter iter;
+
+	if (!rsp) {
+		pr_err(MPT3SAS_FMT "%s: the smp response space is missing\n",
+			ioc->name, __func__);
+		return -EINVAL;
+	}
 
 	if (ioc->shost_recovery || ioc->pci_error_recovery) {
 		pr_info(MPT3SAS_FMT "%s: host reset in progress!\n",
 		    __func__, ioc->name);
-		rc = -EFAULT;
-		goto out;
+		return -EFAULT;
 	}
 
 	rc = mutex_lock_interruptible(&ioc->transport_cmds.mutex);
 	if (rc)
-		goto out;
+		return rc;
 
 	if (ioc->transport_cmds.status != MPT3_CMD_NOT_USED) {
 		pr_err(MPT3SAS_FMT "%s: transport_cmds in use\n", ioc->name,
@@ -1951,20 +1947,58 @@ _transport_smp_handler(struct bsg_job *job, struct Scsi_Host *shost,
 	}
 	ioc->transport_cmds.status = MPT3_CMD_PENDING;
 
-	rc = _transport_map_smp_buffer(&ioc->pdev->dev, &job->request_payload,
-			&dma_addr_out, &dma_len_out, &addr_out);
-	if (rc)
-		goto out;
-	if (addr_out) {
-		sg_copy_to_buffer(job->request_payload.sg_list,
-				job->request_payload.sg_cnt, addr_out,
-				job->request_payload.payload_len);
+	/* Check if the request is split across multiple segments */
+	if (bio_multiple_segments(req->bio)) {
+		u32 offset = 0;
+
+		/* Allocate memory and copy the request */
+		pci_addr_out = pci_alloc_consistent(ioc->pdev,
+		    blk_rq_bytes(req), &pci_dma_out);
+		if (!pci_addr_out) {
+			pr_info(MPT3SAS_FMT "%s(): PCI Addr out = NULL\n",
+			    ioc->name, __func__);
+			rc = -ENOMEM;
+			goto out;
+		}
+
+		bio_for_each_segment(bvec, req->bio, iter) {
+			memcpy(pci_addr_out + offset,
+			    page_address(bvec.bv_page) + bvec.bv_offset,
+			    bvec.bv_len);
+			offset += bvec.bv_len;
+		}
+	} else {
+		dma_addr_out = pci_map_single(ioc->pdev, bio_data(req->bio),
+		    blk_rq_bytes(req), PCI_DMA_BIDIRECTIONAL);
+		if (pci_dma_mapping_error(ioc->pdev, dma_addr_out)) {
+			pr_info(MPT3SAS_FMT "%s(): DMA Addr out = NULL\n",
+			    ioc->name, __func__);
+			rc = -ENOMEM;
+			goto free_pci;
+		}
 	}
 
-	rc = _transport_map_smp_buffer(&ioc->pdev->dev, &job->reply_payload,
-			&dma_addr_in, &dma_len_in, &addr_in);
-	if (rc)
-		goto unmap_out;
+	/* Check if the response needs to be populated across
+	 * multiple segments */
+	if (bio_multiple_segments(rsp->bio)) {
+		pci_addr_in = pci_alloc_consistent(ioc->pdev, blk_rq_bytes(rsp),
+		    &pci_dma_in);
+		if (!pci_addr_in) {
+			pr_info(MPT3SAS_FMT "%s(): PCI Addr in = NULL\n",
+			    ioc->name, __func__);
+			rc = -ENOMEM;
+			goto unmap;
+		}
+	} else {
+		dma_addr_in =  pci_map_single(ioc->pdev, bio_data(rsp->bio),
+		    blk_rq_bytes(rsp), PCI_DMA_BIDIRECTIONAL);
+		if (pci_dma_mapping_error(ioc->pdev, dma_addr_in)) {
+			pr_info(MPT3SAS_FMT "%s(): DMA Addr in = NULL\n",
+			    ioc->name, __func__);
+			rc = -ENOMEM;
+			goto unmap;
+		}
+	}
 
 	wait_state_count = 0;
 	ioc_state = mpt3sas_base_get_iocstate(ioc, 1);
@@ -1974,7 +2008,7 @@ _transport_smp_handler(struct bsg_job *job, struct Scsi_Host *shost,
 			    "%s: failed due to ioc not operational\n",
 			    ioc->name, __func__);
 			rc = -EFAULT;
-			goto unmap_in;
+			goto unmap;
 		}
 		ssleep(1);
 		ioc_state = mpt3sas_base_get_iocstate(ioc, 1);
@@ -1991,7 +2025,7 @@ _transport_smp_handler(struct bsg_job *job, struct Scsi_Host *shost,
 		pr_err(MPT3SAS_FMT "%s: failed obtaining a smid\n",
 		    ioc->name, __func__);
 		rc = -EAGAIN;
-		goto unmap_in;
+		goto unmap;
 	}
 
 	rc = 0;
@@ -2004,69 +2038,107 @@ _transport_smp_handler(struct bsg_job *job, struct Scsi_Host *shost,
 	mpi_request->SASAddress = (rphy) ?
 	    cpu_to_le64(rphy->identify.sas_address) :
 	    cpu_to_le64(ioc->sas_hba.sas_address);
-	mpi_request->RequestDataLength = cpu_to_le16(dma_len_out - 4);
+	mpi_request->RequestDataLength = cpu_to_le16(blk_rq_bytes(req) - 4);
 	psge = &mpi_request->SGL;
 
-	ioc->build_sg(ioc, psge, dma_addr_out, dma_len_out - 4, dma_addr_in,
-			dma_len_in - 4);
+	if (bio_multiple_segments(req->bio))
+		ioc->build_sg(ioc, psge, pci_dma_out, (blk_rq_bytes(req) - 4),
+		    pci_dma_in, (blk_rq_bytes(rsp) + 4));
+	else
+		ioc->build_sg(ioc, psge, dma_addr_out, (blk_rq_bytes(req) - 4),
+		    dma_addr_in, (blk_rq_bytes(rsp) + 4));
 
 	dtransportprintk(ioc, pr_info(MPT3SAS_FMT
 		"%s - sending smp request\n", ioc->name, __func__));
 
 	init_completion(&ioc->transport_cmds.done);
 	mpt3sas_base_put_smid_default(ioc, smid);
-	wait_for_completion_timeout(&ioc->transport_cmds.done, 10*HZ);
+	timeleft = wait_for_completion_timeout(&ioc->transport_cmds.done,
+	    10*HZ);
 
 	if (!(ioc->transport_cmds.status & MPT3_CMD_COMPLETE)) {
 		pr_err(MPT3SAS_FMT "%s : timeout\n",
 		    __func__, ioc->name);
 		_debug_dump_mf(mpi_request,
 		    sizeof(Mpi2SmpPassthroughRequest_t)/4);
-		if (!(ioc->transport_cmds.status & MPT3_CMD_RESET)) {
-			mpt3sas_base_hard_reset_handler(ioc, FORCE_BIG_HAMMER);
-			rc = -ETIMEDOUT;
-			goto unmap_in;
-		}
+		if (!(ioc->transport_cmds.status & MPT3_CMD_RESET))
+			issue_reset = 1;
+		goto issue_host_reset;
 	}
 
 	dtransportprintk(ioc, pr_info(MPT3SAS_FMT
 		"%s - complete\n", ioc->name, __func__));
 
-	if (!(ioc->transport_cmds.status & MPT3_CMD_REPLY_VALID)) {
+	if (ioc->transport_cmds.status & MPT3_CMD_REPLY_VALID) {
+
+		mpi_reply = ioc->transport_cmds.reply;
+
+		dtransportprintk(ioc, pr_info(MPT3SAS_FMT
+		    "%s - reply data transfer size(%d)\n",
+		    ioc->name, __func__,
+		    le16_to_cpu(mpi_reply->ResponseDataLength)));
+
+		memcpy(req->sense, mpi_reply, sizeof(*mpi_reply));
+		req->sense_len = sizeof(*mpi_reply);
+		req->resid_len = 0;
+		rsp->resid_len -=
+		    le16_to_cpu(mpi_reply->ResponseDataLength);
+
+		/* check if the resp needs to be copied from the allocated
+		 * pci mem */
+		if (bio_multiple_segments(rsp->bio)) {
+			u32 offset = 0;
+			u32 bytes_to_copy =
+			    le16_to_cpu(mpi_reply->ResponseDataLength);
+			bio_for_each_segment(bvec, rsp->bio, iter) {
+				if (bytes_to_copy <= bvec.bv_len) {
+					memcpy(page_address(bvec.bv_page) +
+					    bvec.bv_offset, pci_addr_in +
+					    offset, bytes_to_copy);
+					break;
+				} else {
+					memcpy(page_address(bvec.bv_page) +
+					    bvec.bv_offset, pci_addr_in +
+					    offset, bvec.bv_len);
+					bytes_to_copy -= bvec.bv_len;
+				}
+				offset += bvec.bv_len;
+			}
+		}
+	} else {
 		dtransportprintk(ioc, pr_info(MPT3SAS_FMT
 		    "%s - no reply\n", ioc->name, __func__));
 		rc = -ENXIO;
-		goto unmap_in;
 	}
 
-	mpi_reply = ioc->transport_cmds.reply;
-
-	dtransportprintk(ioc,
-		pr_info(MPT3SAS_FMT "%s - reply data transfer size(%d)\n",
-			ioc->name, __func__,
-			le16_to_cpu(mpi_reply->ResponseDataLength)));
-
-	memcpy(job->reply, mpi_reply, sizeof(*mpi_reply));
-	job->reply_len = sizeof(*mpi_reply);
-	reslen = le16_to_cpu(mpi_reply->ResponseDataLength);
-
-	if (addr_in) {
-		sg_copy_to_buffer(job->reply_payload.sg_list,
-				job->reply_payload.sg_cnt, addr_in,
-				job->reply_payload.payload_len);
+ issue_host_reset:
+	if (issue_reset) {
+		mpt3sas_base_hard_reset_handler(ioc, CAN_SLEEP,
+		    FORCE_BIG_HAMMER);
+		rc = -ETIMEDOUT;
 	}
 
-	rc = 0;
- unmap_in:
-	_transport_unmap_smp_buffer(&ioc->pdev->dev, &job->reply_payload,
-			dma_addr_in, addr_in);
- unmap_out:
-	_transport_unmap_smp_buffer(&ioc->pdev->dev, &job->request_payload,
-			dma_addr_out, addr_out);
+ unmap:
+	if (dma_addr_out)
+		pci_unmap_single(ioc->pdev, dma_addr_out, blk_rq_bytes(req),
+		    PCI_DMA_BIDIRECTIONAL);
+	if (dma_addr_in)
+		pci_unmap_single(ioc->pdev, dma_addr_in, blk_rq_bytes(rsp),
+		    PCI_DMA_BIDIRECTIONAL);
+
+ free_pci:
+	if (pci_addr_out)
+		pci_free_consistent(ioc->pdev, blk_rq_bytes(req), pci_addr_out,
+		    pci_dma_out);
+
+	if (pci_addr_in)
+		pci_free_consistent(ioc->pdev, blk_rq_bytes(rsp), pci_addr_in,
+		    pci_dma_in);
+
  out:
 	ioc->transport_cmds.status = MPT3_CMD_NOT_USED;
 	mutex_unlock(&ioc->transport_cmds.mutex);
-	bsg_job_done(job, rc, reslen);
+	return rc;
 }
 
 struct sas_function_template mpt3sas_transport_functions = {

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 #include "nv20.h"
 #include "regs.h"
 

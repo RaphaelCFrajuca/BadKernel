@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Arturo Borrero Gonzalez <arturo@debian.org>
+ * Copyright (c) 2014 Arturo Borrero Gonzalez <arturo.borrero.glez@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -22,24 +22,12 @@ static void nft_masq_ipv6_eval(const struct nft_expr *expr,
 			       const struct nft_pktinfo *pkt)
 {
 	struct nft_masq *priv = nft_expr_priv(expr);
-	struct nf_nat_range2 range;
+	struct nf_nat_range range;
 
 	memset(&range, 0, sizeof(range));
 	range.flags = priv->flags;
-	if (priv->sreg_proto_min) {
-		range.min_proto.all = (__force __be16)nft_reg_load16(
-			&regs->data[priv->sreg_proto_min]);
-		range.max_proto.all = (__force __be16)nft_reg_load16(
-			&regs->data[priv->sreg_proto_max]);
-	}
-	regs->verdict.code = nf_nat_masquerade_ipv6(pkt->skb, &range,
-						    nft_out(pkt));
-}
 
-static void
-nft_masq_ipv6_destroy(const struct nft_ctx *ctx, const struct nft_expr *expr)
-{
-	nf_ct_netns_put(ctx->net, NFPROTO_IPV6);
+	regs->verdict.code = nf_nat_masquerade_ipv6(pkt->skb, &range, pkt->out);
 }
 
 static struct nft_expr_type nft_masq_ipv6_type;
@@ -48,7 +36,6 @@ static const struct nft_expr_ops nft_masq_ipv6_ops = {
 	.size		= NFT_EXPR_SIZE(sizeof(struct nft_masq)),
 	.eval		= nft_masq_ipv6_eval,
 	.init		= nft_masq_init,
-	.destroy	= nft_masq_ipv6_destroy,
 	.dump		= nft_masq_dump,
 	.validate	= nft_masq_validate,
 };
@@ -85,5 +72,5 @@ module_init(nft_masq_ipv6_module_init);
 module_exit(nft_masq_ipv6_module_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Arturo Borrero Gonzalez <arturo@debian.org>");
+MODULE_AUTHOR("Arturo Borrero Gonzalez <arturo.borrero.glez@gmail.com>");
 MODULE_ALIAS_NFT_AF_EXPR(AF_INET6, "masq");

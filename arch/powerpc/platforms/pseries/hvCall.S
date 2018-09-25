@@ -23,7 +23,7 @@
 
 	.globl hcall_tracepoint_refcount
 hcall_tracepoint_refcount:
-	.8byte	0
+	.llong	0
 
 	.section	".text"
 #endif

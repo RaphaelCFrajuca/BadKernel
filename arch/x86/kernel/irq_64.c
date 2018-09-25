@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  *	Copyright (C) 1992, 1998 Linus Torvalds, Ingo Molnar
  *
@@ -12,12 +11,13 @@
 #include <linux/kernel_stat.h>
 #include <linux/interrupt.h>
 #include <linux/seq_file.h>
+#include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/ftrace.h>
 #include <linux/uaccess.h>
 #include <linux/smp.h>
-#include <linux/sched/task_stack.h>
 #include <asm/io_apic.h>
+#include <asm/idle.h>
 #include <asm/apic.h>
 
 int sysctl_panic_on_stackoverflow;
@@ -41,7 +41,8 @@ static inline void stack_overflow_check(struct pt_regs *regs)
 	if (user_mode(regs))
 		return;
 
-	if (regs->sp >= curbase + sizeof(struct pt_regs) + STACK_TOP_MARGIN &&
+	if (regs->sp >= curbase + sizeof(struct thread_info) +
+				  sizeof(struct pt_regs) + STACK_TOP_MARGIN &&
 	    regs->sp <= curbase + THREAD_SIZE)
 		return;
 
@@ -57,10 +58,10 @@ static inline void stack_overflow_check(struct pt_regs *regs)
 	if (regs->sp >= estack_top && regs->sp <= estack_bottom)
 		return;
 
-	WARN_ONCE(1, "do_IRQ(): %s has overflown the kernel stack (cur:%Lx,sp:%lx,irq stk top-bottom:%Lx-%Lx,exception stk top-bottom:%Lx-%Lx,ip:%pF)\n",
+	WARN_ONCE(1, "do_IRQ(): %s has overflown the kernel stack (cur:%Lx,sp:%lx,irq stk top-bottom:%Lx-%Lx,exception stk top-bottom:%Lx-%Lx)\n",
 		current->comm, curbase, regs->sp,
 		irq_stack_top, irq_stack_bottom,
-		estack_top, estack_bottom, (void *)regs->ip);
+		estack_top, estack_bottom);
 
 	if (sysctl_panic_on_stackoverflow)
 		panic("low stack detected by irq handler - check messages\n");

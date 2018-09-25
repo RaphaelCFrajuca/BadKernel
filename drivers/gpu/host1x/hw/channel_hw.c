@@ -46,7 +46,6 @@ static void trace_write_gather(struct host1x_cdma *cdma, struct host1x_bo *bo,
 		 */
 		for (i = 0; i < words; i += TRACE_MAX_LENGTH) {
 			u32 num_words = min(words - i, TRACE_MAX_LENGTH);
-
 			offset += i * sizeof(u32);
 
 			trace_host1x_cdma_push_gather(dev_name(dev), bo,
@@ -67,7 +66,6 @@ static void submit_gathers(struct host1x_job *job)
 		struct host1x_job_gather *g = &job->gathers[i];
 		u32 op1 = host1x_opcode_gather(g->words);
 		u32 op2 = g->base + g->offset;
-
 		trace_write_gather(cdma, g->bo, g->offset, op1 & 0xffff);
 		host1x_cdma_push(cdma, op1, op2);
 	}
@@ -77,8 +75,7 @@ static inline void synchronize_syncpt_base(struct host1x_job *job)
 {
 	struct host1x *host = dev_get_drvdata(job->channel->dev->parent);
 	struct host1x_syncpt *sp = host->syncpt + job->syncpt_id;
-	unsigned int id;
-	u32 value;
+	u32 id, value;
 
 	value = host1x_syncpt_read_max(sp);
 	id = sp->base->id;
@@ -104,7 +101,8 @@ static int channel_submit(struct host1x_job *job)
 	sp = host->syncpt + job->syncpt_id;
 	trace_host1x_channel_submit(dev_name(ch->dev),
 				    job->num_gathers, job->num_relocs,
-				    job->syncpt_id, job->syncpt_incrs);
+				    job->num_waitchk, job->syncpt_id,
+				    job->syncpt_incrs);
 
 	/* before error checks, return current max */
 	prev_max = job->syncpt_end = host1x_syncpt_read_max(sp);
@@ -146,8 +144,6 @@ static int channel_submit(struct host1x_job *job)
 
 	syncval = host1x_syncpt_incr_max(sp, user_syncpt_incrs);
 
-	host1x_hw_syncpt_assign_to_channel(host, sp, ch);
-
 	job->syncpt_end = syncval;
 
 	/* add a setclass for modules that require it */
@@ -164,7 +160,7 @@ static int channel_submit(struct host1x_job *job)
 	trace_host1x_channel_submitted(dev_name(ch->dev), prev_max, syncval);
 
 	/* schedule a submit complete interrupt */
-	err = host1x_intr_add_action(host, sp, syncval,
+	err = host1x_intr_add_action(host, job->syncpt_id, syncval,
 				     HOST1X_INTR_ACTION_SUBMIT_COMPLETE, ch,
 				     completed_waiter, NULL);
 	completed_waiter = NULL;
@@ -179,32 +175,14 @@ error:
 	return err;
 }
 
-static void enable_gather_filter(struct host1x *host,
-				 struct host1x_channel *ch)
-{
-#if HOST1X_HW >= 6
-	u32 val;
-
-	if (!host->hv_regs)
-		return;
-
-	val = host1x_hypervisor_readl(
-		host, HOST1X_HV_CH_KERNEL_FILTER_GBUFFER(ch->id / 32));
-	val |= BIT(ch->id % 32);
-	host1x_hypervisor_writel(
-		host, val, HOST1X_HV_CH_KERNEL_FILTER_GBUFFER(ch->id / 32));
-#elif HOST1X_HW >= 4
-	host1x_ch_writel(ch,
-			 HOST1X_CHANNEL_CHANNELCTRL_KERNEL_FILTER_GBUFFER(1),
-			 HOST1X_CHANNEL_CHANNELCTRL);
-#endif
-}
-
 static int host1x_channel_init(struct host1x_channel *ch, struct host1x *dev,
 			       unsigned int index)
 {
+	ch->id = index;
+	mutex_init(&ch->reflock);
+	mutex_init(&ch->submitlock);
+
 	ch->regs = dev->regs + index * HOST1X_CHANNEL_SIZE;
-	enable_gather_filter(dev, ch);
 	return 0;
 }
 

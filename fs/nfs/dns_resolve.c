@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0
 /*
  * linux/fs/nfs/dns_resolve.c
  *

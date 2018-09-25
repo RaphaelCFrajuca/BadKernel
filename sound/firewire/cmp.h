@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef SOUND_FIREWIRE_CMP_H_INCLUDED
 #define SOUND_FIREWIRE_CMP_H_INCLUDED
 

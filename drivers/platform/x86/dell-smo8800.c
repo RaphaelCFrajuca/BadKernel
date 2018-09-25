@@ -24,7 +24,6 @@
 #include <linux/acpi.h>
 #include <linux/interrupt.h>
 #include <linux/miscdevice.h>
-#include <linux/uaccess.h>
 
 struct smo8800_device {
 	u32 irq;                     /* acpi device irq */
@@ -90,7 +89,7 @@ static ssize_t smo8800_misc_read(struct file *file, char __user *buf,
 					 struct smo8800_device, miscdev);
 
 	u32 data = 0;
-	unsigned char byte_data;
+	unsigned char byte_data = 0;
 	ssize_t retval = 1;
 
 	if (count < 1)
@@ -103,6 +102,7 @@ static ssize_t smo8800_misc_read(struct file *file, char __user *buf,
 	if (retval)
 		return retval;
 
+	byte_data = 1;
 	retval = 1;
 
 	if (data < 255)

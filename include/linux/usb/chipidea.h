@@ -1,4 +1,3 @@
-/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Platform data for the chipidea USB dual role controller
  */
@@ -13,7 +12,7 @@ struct ci_hdrc;
 
 /**
  * struct ci_hdrc_cable - structure for external connector cable state tracking
- * @connected: true if cable is connected, false otherwise
+ * @state: current state of the line
  * @changed: set to true when extcon event happen
  * @enabled: set to true if we've enabled the vbus or id interrupt
  * @edev: device which generate events
@@ -22,7 +21,7 @@ struct ci_hdrc;
  * @conn: used for notification registration
  */
 struct ci_hdrc_cable {
-	bool				connected;
+	bool				state;
 	bool				changed;
 	bool				enabled;
 	struct extcon_dev		*edev;
@@ -58,12 +57,10 @@ struct ci_hdrc_platform_data {
 #define CI_HDRC_OVERRIDE_AHB_BURST	BIT(9)
 #define CI_HDRC_OVERRIDE_TX_BURST	BIT(10)
 #define CI_HDRC_OVERRIDE_RX_BURST	BIT(11)
-#define CI_HDRC_OVERRIDE_PHY_CONTROL	BIT(12) /* Glue layer manages phy */
-#define CI_HDRC_REQUIRES_ALIGNED_DMA	BIT(13)
 	enum usb_dr_mode	dr_mode;
 #define CI_HDRC_CONTROLLER_RESET_EVENT		0
 #define CI_HDRC_CONTROLLER_STOPPED_EVENT	1
-	int	(*notify_event) (struct ci_hdrc *ci, unsigned event);
+	void	(*notify_event) (struct ci_hdrc *ci, unsigned event);
 	struct regulator	*reg_vbus;
 	struct usb_otg_caps	ci_otg_caps;
 	bool			tpl_support;

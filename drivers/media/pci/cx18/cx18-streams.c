@@ -15,6 +15,11 @@
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+ *  02111-1307  USA
  */
 
 #include "cx18-driver.h"
@@ -29,9 +34,9 @@
 #include "cx18-scb.h"
 #include "cx18-dvb.h"
 
-#define CX18_DSP0_INTERRUPT_MASK	0xd0004C
+#define CX18_DSP0_INTERRUPT_MASK     	0xd0004C
 
-static const struct v4l2_file_operations cx18_v4l2_enc_fops = {
+static struct v4l2_file_operations cx18_v4l2_enc_fops = {
 	.owner = THIS_MODULE,
 	.read = cx18_v4l2_read,
 	.open = cx18_v4l2_open,
@@ -116,7 +121,7 @@ static int cx18_prepare_buffer(struct videobuf_queue *q,
 	unsigned int width, unsigned int height,
 	enum v4l2_field field)
 {
-	struct cx18 *cx = s->cx;
+        struct cx18 *cx = s->cx;
 	int rc = 0;
 
 	/* check settings */
@@ -240,7 +245,7 @@ static void buffer_queue(struct videobuf_queue *q, struct videobuf_buffer *vb)
 	list_add_tail(&buf->vb.queue, &s->vb_capture);
 }
 
-static const struct videobuf_queue_ops cx18_videobuf_qops = {
+static struct videobuf_queue_ops cx18_videobuf_qops = {
 	.buf_setup    = buffer_setup,
 	.buf_prepare  = buffer_prepare,
 	.buf_queue    = buffer_queue,
@@ -282,7 +287,9 @@ static void cx18_stream_init(struct cx18 *cx, int type)
 	INIT_WORK(&s->out_work_order, cx18_out_work_handler);
 
 	INIT_LIST_HEAD(&s->vb_capture);
-	timer_setup(&s->vb_timeout, cx18_vb_timeout, 0);
+	s->vb_timeout.function = cx18_vb_timeout;
+	s->vb_timeout.data = (unsigned long)s;
+	init_timer(&s->vb_timeout);
 	spin_lock_init(&s->vb_lock);
 	if (type == CX18_ENC_STREAM_TYPE_YUV) {
 		spin_lock_init(&s->vbuf_q_lock);
@@ -346,8 +353,8 @@ static int cx18_prep_dev(struct cx18 *cx, int type)
 		if (cx->card->hw_all & CX18_HW_DVB) {
 			s->dvb = kzalloc(sizeof(struct cx18_dvb), GFP_KERNEL);
 			if (s->dvb == NULL) {
-				CX18_ERR("Couldn't allocate cx18_dvb structure for %s\n",
-					 s->name);
+				CX18_ERR("Couldn't allocate cx18_dvb structure"
+					 " for %s\n", s->name);
 				return -ENOMEM;
 			}
 		} else {
@@ -455,7 +462,8 @@ static int cx18_reg_dev(struct cx18 *cx, int type)
 
 	case VFL_TYPE_VBI:
 		if (cx->stream_buffers[type])
-			CX18_INFO("Registered device %s for %s (%d x %d bytes)\n",
+			CX18_INFO("Registered device %s for %s "
+				  "(%d x %d bytes)\n",
 				  name, s->name, cx->stream_buffers[type],
 				  cx->stream_buf_size[type]);
 		else
@@ -597,9 +605,9 @@ static void cx18_vbi_setup(struct cx18_stream *s)
 	/* Lines per field */
 	data[1] = (lines / 2) | ((lines / 2) << 16);
 	/* bytes per line */
-	data[2] = (raw ? VBI_ACTIVE_SAMPLES
-		       : (cx->is_60hz ? VBI_HBLANK_SAMPLES_60HZ
-				      : VBI_HBLANK_SAMPLES_50HZ));
+	data[2] = (raw ? vbi_active_samples
+		       : (cx->is_60hz ? vbi_hblank_samples_60Hz
+				      : vbi_hblank_samples_50Hz));
 	/* Every X number of frames a VBI interrupt arrives
 	   (frames as in 25 or 30 fps) */
 	data[3] = 1;
@@ -753,7 +761,7 @@ static void cx18_stream_configure_mdls(struct cx18_stream *s)
 		s->bufs_per_mdl = 1;
 		if  (cx18_raw_vbi(s->cx)) {
 			s->mdl_size = (s->cx->is_60hz ? 12 : 18)
-						       * 2 * VBI_ACTIVE_SAMPLES;
+						       * 2 * vbi_active_samples;
 		} else {
 			/*
 			 * See comment in cx18_vbi_setup() below about the
@@ -761,8 +769,8 @@ static void cx18_stream_configure_mdls(struct cx18_stream *s)
 			 * the lines on which EAV RP codes toggle.
 			*/
 			s->mdl_size = s->cx->is_60hz
-				   ? (21 - 4 + 1) * 2 * VBI_HBLANK_SAMPLES_60HZ
-				   : (23 - 2 + 1) * 2 * VBI_HBLANK_SAMPLES_50HZ;
+				   ? (21 - 4 + 1) * 2 * vbi_hblank_samples_60Hz
+				   : (23 - 2 + 1) * 2 * vbi_hblank_samples_50Hz;
 		}
 		break;
 	default:
@@ -853,7 +861,7 @@ int cx18_start_v4l2_encode_stream(struct cx18_stream *s)
 
 		/*
 		 * Audio related reset according to
-		 * Documentation/media/v4l-drivers/cx2341x.rst
+		 * Documentation/video4linux/cx2341x/fw-encoder-api.txt
 		 */
 		if (atomic_read(&cx->ana_capturing) == 0)
 			cx18_vapi(cx, CX18_CPU_SET_MISC_PARAMETERS, 2,
@@ -861,7 +869,7 @@ int cx18_start_v4l2_encode_stream(struct cx18_stream *s)
 
 		/*
 		 * Number of lines for Field 1 & Field 2 according to
-		 * Documentation/media/v4l-drivers/cx2341x.rst
+		 * Documentation/video4linux/cx2341x/fw-encoder-api.txt
 		 * Field 1 is 312 for 625 line systems in BT.656
 		 * Field 2 is 313 for 625 line systems in BT.656
 		 */

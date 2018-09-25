@@ -37,10 +37,8 @@
 
 #include <linux/module.h>
 #include <linux/slab.h>
-#include <linux/cred.h>
 #include <linux/dns_resolver.h>
 #include <linux/err.h>
-
 #include <keys/dns_resolver-type.h>
 #include <keys/user-type.h>
 
@@ -52,11 +50,11 @@
  * @name: Name to look up
  * @namelen: Length of name
  * @options: Request options (or NULL if no options)
- * @_result: Where to place the returned data (or NULL)
+ * @_result: Where to place the returned data.
  * @_expiry: Where to store the result expiry time (or NULL)
  *
- * The data will be returned in the pointer at *result, if provided, and the
- * caller is responsible for freeing it.
+ * The data will be returned in the pointer at *result, and the caller is
+ * responsible for freeing it.
  *
  * The description should be of the form "[<query_type>:]<domain_name>", and
  * the options need to be appropriate for the query type requested.  If no
@@ -72,7 +70,7 @@ int dns_query(const char *type, const char *name, size_t namelen,
 	      const char *options, char **_result, time64_t *_expiry)
 {
 	struct key *rkey;
-	struct user_key_payload *upayload;
+	const struct user_key_payload *upayload;
 	const struct cred *saved_cred;
 	size_t typelen, desclen;
 	char *desc, *cp;
@@ -81,7 +79,7 @@ int dns_query(const char *type, const char *name, size_t namelen,
 	kenter("%s,%*.*s,%zu,%s",
 	       type, (int)namelen, (int)namelen, name, namelen, options);
 
-	if (!name || namelen == 0)
+	if (!name || namelen == 0 || !_result)
 		return -EINVAL;
 
 	/* construct the query key description as "[<type>:]<name>" */
@@ -143,18 +141,16 @@ int dns_query(const char *type, const char *name, size_t namelen,
 	if (ret)
 		goto put;
 
-	upayload = user_key_payload_locked(rkey);
+	upayload = user_key_payload(rkey);
 	len = upayload->datalen;
 
-	if (_result) {
-		ret = -ENOMEM;
-		*_result = kmalloc(len + 1, GFP_KERNEL);
-		if (!*_result)
-			goto put;
+	ret = -ENOMEM;
+	*_result = kmalloc(len + 1, GFP_KERNEL);
+	if (!*_result)
+		goto put;
 
-		memcpy(*_result, upayload->data, len);
-		(*_result)[len] = '\0';
-	}
+	memcpy(*_result, upayload->data, len);
+	(*_result)[len] = '\0';
 
 	if (_expiry)
 		*_expiry = rkey->expiry;

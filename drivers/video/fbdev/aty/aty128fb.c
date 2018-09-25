@@ -68,6 +68,7 @@
 #include <asm/machdep.h>
 #include <asm/pmac_feature.h>
 #include <asm/prom.h>
+#include <asm/pci-bridge.h>
 #include "../macmodes.h"
 #endif
 
@@ -93,7 +94,7 @@
 
 #ifndef CONFIG_PPC_PMAC
 /* default mode */
-static const struct fb_var_screeninfo default_var = {
+static struct fb_var_screeninfo default_var = {
 	/* 640x480, 60 Hz, Non-Interlaced (25.175 MHz dotclock) */
 	640, 480, 640, 480, 0, 0, 8, 0,
 	{0, 8, 0}, {0, 8, 0}, {0, 8, 0}, {0, 0, 0},
@@ -104,7 +105,7 @@ static const struct fb_var_screeninfo default_var = {
 #else /* CONFIG_PPC_PMAC */
 /* default to 1024x768 at 75Hz on PPC - this will work
  * on the iMac, the usual 640x480 @ 60Hz doesn't. */
-static const struct fb_var_screeninfo default_var = {
+static struct fb_var_screeninfo default_var = {
 	/* 1024x768, 75 Hz, Non-Interlaced (78.75 MHz dotclock) */
 	1024, 768, 1024, 768, 0, 0, 8, 0,
 	{0, 8, 0}, {0, 8, 0}, {0, 8, 0}, {0, 0, 0},
@@ -116,7 +117,7 @@ static const struct fb_var_screeninfo default_var = {
 
 /* default modedb mode */
 /* 640x480, 60 Hz, Non-Interlaced (25.172 MHz dotclock) */
-static const struct fb_videomode defaultmode = {
+static struct fb_videomode defaultmode = {
 	.refresh =	60,
 	.xres =		640,
 	.yres =		480,
@@ -166,7 +167,7 @@ static int aty128_pci_resume(struct pci_dev *pdev);
 static int aty128_do_resume(struct pci_dev *pdev);
 
 /* supported Rage128 chipsets */
-static const struct pci_device_id aty128_pci_tbl[] = {
+static struct pci_device_id aty128_pci_tbl[] = {
 	{ PCI_VENDOR_ID_ATI, PCI_DEVICE_ID_ATI_RAGE128_LE,
 	  PCI_ANY_ID, PCI_ANY_ID, 0, 0, rage_M3_pci },
 	{ PCI_VENDOR_ID_ATI, PCI_DEVICE_ID_ATI_RAGE128_LF,
@@ -375,7 +376,7 @@ static const struct aty128_meminfo ddr_sgram = {
 	.name = "64-bit DDR SGRAM",
 };
 
-static const struct fb_fix_screeninfo aty128fb_fix = {
+static struct fb_fix_screeninfo aty128fb_fix = {
 	.id		= "ATY Rage128",
 	.type		= FB_TYPE_PACKED_PIXELS,
 	.visual		= FB_VISUAL_PSEUDOCOLOR,
@@ -1716,7 +1717,7 @@ static int aty128fb_setup(char *options)
 			continue;
 		}
 		if(!strncmp(this_opt, "nomtrr", 6)) {
-			mtrr = false;
+			mtrr = 0;
 			continue;
 		}
 #ifdef CONFIG_PPC_PMAC
@@ -2442,7 +2443,7 @@ static void aty128_set_suspend(struct aty128fb_par *par, int suspend)
 		(void)aty_ld_pll(POWER_MANAGEMENT);
 		aty_st_le32(BUS_CNTL1, 0x00000010);
 		aty_st_le32(MEM_POWER_MISC, 0x0c830000);
-		msleep(100);
+		mdelay(100);
 
 		/* Switch PCI power management to D2 */
 		pci_set_power_state(pdev, PCI_D2);

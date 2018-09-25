@@ -4,8 +4,11 @@
  *  For licencing details see kernel-base/COPYING
  */
 
-#include <linux/uaccess.h>
-#include <linux/export.h>
+#include <linux/highmem.h>
+#include <linux/module.h>
+
+#include <asm/word-at-a-time.h>
+#include <linux/sched.h>
 
 /*
  * We rely on the nested NMI work to allow atomic faults from the NMI path; the

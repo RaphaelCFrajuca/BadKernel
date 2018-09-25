@@ -17,8 +17,6 @@
 
 #include <linux/user.h>
 #include <linux/elfcore.h>
-#include <linux/mm_types.h>
-
 #include <asm/debugreg.h>
 
 /*

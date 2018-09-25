@@ -1,10 +1,21 @@
-// SPDX-License-Identifier: GPL-2.0+
-// handle au0828 IR remotes via linux kernel input layer.
-//
-// Copyright (c) 2014 Mauro Carvalho Chehab <mchehab@samsung.com>
-// Copyright (c) 2014 Samsung Electronics Co., Ltd.
-//
-// Based on em28xx-input.c.
+/*
+  handle au0828 IR remotes via linux kernel input layer.
+
+   Copyright (C) 2014 Mauro Carvalho Chehab <mchehab@samsung.com>
+   Copyright (c) 2014 Samsung Electronics Co., Ltd.
+
+  Based on em28xx-input.c.
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+ */
 
 #include "au0828.h"
 
@@ -258,7 +269,7 @@ static void au0828_rc_stop(struct rc_dev *rc)
 static int au0828_probe_i2c_ir(struct au0828_dev *dev)
 {
 	int i = 0;
-	static const unsigned short addr_list[] = {
+	const unsigned short addr_list[] = {
 		 0x47, I2C_CLIENT_END
 	};
 
@@ -287,7 +298,7 @@ int au0828_rc_register(struct au0828_dev *dev)
 		return -ENODEV;
 
 	ir = kzalloc(sizeof(*ir), GFP_KERNEL);
-	rc = rc_allocate_device(RC_DRIVER_IR_RAW);
+	rc = rc_allocate_device();
 	if (!ir || !rc)
 		goto error;
 
@@ -324,7 +335,7 @@ int au0828_rc_register(struct au0828_dev *dev)
 	usb_make_path(dev->usbdev, ir->phys, sizeof(ir->phys));
 	strlcat(ir->phys, "/input0", sizeof(ir->phys));
 
-	rc->device_name = ir->name;
+	rc->input_name = ir->name;
 	rc->input_phys = ir->phys;
 	rc->input_id.bustype = BUS_USB;
 	rc->input_id.version = 1;
@@ -332,15 +343,15 @@ int au0828_rc_register(struct au0828_dev *dev)
 	rc->input_id.product = le16_to_cpu(dev->usbdev->descriptor.idProduct);
 	rc->dev.parent = &dev->usbdev->dev;
 	rc->driver_name = "au0828-input";
-	rc->allowed_protocols = RC_PROTO_BIT_NEC | RC_PROTO_BIT_NECX |
-				RC_PROTO_BIT_NEC32 | RC_PROTO_BIT_RC5;
+	rc->driver_type = RC_DRIVER_IR_RAW;
+	rc->allowed_protocols = RC_BIT_NEC | RC_BIT_RC5;
 
 	/* all done */
 	err = rc_register_device(rc);
 	if (err)
 		goto error;
 
-	pr_info("Remote controller %s initialized\n", ir->name);
+	pr_info("Remote controller %s initalized\n", ir->name);
 
 	return 0;
 

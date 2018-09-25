@@ -221,8 +221,7 @@ void omap_mcbsp_config(struct omap_mcbsp *mcbsp,
 
 	/* Enable TX/RX sync error interrupts by default */
 	if (mcbsp->irq)
-		MCBSP_WRITE(mcbsp, IRQEN, RSYNCERREN | XSYNCERREN |
-			    RUNDFLEN | ROVFLEN | XUNDFLEN | XOVFLEN);
+		MCBSP_WRITE(mcbsp, IRQEN, RSYNCERREN | XSYNCERREN);
 }
 
 /**
@@ -258,12 +257,8 @@ static void omap_st_on(struct omap_mcbsp *mcbsp)
 {
 	unsigned int w;
 
-	if (mcbsp->pdata->force_ick_on)
-		mcbsp->pdata->force_ick_on(mcbsp->st_data->mcbsp_iclk, true);
-
-	/* Disable Sidetone clock auto-gating for normal operation */
-	w = MCBSP_ST_READ(mcbsp, SYSCONFIG);
-	MCBSP_ST_WRITE(mcbsp, SYSCONFIG, w & ~(ST_AUTOIDLE));
+	if (mcbsp->pdata->enable_st_clock)
+		mcbsp->pdata->enable_st_clock(mcbsp->id, 1);
 
 	/* Enable McBSP Sidetone */
 	w = MCBSP_READ(mcbsp, SSELCR);
@@ -284,12 +279,8 @@ static void omap_st_off(struct omap_mcbsp *mcbsp)
 	w = MCBSP_READ(mcbsp, SSELCR);
 	MCBSP_WRITE(mcbsp, SSELCR, w & ~(SIDETONEEN));
 
-	/* Enable Sidetone clock auto-gating to reduce power consumption */
-	w = MCBSP_ST_READ(mcbsp, SYSCONFIG);
-	MCBSP_ST_WRITE(mcbsp, SYSCONFIG, w | ST_AUTOIDLE);
-
-	if (mcbsp->pdata->force_ick_on)
-		mcbsp->pdata->force_ick_on(mcbsp->st_data->mcbsp_iclk, false);
+	if (mcbsp->pdata->enable_st_clock)
+		mcbsp->pdata->enable_st_clock(mcbsp->id, 0);
 }
 
 static void omap_st_fir_write(struct omap_mcbsp *mcbsp, s16 *fir)
@@ -835,11 +826,15 @@ static ssize_t dma_op_mode_store(struct device *dev,
 				const char *buf, size_t size)
 {
 	struct omap_mcbsp *mcbsp = dev_get_drvdata(dev);
-	int i;
+	const char * const *s;
+	int i = 0;
 
-	i = sysfs_match_string(dma_op_modes, buf);
-	if (i < 0)
-		return i;
+	for (s = &dma_op_modes[i]; i < ARRAY_SIZE(dma_op_modes); s++, i++)
+		if (sysfs_streq(buf, *s))
+			break;
+
+	if (i == ARRAY_SIZE(dma_op_modes))
+		return -EINVAL;
 
 	spin_lock_irq(&mcbsp->lock);
 	if (!mcbsp->free) {
@@ -854,7 +849,7 @@ unlock:
 	return size;
 }
 
-static DEVICE_ATTR_RW(dma_op_mode);
+static DEVICE_ATTR(dma_op_mode, 0644, dma_op_mode_show, dma_op_mode_store);
 
 static const struct attribute *additional_attrs[] = {
 	&dev_attr_max_tx_thres.attr,
@@ -923,7 +918,7 @@ out:
 	return size;
 }
 
-static DEVICE_ATTR_RW(st_taps);
+static DEVICE_ATTR(st_taps, 0644, st_taps_show, st_taps_store);
 
 static const struct attribute *sidetone_attrs[] = {
 	&dev_attr_st_taps.attr,
@@ -942,13 +937,6 @@ static int omap_st_add(struct omap_mcbsp *mcbsp, struct resource *res)
 	st_data = devm_kzalloc(mcbsp->dev, sizeof(*mcbsp->st_data), GFP_KERNEL);
 	if (!st_data)
 		return -ENOMEM;
-
-	st_data->mcbsp_iclk = clk_get(mcbsp->dev, "ick");
-	if (IS_ERR(st_data->mcbsp_iclk)) {
-		dev_warn(mcbsp->dev,
-			 "Failed to get ick, sidetone might be broken\n");
-		st_data->mcbsp_iclk = NULL;
-	}
 
 	st_data->io_base_st = devm_ioremap(mcbsp->dev, res->start,
 					   resource_size(res));
@@ -1092,13 +1080,11 @@ err_thres:
 	return ret;
 }
 
-void omap_mcbsp_cleanup(struct omap_mcbsp *mcbsp)
+void omap_mcbsp_sysfs_remove(struct omap_mcbsp *mcbsp)
 {
 	if (mcbsp->pdata->buffer_size)
 		sysfs_remove_group(&mcbsp->dev->kobj, &additional_attr_group);
 
-	if (mcbsp->st_data) {
+	if (mcbsp->st_data)
 		sysfs_remove_group(&mcbsp->dev->kobj, &sidetone_attr_group);
-		clk_put(mcbsp->st_data->mcbsp_iclk);
-	}
 }

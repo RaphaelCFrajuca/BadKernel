@@ -4,7 +4,7 @@
  * Copyright (C) 1997 Richard Günther
  *
  * binfmt_misc detects binaries via a magic or filename extension and invokes
- * a specified wrapper. See Documentation/admin-guide/binfmt-misc.rst for more details.
+ * a specified wrapper. See Documentation/binfmt_misc.txt for more details.
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -12,7 +12,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/init.h>
-#include <linux/sched/mm.h>
+#include <linux/sched.h>
 #include <linux/magic.h>
 #include <linux/binfmts.h>
 #include <linux/slab.h>
@@ -25,8 +25,6 @@
 #include <linux/syscalls.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>
-
-#include "internal.h"
 
 #ifdef DEBUG
 # define USE_DEBUG 1
@@ -45,7 +43,6 @@ enum {Enabled, Magic};
 #define MISC_FMT_PRESERVE_ARGV0 (1 << 31)
 #define MISC_FMT_OPEN_BINARY (1 << 30)
 #define MISC_FMT_CREDENTIALS (1 << 29)
-#define MISC_FMT_OPEN_FILE (1 << 28)
 
 typedef struct {
 	struct list_head list;
@@ -54,10 +51,9 @@ typedef struct {
 	int size;			/* size of magic/mask */
 	char *magic;			/* magic or filename extension */
 	char *mask;			/* mask, NULL for exact match */
-	const char *interpreter;	/* filename of interpreter */
+	char *interpreter;		/* filename of interpreter */
 	char *name;
 	struct dentry *dentry;
-	struct file *interp_file;
 } Node;
 
 static DEFINE_RWLOCK(entries_lock);
@@ -131,26 +127,27 @@ static int load_misc_binary(struct linux_binprm *bprm)
 {
 	Node *fmt;
 	struct file *interp_file = NULL;
+	char iname[BINPRM_BUF_SIZE];
+	const char *iname_addr = iname;
 	int retval;
 	int fd_binary = -1;
 
 	retval = -ENOEXEC;
 	if (!enabled)
-		return retval;
+		goto ret;
 
 	/* to keep locking time low, we copy the interpreter string */
 	read_lock(&entries_lock);
 	fmt = check_file(bprm);
 	if (fmt)
-		dget(fmt->dentry);
+		strlcpy(iname, fmt->interpreter, BINPRM_BUF_SIZE);
 	read_unlock(&entries_lock);
 	if (!fmt)
-		return retval;
+		goto ret;
 
 	/* Need to be able to load the file after exec */
-	retval = -ENOENT;
 	if (bprm->interp_flags & BINPRM_FLAGS_PATH_INACCESSIBLE)
-		goto ret;
+		return -ENOENT;
 
 	if (!(fmt->flags & MISC_FMT_PRESERVE_ARGV0)) {
 		retval = remove_arg_zero(bprm);
@@ -194,38 +191,29 @@ static int load_misc_binary(struct linux_binprm *bprm)
 	bprm->argc++;
 
 	/* add the interp as argv[0] */
-	retval = copy_strings_kernel(1, &fmt->interpreter, bprm);
+	retval = copy_strings_kernel(1, &iname_addr, bprm);
 	if (retval < 0)
 		goto error;
 	bprm->argc++;
 
 	/* Update interp in case binfmt_script needs it. */
-	retval = bprm_change_interp(fmt->interpreter, bprm);
+	retval = bprm_change_interp(iname, bprm);
 	if (retval < 0)
 		goto error;
 
-	if (fmt->flags & MISC_FMT_OPEN_FILE) {
-		interp_file = filp_clone_open(fmt->interp_file);
-		if (!IS_ERR(interp_file))
-			deny_write_access(interp_file);
-	} else {
-		interp_file = open_exec(fmt->interpreter);
-	}
+	interp_file = open_exec(iname);
 	retval = PTR_ERR(interp_file);
 	if (IS_ERR(interp_file))
 		goto error;
 
 	bprm->file = interp_file;
 	if (fmt->flags & MISC_FMT_CREDENTIALS) {
-		loff_t pos = 0;
-
 		/*
 		 * No need to call prepare_binprm(), it's already been
 		 * done.  bprm->buf is stale, update from interp_file.
 		 */
 		memset(bprm->buf, 0, BINPRM_BUF_SIZE);
-		retval = kernel_read(bprm->file, bprm->buf, BINPRM_BUF_SIZE,
-				&pos);
+		retval = kernel_read(bprm->file, 0, bprm->buf, BINPRM_BUF_SIZE);
 	} else
 		retval = prepare_binprm(bprm);
 
@@ -237,11 +225,10 @@ static int load_misc_binary(struct linux_binprm *bprm)
 		goto error;
 
 ret:
-	dput(fmt->dentry);
 	return retval;
 error:
 	if (fd_binary > 0)
-		ksys_close(fd_binary);
+		sys_close(fd_binary);
 	bprm->interp_flags = 0;
 	bprm->interp_data = 0;
 	goto ret;
@@ -297,11 +284,6 @@ static char *check_special_flags(char *sfs, Node *e)
 			   open-binary flag */
 			e->flags |= (MISC_FMT_CREDENTIALS |
 					MISC_FMT_OPEN_BINARY);
-			break;
-		case 'F':
-			pr_debug("register: flag: F: open interpreter file now\n");
-			p++;
-			e->flags |= MISC_FMT_OPEN_FILE;
 			break;
 		default:
 			cont = 0;
@@ -567,8 +549,6 @@ static void entry_status(Node *e, char *page)
 		*dp++ = 'O';
 	if (e->flags & MISC_FMT_CREDENTIALS)
 		*dp++ = 'C';
-	if (e->flags & MISC_FMT_OPEN_FILE)
-		*dp++ = 'F';
 	*dp++ = '\n';
 
 	if (!test_bit(Magic, &e->flags)) {
@@ -593,20 +573,15 @@ static struct inode *bm_get_inode(struct super_block *sb, int mode)
 		inode->i_ino = get_next_ino();
 		inode->i_mode = mode;
 		inode->i_atime = inode->i_mtime = inode->i_ctime =
-			current_time(inode);
+			current_fs_time(inode->i_sb);
 	}
 	return inode;
 }
 
 static void bm_evict_inode(struct inode *inode)
 {
-	Node *e = inode->i_private;
-
-	if (e && e->flags & MISC_FMT_OPEN_FILE)
-		filp_close(e->interp_file, NULL);
-
 	clear_inode(inode);
-	kfree(e);
+	kfree(inode->i_private);
 }
 
 static void kill_node(Node *e)
@@ -614,14 +589,19 @@ static void kill_node(Node *e)
 	struct dentry *dentry;
 
 	write_lock(&entries_lock);
-	list_del_init(&e->list);
+	dentry = e->dentry;
+	if (dentry) {
+		list_del_init(&e->list);
+		e->dentry = NULL;
+	}
 	write_unlock(&entries_lock);
 
-	dentry = e->dentry;
-	drop_nlink(d_inode(dentry));
-	d_drop(dentry);
-	dput(dentry);
-	simple_release_fs(&bm_mnt, &entry_count);
+	if (dentry) {
+		drop_nlink(d_inode(dentry));
+		d_drop(dentry);
+		dput(dentry);
+		simple_release_fs(&bm_mnt, &entry_count);
+	}
 }
 
 /* /<entry> */
@@ -663,13 +643,13 @@ static ssize_t bm_entry_write(struct file *file, const char __user *buffer,
 		break;
 	case 3:
 		/* Delete this handler. */
-		root = file_inode(file)->i_sb->s_root;
-		inode_lock(d_inode(root));
+		root = dget(file->f_path.dentry->d_sb->s_root);
+		mutex_lock(&d_inode(root)->i_mutex);
 
-		if (!list_empty(&e->list))
-			kill_node(e);
+		kill_node(e);
 
-		inode_unlock(d_inode(root));
+		mutex_unlock(&d_inode(root)->i_mutex);
+		dput(root);
 		break;
 	default:
 		return res;
@@ -691,8 +671,8 @@ static ssize_t bm_register_write(struct file *file, const char __user *buffer,
 {
 	Node *e;
 	struct inode *inode;
-	struct super_block *sb = file_inode(file)->i_sb;
-	struct dentry *root = sb->s_root, *dentry;
+	struct dentry *root, *dentry;
+	struct super_block *sb = file->f_path.dentry->d_sb;
 	int err = 0;
 
 	e = create_entry(buffer, count);
@@ -700,7 +680,8 @@ static ssize_t bm_register_write(struct file *file, const char __user *buffer,
 	if (IS_ERR(e))
 		return PTR_ERR(e);
 
-	inode_lock(d_inode(root));
+	root = dget(sb->s_root);
+	mutex_lock(&d_inode(root)->i_mutex);
 	dentry = lookup_one_len(e->name, root, strlen(e->name));
 	err = PTR_ERR(dentry);
 	if (IS_ERR(dentry))
@@ -723,21 +704,6 @@ static ssize_t bm_register_write(struct file *file, const char __user *buffer,
 		goto out2;
 	}
 
-	if (e->flags & MISC_FMT_OPEN_FILE) {
-		struct file *f;
-
-		f = open_exec(e->interpreter);
-		if (IS_ERR(f)) {
-			err = PTR_ERR(f);
-			pr_notice("register: failed to install interpreter file %s\n", e->interpreter);
-			simple_release_fs(&bm_mnt, &entry_count);
-			iput(inode);
-			inode = NULL;
-			goto out2;
-		}
-		e->interp_file = f;
-	}
-
 	e->dentry = dget(dentry);
 	inode->i_private = e;
 	inode->i_fop = &bm_entry_operations;
@@ -751,11 +717,12 @@ static ssize_t bm_register_write(struct file *file, const char __user *buffer,
 out2:
 	dput(dentry);
 out:
-	inode_unlock(d_inode(root));
+	mutex_unlock(&d_inode(root)->i_mutex);
+	dput(root);
 
 	if (err) {
 		kfree(e);
-		return err;
+		return -EINVAL;
 	}
 	return count;
 }
@@ -792,13 +759,14 @@ static ssize_t bm_status_write(struct file *file, const char __user *buffer,
 		break;
 	case 3:
 		/* Delete all handlers. */
-		root = file_inode(file)->i_sb->s_root;
-		inode_lock(d_inode(root));
+		root = dget(file->f_path.dentry->d_sb->s_root);
+		mutex_lock(&d_inode(root)->i_mutex);
 
 		while (!list_empty(&entries))
-			kill_node(list_first_entry(&entries, Node, list));
+			kill_node(list_entry(entries.next, Node, list));
 
-		inode_unlock(d_inode(root));
+		mutex_unlock(&d_inode(root)->i_mutex);
+		dput(root);
 		break;
 	default:
 		return res;
@@ -823,7 +791,7 @@ static const struct super_operations s_ops = {
 static int bm_fill_super(struct super_block *sb, void *data, int silent)
 {
 	int err;
-	static const struct tree_descr bm_files[] = {
+	static struct tree_descr bm_files[] = {
 		[2] = {"status", &bm_status_operations, S_IWUSR|S_IRUGO},
 		[3] = {"register", &bm_register_operations, S_IWUSR},
 		/* last one */ {""}

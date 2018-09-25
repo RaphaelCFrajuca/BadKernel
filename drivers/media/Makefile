@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0
 #
 # Makefile for the kernel multimedia device drivers.
 #
@@ -31,13 +30,11 @@ obj-$(CONFIG_MEDIA_M2M1SHOT2_TESTDEV) += m2m1shot2-testdev.o
 # There are both core and drivers at RC subtree - merge before drivers
 obj-y += rc/
 
-obj-$(CONFIG_CEC_CORE) += cec/
-
 #
 # Finally, merge the drivers that require the core
 #
 
-obj-y += common/ platform/ pci/ usb/ mmc/ firewire/ spi/
+obj-y += common/ platform/ pci/ usb/ mmc/ firewire/
 obj-$(CONFIG_VIDEO_DEV) += radio/
 obj-$(CONFIG_TDMB)  += tdmb/
 

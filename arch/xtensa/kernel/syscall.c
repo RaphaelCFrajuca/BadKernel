@@ -15,7 +15,7 @@
  * Kevin Chea
  *
  */
-#include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include <asm/syscall.h>
 #include <asm/unistd.h>
 #include <linux/linkage.h>
@@ -25,7 +25,6 @@
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/mman.h>
-#include <linux/sched/mm.h>
 #include <linux/shm.h>
 
 typedef void (*syscall_t)(void);
@@ -55,7 +54,7 @@ asmlinkage long xtensa_shmat(int shmid, char __user *shmaddr, int shmflg)
 asmlinkage long xtensa_fadvise64_64(int fd, int advice,
 		unsigned long long offset, unsigned long long len)
 {
-	return ksys_fadvise64_64(fd, offset, len, advice);
+	return sys_fadvise64_64(fd, offset, len, advice);
 }
 
 #ifdef CONFIG_MMU
