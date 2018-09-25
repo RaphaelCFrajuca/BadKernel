@@ -602,20 +602,24 @@ static int stu300_send_address(struct stu300_dev *dev,
 	u32 val;
 	int ret;
 
-	if (msg->flags & I2C_M_TEN)
+	if (msg->flags & I2C_M_TEN) {
 		/* This is probably how 10 bit addresses look */
 		val = (0xf0 | (((u32) msg->addr & 0x300) >> 7)) &
 			I2C_DR_D_MASK;
-	else
-		val = ((msg->addr << 1) & I2C_DR_D_MASK);
+		if (msg->flags & I2C_M_RD)
+			/* This is the direction bit */
+			val |= 0x01;
+	} else {
+		val = i2c_8bit_addr_from_msg(msg);
+	}
 
-	if (msg->flags & I2C_M_RD) {
-		/* This is the direction bit */
-		val |= 0x01;
-		if (resend)
+	if (resend) {
+		if (msg->flags & I2C_M_RD)
 			dev_dbg(&dev->pdev->dev, "read resend\n");
-	} else if (resend)
-		dev_dbg(&dev->pdev->dev, "write resend\n");
+		else
+			dev_dbg(&dev->pdev->dev, "write resend\n");
+	}
+
 	stu300_wr8(val, dev->virtbase + I2C_DR);
 
 	/* For 10bit addressing, await 10bit request (EVENT 9) */
@@ -920,11 +924,8 @@ static int stu300_probe(struct platform_device *pdev)
 
 	/* i2c device drivers may be active on return from add_adapter() */
 	ret = i2c_add_numbered_adapter(adap);
-	if (ret) {
-		dev_err(&pdev->dev, "failure adding ST Micro DDC "
-		       "I2C adapter\n");
+	if (ret)
 		return ret;
-	}
 
 	platform_set_drvdata(pdev, dev);
 	dev_info(&pdev->dev, "ST DDC I2C @ %p, irq %d\n",

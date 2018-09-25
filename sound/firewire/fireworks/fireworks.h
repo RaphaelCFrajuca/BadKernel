@@ -17,6 +17,7 @@
 #include <linux/mod_devicetable.h>
 #include <linux/delay.h>
 #include <linux/slab.h>
+#include <linux/sched/signal.h>
 
 #include <sound/core.h>
 #include <sound/initval.h>
@@ -65,6 +66,9 @@ struct snd_efw {
 	struct mutex mutex;
 	spinlock_t lock;
 
+	bool registered;
+	struct delayed_work dwork;
+
 	/* for transaction */
 	u32 seqnum;
 	bool resp_addr_changable;
@@ -81,7 +85,6 @@ struct snd_efw {
 	unsigned int pcm_capture_channels[SND_EFW_MULTIPLIER_MODES];
 	unsigned int pcm_playback_channels[SND_EFW_MULTIPLIER_MODES];
 
-	struct amdtp_stream *master;
 	struct amdtp_stream tx_stream;
 	struct amdtp_stream rx_stream;
 	struct cmp_connection out_conn;

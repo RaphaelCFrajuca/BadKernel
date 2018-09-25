@@ -142,7 +142,7 @@ error:
 
 static int rawsock_add_header(struct sk_buff *skb)
 {
-	*skb_push(skb, NFC_HEADER_SIZE) = 0;
+	*(u8 *)skb_push(skb, NFC_HEADER_SIZE) = 0;
 
 	return 0;
 }
@@ -284,7 +284,7 @@ static const struct proto_ops rawsock_ops = {
 	.socketpair     = sock_no_socketpair,
 	.accept         = sock_no_accept,
 	.getname        = sock_no_getname,
-	.poll           = datagram_poll,
+	.poll_mask      = datagram_poll_mask,
 	.ioctl          = sock_no_ioctl,
 	.listen         = sock_no_listen,
 	.shutdown       = sock_no_shutdown,
@@ -304,7 +304,7 @@ static const struct proto_ops rawsock_raw_ops = {
 	.socketpair     = sock_no_socketpair,
 	.accept         = sock_no_accept,
 	.getname        = sock_no_getname,
-	.poll           = datagram_poll,
+	.poll_mask      = datagram_poll_mask,
 	.ioctl          = sock_no_ioctl,
 	.listen         = sock_no_listen,
 	.shutdown       = sock_no_shutdown,

@@ -222,9 +222,9 @@ static void idletimer_tg_work(struct work_struct *work)
 		notify_netlink_uevent(timer->attr.attr.name, timer);
 }
 
-static void idletimer_tg_expired(unsigned long data)
+static void idletimer_tg_expired(struct timer_list *t)
 {
-	struct idletimer_tg *timer = (struct idletimer_tg *) data;
+	struct idletimer_tg *timer = from_timer(timer, t, timer);
 
 	pr_debug("timer %s expired\n", timer->attr.attr.name);
 	spin_lock_bh(&timestamp_lock);
@@ -299,7 +299,7 @@ static int idletimer_tg_create(struct idletimer_tg_info *info)
 		ret = -ENOMEM;
 		goto out_free_timer;
 	}
-	info->timer->attr.attr.mode = S_IRUGO;
+	info->timer->attr.attr.mode = 0444;
 	info->timer->attr.show = idletimer_tg_show;
 
 	ret = sysfs_create_file(idletimer_tg_kobj, &info->timer->attr.attr);
@@ -310,8 +310,7 @@ static int idletimer_tg_create(struct idletimer_tg_info *info)
 
 	list_add(&info->timer->entry, &idletimer_tg_list);
 
-	setup_timer(&info->timer->timer, idletimer_tg_expired,
-		    (unsigned long) info->timer);
+	timer_setup(&info->timer->timer, idletimer_tg_expired, 0);
 	info->timer->refcnt = 1;
 	info->timer->send_nl_msg = (info->send_nl_msg == 0) ? false : true;
 	info->timer->active = true;
@@ -328,6 +327,8 @@ static int idletimer_tg_create(struct idletimer_tg_info *info)
 	if (ret)
 		printk(KERN_WARNING "[%s] Failed to register pm notifier %d\n",
 				__func__, ret);
+
+	INIT_WORK(&info->timer->work, idletimer_tg_work);
 
 	INIT_WORK(&info->timer->work, idletimer_tg_work);
 
@@ -464,6 +465,7 @@ static void idletimer_tg_destroy(const struct xt_tgdtor_param *par)
 
 		list_del(&info->timer->entry);
 		del_timer_sync(&info->timer->timer);
+		cancel_work_sync(&info->timer->work);
 		sysfs_remove_file(idletimer_tg_kobj, &info->timer->attr.attr);
 		unregister_pm_notifier(&info->timer->pm_nb);
 		cancel_work_sync(&info->timer->work);
@@ -483,6 +485,7 @@ static struct xt_target idletimer_tg __read_mostly = {
 	.family		= NFPROTO_UNSPEC,
 	.target		= idletimer_tg_target,
 	.targetsize     = sizeof(struct idletimer_tg_info),
+	.usersize	= offsetof(struct idletimer_tg_info, timer),
 	.checkentry	= idletimer_tg_checkentry,
 	.destroy        = idletimer_tg_destroy,
 	.me		= THIS_MODULE,

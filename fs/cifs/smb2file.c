@@ -64,7 +64,8 @@ smb2_open_file(const unsigned int xid, struct cifs_open_parms *oparms,
 	if (oparms->tcon->ses->server->capabilities & SMB2_GLOBAL_CAP_LEASING)
 		memcpy(smb2_oplock + 1, fid->lease_key, SMB2_LEASE_KEY_SIZE);
 
-	rc = SMB2_open(xid, oparms, smb2_path, smb2_oplock, smb2_data, NULL);
+	rc = SMB2_open(xid, oparms, smb2_path, smb2_oplock, smb2_data, NULL,
+		       NULL);
 	if (rc)
 		goto out;
 
@@ -73,7 +74,8 @@ smb2_open_file(const unsigned int xid, struct cifs_open_parms *oparms,
 		nr_ioctl_req.Timeout = 0; /* use server default (120 seconds) */
 		nr_ioctl_req.Reserved = 0;
 		rc = SMB2_ioctl(xid, oparms->tcon, fid->persistent_fid,
-			fid->volatile_fid, FSCTL_LMR_REQUEST_RESILIENCY, true,
+			fid->volatile_fid, FSCTL_LMR_REQUEST_RESILIENCY,
+			true /* is_fsctl */,
 			(char *)&nr_ioctl_req, sizeof(nr_ioctl_req),
 			NULL, NULL /* no return info */);
 		if (rc == -EOPNOTSUPP) {
