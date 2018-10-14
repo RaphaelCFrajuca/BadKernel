@@ -33,7 +33,7 @@ export ARCH=arm64
 export SUBARCH=arm64
 export KBUILD_BUILD_USER="BadKernel"
 export KBUILD_BUILD_HOST="BadGuyServer"
-export CROSS_COMPILE="/home/raphael/aarch64-linux-android-4.9/bin/aarch64-linux-android-"
+export CROSS_COMPILE="$HOME/aarch64-linux-android-4.9/bin/aarch64-linux-android-"
 
 # Compilation Scripts Are Below
 compile_kernel ()
